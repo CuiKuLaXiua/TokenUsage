@@ -4,11 +4,12 @@
   "description": "桌面端模型token用量及额度展示工具",
   "main": "dist-electron/main.js",
   "scripts": {
-    "dev": "concurrently \"vite\" \"wait-on http://localhost:3000 && cross-env ELECTRON_RENDERER_URL=http://localhost:3000 electron .\"",
-    "build": "vite build",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "dev": "npm run build:electron && concurrently \"vite\" \"wait-on http://localhost:3000 && cross-env ELECTRON_RENDERER_URL=http://localhost:3000 electron .\"",
+    "build": "npm run build:electron && vite build",
     "preview": "vite preview",
-    "electron:dev": "vite build && electron .",
-    "electron:build": "vite build && electron-builder --config electron-builder.yml",
+    "electron:dev": "npm run build:electron && vite build && electron .",
+    "electron:build": "npm run build:electron && vite build && electron-builder --config electron-builder.yml",
     "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --ignore-path .gitignore"
   },
   "keywords": [

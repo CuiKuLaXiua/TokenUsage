@@ -28,3 +28,25 @@ export function getProgressColorHex(percent: number): string {
   if (percent >= 70) return '#fbbf24'
   return '#22d3ee'
 }
+
+export function formatResetTime(timeStr: string): string {
+  try {
+    const date = new Date(timeStr)
+    const now = new Date()
+    const diff = date.getTime() - now.getTime()
+
+    if (diff <= 0) return '即将重置'
+
+    const hours = Math.floor(diff / (1000 * 60 * 60))
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
+
+    if (hours > 24) {
+      const days = Math.floor(hours / 24)
+      return `${days}天${hours % 24}时后`
+    }
+    if (hours > 0) return `${hours}时${minutes}分后`
+    return `${minutes}分后`
+  } catch {
+    return timeStr
+  }
+}
