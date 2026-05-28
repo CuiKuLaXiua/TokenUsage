@@ -157,6 +157,12 @@ ipcMain.handle('save-config', (_, config) => {
       return false
     }
     writeFileSync(configPath, JSON.stringify(config, null, 2))
+
+    // 广播配置更新给所有窗口
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('config-updated')
+    })
+
     return true
   } catch (error) {
     console.error('Error saving config:', error)

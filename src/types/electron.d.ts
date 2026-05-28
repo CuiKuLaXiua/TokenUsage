@@ -37,6 +37,7 @@ export interface ElectronAPI {
   }) => Promise<MimoApiResponse>
   openFloatWindow: () => Promise<boolean>
   closeFloatWindow: () => Promise<boolean>
+  onConfigUpdated: (callback: () => void) => () => void
 }
 
 declare global {

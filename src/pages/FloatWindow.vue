@@ -119,7 +119,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { Refresh, Close, Timer } from '@element-plus/icons-vue'
 import { useAppStore } from '@/stores/app'
 import type { ModelConfig } from '@/stores/app'
@@ -127,6 +127,7 @@ import { formatTokens, formatPercent, getProgressColor } from '@/utils/format'
 
 const store = useAppStore()
 const theme = ref('light')
+let unsubscribeConfigUpdate: (() => void) | null = null
 
 const totalTokens = computed(() => Object.values(store.modelUsageMap)
   .filter(u => u.usageType === 'token')
@@ -163,6 +164,16 @@ onMounted(async () => {
   } catch (e) {
     console.error('Float window load error:', e)
   }
+
+  // 监听主窗口配置变更，同步更新自动刷新
+  unsubscribeConfigUpdate = window.electronAPI.onConfigUpdated(() => {
+    store.loadConfig().catch(() => {})
+  })
+})
+
+onUnmounted(() => {
+  store.stopAutoRefresh()
+  unsubscribeConfigUpdate?.()
 })
 </script>
 

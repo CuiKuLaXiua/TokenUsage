@@ -16,6 +16,7 @@ export interface ElectronAPI {
   }) => Promise<any>
   openFloatWindow: () => Promise<boolean>
   closeFloatWindow: () => Promise<boolean>
+  onConfigUpdated: (callback: () => void) => () => void
 }
 
 const electronAPI: ElectronAPI = {
@@ -26,7 +27,14 @@ const electronAPI: ElectronAPI = {
   getDataPath: () => ipcRenderer.invoke('get-data-path'),
   fetchMimoUsage: (options) => ipcRenderer.invoke('fetch-mimo-usage', options),
   openFloatWindow: () => ipcRenderer.invoke('open-float-window'),
-  closeFloatWindow: () => ipcRenderer.invoke('close-float-window')
+  closeFloatWindow: () => ipcRenderer.invoke('close-float-window'),
+  onConfigUpdated: (callback) => {
+    const wrapper = () => callback()
+    ipcRenderer.on('config-updated', wrapper)
+    return () => {
+      ipcRenderer.removeListener('config-updated', wrapper)
+    }
+  }
 }
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI)
