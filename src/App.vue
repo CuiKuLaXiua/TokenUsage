@@ -1,10 +1,6 @@
 <template>
   <AppLayout v-if="!isFloatRoute">
-    <router-view v-slot="{ Component, route }">
-      <Transition name="page">
-        <component :is="Component" :key="route.path" />
-      </Transition>
-    </router-view>
+    <router-view />
   </AppLayout>
   <router-view v-else />
 </template>
@@ -12,15 +8,18 @@
 <script setup lang="ts">
 import AppLayout from '@/components/AppLayout.vue'
 import { useThemeStore } from '@/stores/theme'
+import { useAppStore } from '@/stores/app'
 import { useRoute } from 'vue-router'
 import { computed, onMounted } from 'vue'
 
 const route = useRoute()
 const themeStore = useThemeStore()
+const appStore = useAppStore()
 const isFloatRoute = computed(() => route.path === '/float')
 
-onMounted(() => {
+onMounted(async () => {
   themeStore.initTheme()
+  await appStore.loadConfig()
 })
 </script>
 

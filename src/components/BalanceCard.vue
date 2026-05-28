@@ -27,7 +27,8 @@ const props = withDefaults(defineProps<{
 })
 
 const displayAmount = computed(() => {
-  return props.balance.toFixed(2)
+  const num = Number(props.balance)
+  return isNaN(num) ? '0.00' : num.toFixed(2)
 })
 </script>
 

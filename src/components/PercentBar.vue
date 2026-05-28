@@ -1,33 +1,44 @@
 <template>
   <div class="percent-bar">
-    <div v-for="tier in tiers" :key="tier.name" class="bar-tier">
+    <div v-for="tier in tiers" :key="tier.name" class="bar-tier glass-surface">
       <div class="tier-header">
-        <span class="tier-label">{{ tier.label }}</span>
-        <span class="tier-percent" :style="{ color: getColor(tier.percent) }">
-          {{ tier.percent.toFixed(1) }}%
-        </span>
+        <div class="tier-badge">
+          <span class="tier-label">{{ tier.label }}</span>
+          <span class="tier-percent" :style="{ color: getColor(tier.percent) }">
+            {{ tier.percent.toFixed(1) }}%
+          </span>
+        </div>
       </div>
+      
       <div class="tier-track">
         <div
           class="tier-fill"
           :style="{
             width: tier.percent + '%',
-            background: getColor(tier.percent)
+            background: `linear-gradient(90deg, ${getColor(tier.percent)}, ${getColor(tier.percent)}88)`
           }"
         >
           <div class="tier-glow" :style="{ background: getColor(tier.percent) }"></div>
+          <div class="tier-shine"></div>
         </div>
       </div>
+
       <div v-if="showDetail" class="tier-detail">
-        <span class="tier-used">{{ formatValue(tier.used) }} / {{ formatValue(tier.total) }}</span>
-        <span class="tier-remaining">余 {{ formatValue(tier.remaining) }}</span>
+        <div class="tier-stats">
+          <span class="tier-used">{{ formatValue(tier.used) }} / {{ formatValue(tier.total) }}</span>
+          <span class="tier-remaining">余 {{ formatValue(tier.remaining) }}</span>
+        </div>
+        <div v-if="tier.resetAt" class="tier-reset">
+          <el-icon :size="12"><Clock /></el-icon>
+          <span>重置: {{ formatResetTime(tier.resetAt) }}</span>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { Clock } from '@element-plus/icons-vue'
 
 interface Tier {
   name: string
@@ -36,6 +47,7 @@ interface Tier {
   used?: number
   total?: number
   remaining?: number
+  resetAt?: string
 }
 
 const props = withDefaults(defineProps<{
@@ -58,6 +70,28 @@ function formatValue(value?: number): string {
   if (value >= 1e3) return (value / 1e3).toFixed(2) + 'K'
   return value.toLocaleString('zh-CN')
 }
+
+function formatResetTime(timeStr: string): string {
+  try {
+    const date = new Date(timeStr)
+    const now = new Date()
+    const diff = date.getTime() - now.getTime()
+    
+    if (diff <= 0) return '即将重置'
+    
+    const hours = Math.floor(diff / (1000 * 60 * 60))
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
+    
+    if (hours > 24) {
+      const days = Math.floor(hours / 24)
+      return `${days}天${hours % 24}时后`
+    }
+    if (hours > 0) return `${hours}时${minutes}分后`
+    return `${minutes}分后`
+  } catch {
+    return timeStr
+  }
+}
 </script>
 
 <style scoped>
@@ -65,12 +99,15 @@ function formatValue(value?: number): string {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  width: 100%;
 }
 
 .bar-tier {
+  padding: 14px;
+  border-radius: 12px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
 }
 
 .tier-header {
@@ -79,50 +116,74 @@ function formatValue(value?: number): string {
   align-items: center;
 }
 
+.tier-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .tier-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  background: var(--glass-bg);
-  border: 1px solid var(--border-light);
-  border-radius: 4px;
-  padding: 2px 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  border-radius: 6px;
+  padding: 4px 12px;
+  letter-spacing: 0.5px;
 }
 
 .tier-percent {
-  font-size: 14px;
+  font-size: 20px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
 .tier-track {
   width: 100%;
-  height: 8px;
-  border-radius: 4px;
+  height: 10px;
+  border-radius: 5px;
   background: var(--border-light);
   overflow: hidden;
+  position: relative;
 }
 
 .tier-fill {
   height: 100%;
-  border-radius: 4px;
+  border-radius: 5px;
   position: relative;
-  transition: width 1s var(--ease-spring);
-  animation: barFill 1.2s var(--ease-spring) both;
+  transition: width 1.2s var(--ease-spring);
+  animation: barFill 1.5s var(--ease-spring) both;
 }
 
 .tier-glow {
   position: absolute;
-  inset: -2px;
-  border-radius: 6px;
-  opacity: 0.3;
-  filter: blur(4px);
+  inset: -3px;
+  border-radius: 8px;
+  opacity: 0.4;
+  filter: blur(6px);
+}
+
+.tier-shine {
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+  animation: shine 2s ease-in-out infinite;
 }
 
 .tier-detail {
   display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tier-stats {
+  display: flex;
   justify-content: space-between;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-secondary);
 }
 
@@ -131,7 +192,21 @@ function formatValue(value?: number): string {
   font-weight: 600;
 }
 
+.tier-reset {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-placeholder);
+}
+
 @keyframes barFill {
   from { width: 0; }
+}
+
+@keyframes shine {
+  0% { left: -100%; }
+  50% { left: 100%; }
+  100% { left: 100%; }
 }
 </style>

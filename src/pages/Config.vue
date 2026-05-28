@@ -41,8 +41,8 @@
               </td>
               <td>
                 <div v-if="store.modelUsageMap[model.id]" class="usage-cell">
-                  <!-- 多层级额度 -->
-                  <template v-if="store.modelUsageMap[model.id].tiers?.length">
+                  <!-- 多层级额度 (Kimi / percent) -->
+                  <template v-if="store.modelUsageMap[model.id].usageType === 'percent' && store.modelUsageMap[model.id].tiers?.length">
                     <div v-for="tier in store.modelUsageMap[model.id].tiers" :key="tier.name" class="tier-row">
                       <div class="tier-label">{{ tier.label }}</div>
                       <div class="tier-bar-track">
@@ -60,13 +60,21 @@
                       </div>
                     </div>
                   </template>
-                  <!-- 单层级额度 -->
+                  <!-- 余额 (DeepSeek / balance) -->
+                  <template v-else-if="store.modelUsageMap[model.id].usageType === 'balance'">
+                    <div class="usage-meta">
+                      <span class="usage-remaining">
+                        {{ store.modelUsageMap[model.id].currency === 'CNY' ? '¥' : store.modelUsageMap[model.id].currency }} {{ (store.modelUsageMap[model.id].balance || 0).toFixed(2) }}
+                      </span>
+                    </div>
+                  </template>
+                  <!-- 单层级额度 (MIMO / OpenAI / Claude / token) -->
                   <template v-else>
                     <div class="usage-bar-track">
                       <div
                         class="usage-bar-fill"
                         :style="{
-                          width: store.modelUsageMap[model.id].percent + '%',
+                          width: (store.modelUsageMap[model.id].percent || 0) + '%',
                           background: getProgressColor(store.modelUsageMap[model.id].percent)
                         }"
                       ></div>
@@ -189,7 +197,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Plus,
@@ -267,12 +275,6 @@ async function fetchUsage(model: ModelConfig) {
     ElMessage.error({ message: '数据解析失败', duration: 2500 })
   }
 }
-
-onMounted(() => {
-  store.loadConfig().catch((error: any) => {
-    ElMessage.error({ message: '加载配置失败: ' + (error.message || '未知错误'), duration: 3000 })
-  })
-})
 </script>
 
 <style scoped>

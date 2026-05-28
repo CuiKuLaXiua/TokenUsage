@@ -1,64 +1,76 @@
 <template>
   <div class="dashboard">
-    <!-- Summary Cards -->
-    <div class="summary-grid">
-      <div class="summary-card glass-surface" style="animation-delay: 0ms">
-        <div class="summary-icon" style="background: linear-gradient(135deg, var(--neon-blue), var(--neon-purple))">
-          <div class="icon-glow" style="background: linear-gradient(135deg, var(--neon-blue), var(--neon-purple))"></div>
-          <el-icon :size="22" color="#fff"><Coin /></el-icon>
-        </div>
-        <div class="summary-info">
-          <div class="summary-value">
-            <CountUp :value="totalTokens" :decimals="2" :duration="1000" />
+    <!-- Hero Stats -->
+    <div class="hero-section">
+      <div class="hero-grid">
+        <!-- Main Token Ring -->
+        <div class="hero-main glass-surface">
+          <div class="hero-ring-wrap">
+            <TokenRing :percent="usagePercent" :size="120" :stroke="6">
+              <div class="hero-ring-inner">
+                <span class="hero-ring-value">{{ usagePercent.toFixed(1) }}</span>
+                <span class="hero-ring-unit">%</span>
+              </div>
+            </TokenRing>
           </div>
-          <div class="summary-label">总配额</div>
+          <div class="hero-stats">
+            <div class="hero-stat-item">
+              <span class="hero-stat-label">总配额</span>
+              <span class="hero-stat-value neon-text">{{ formatLargeNumber(totalTokens) }}</span>
+            </div>
+            <div class="hero-divider"></div>
+            <div class="hero-stat-item">
+              <span class="hero-stat-label">已使用</span>
+              <span class="hero-stat-value warn">{{ formatLargeNumber(usedTokens) }}</span>
+            </div>
+            <div class="hero-divider"></div>
+            <div class="hero-stat-item">
+              <span class="hero-stat-label">剩余额度</span>
+              <span class="hero-stat-value ok">{{ formatLargeNumber(remainingTokens) }}</span>
+            </div>
+          </div>
         </div>
-      </div>
 
-      <div class="summary-card glass-surface" style="animation-delay: 80ms">
-        <div class="summary-icon" style="background: linear-gradient(135deg, var(--neon-pink), var(--neon-purple))">
-          <div class="icon-glow" style="background: linear-gradient(135deg, var(--neon-pink), var(--neon-purple))"></div>
-          <el-icon :size="22" color="#fff"><DataAnalysis /></el-icon>
-        </div>
-        <div class="summary-info">
-          <div class="summary-value">
-            <CountUp :value="usedTokens" :decimals="2" :duration="1000" />
+        <!-- Quick Stats -->
+        <div class="hero-side">
+          <div class="quick-stat glass-surface" style="animation-delay: 100ms">
+            <div class="qs-icon" style="--glow: var(--neon-blue)">
+              <el-icon :size="20"><Coin /></el-icon>
+            </div>
+            <div class="qs-info">
+              <span class="qs-value"><CountUp :value="store.models.length" :duration="800" /></span>
+              <span class="qs-label">配置模型</span>
+            </div>
           </div>
-          <div class="summary-label">已使用</div>
-        </div>
-      </div>
-
-      <div class="summary-card glass-surface" style="animation-delay: 160ms">
-        <div class="summary-icon" style="background: linear-gradient(135deg, var(--neon-green), var(--neon-blue))">
-          <div class="icon-glow" style="background: linear-gradient(135deg, var(--neon-green), var(--neon-blue))"></div>
-          <el-icon :size="22" color="#fff"><Document /></el-icon>
-        </div>
-        <div class="summary-info">
-          <div class="summary-value">
-            <CountUp :value="remainingTokens" :decimals="2" :duration="1000" />
+          <div class="quick-stat glass-surface" style="animation-delay: 200ms">
+            <div class="qs-icon" style="--glow: var(--neon-green)">
+              <el-icon :size="20"><CircleCheck /></el-icon>
+            </div>
+            <div class="qs-info">
+              <span class="qs-value"><CountUp :value="activeModels" :duration="800" /></span>
+              <span class="qs-label">已获取额度</span>
+            </div>
           </div>
-          <div class="summary-label">剩余额度</div>
-        </div>
-      </div>
-
-      <div class="summary-card glass-surface" style="animation-delay: 240ms">
-        <div class="summary-icon" style="background: linear-gradient(135deg, var(--neon-amber), var(--neon-green))">
-          <div class="icon-glow" style="background: linear-gradient(135deg, var(--neon-amber), var(--neon-green))"></div>
-          <el-icon :size="22" color="#fff"><TrendCharts /></el-icon>
-        </div>
-        <div class="summary-info">
-          <div class="summary-value">
-            <CountUp :value="usagePercent" :decimals="1" suffix="%" :duration="1000" />
+          <div class="quick-stat glass-surface" style="animation-delay: 300ms">
+            <div class="qs-icon" style="--glow: var(--neon-amber)">
+              <el-icon :size="20"><Timer /></el-icon>
+            </div>
+            <div class="qs-info">
+              <span class="qs-value">实时</span>
+              <span class="qs-label">监控状态</span>
+            </div>
           </div>
-          <div class="summary-label">使用率</div>
         </div>
       </div>
     </div>
 
     <!-- Models Section -->
-    <div class="section-card glass-surface" style="animation-delay: 360ms">
+    <div class="models-section">
       <div class="section-header">
-        <h3 class="section-title neon-text">模型额度</h3>
+        <div class="section-title-wrap">
+          <h3 class="section-title neon-text">模型额度</h3>
+          <span class="section-subtitle">实时监控各平台 Token 使用情况</span>
+        </div>
         <button class="btn-primary" @click="refreshAll" :disabled="store.refreshing">
           <el-icon :size="16" :class="{ 'spin': store.refreshing }"><Refresh /></el-icon>
           <span>刷新全部</span>
@@ -66,12 +78,17 @@
       </div>
 
       <!-- Empty State -->
-      <div v-if="store.models.length === 0" class="empty-state">
-        <div class="empty-icon-wrap">
-          <el-icon :size="48" class="empty-float"><Coin /></el-icon>
+      <div v-if="store.models.length === 0" class="empty-state glass-surface">
+        <div class="empty-visual">
+          <div class="empty-ring"></div>
+          <el-icon :size="48" class="empty-icon"><Coin /></el-icon>
         </div>
         <p class="empty-text">暂无配置的模型</p>
-        <button class="btn-primary" @click="$router.push('/config')">添加模型</button>
+        <p class="empty-hint">添加模型后即可监控 Token 使用情况</p>
+        <button class="btn-primary" @click="$router.push('/config')">
+          <el-icon :size="16"><Plus /></el-icon>
+          添加模型
+        </button>
       </div>
 
       <!-- Model Grid -->
@@ -80,30 +97,48 @@
           v-for="(model, i) in store.models"
           :key="model.id"
           class="model-card glass-surface"
-          :style="{ animationDelay: `${400 + i * 100}ms` }"
+          :style="{ animationDelay: `${i * 80}ms` }"
         >
-          <div class="model-header">
-            <span class="model-name">{{ model.name }}</span>
-            <span class="provider-badge" :class="model.provider">{{ getProviderLabel(model.provider) }}</span>
+          <!-- Card Header -->
+          <div class="card-header">
+            <div class="card-title-row">
+              <span class="model-name">{{ model.name }}</span>
+              <span class="provider-badge" :class="model.provider">{{ getProviderLabel(model.provider) }}</span>
+            </div>
+            <button
+              class="card-refresh"
+              @click="fetchUsage(model)"
+              :disabled="store.fetching[model.id]"
+              title="刷新"
+            >
+              <el-icon :size="14" :class="{ 'spin': store.fetching[model.id] }">
+                <component :is="store.fetching[model.id] ? Loading : Refresh" />
+              </el-icon>
+            </button>
           </div>
 
-          <!-- Token Type (MIMO) -->
+          <!-- Token Type -->
           <template v-if="getUsage(model.id)?.usageType === 'token'">
-            <div class="model-body">
-              <TokenRing :percent="getUsage(model.id)?.percent || 0" :size="100" />
-              <div class="model-stats">
-                <div class="plan-name">{{ getUsage(model.id)?.planName }}</div>
-                <div class="stat-row">
-                  <span class="stat-key">已用</span>
-                  <span class="stat-val">{{ formatTokens(getUsage(model.id)?.used || 0) }}</span>
+            <div class="card-body token-type">
+              <div class="token-ring-section">
+                <TokenRing :percent="getUsage(model.id)?.percent || 0" :size="90" />
+              </div>
+              <div class="token-details">
+                <div class="detail-row">
+                  <span class="detail-key">套餐</span>
+                  <span class="detail-val">{{ getUsage(model.id)?.planName }}</span>
                 </div>
-                <div class="stat-row">
-                  <span class="stat-key">总计</span>
-                  <span class="stat-val">{{ formatTokens(getUsage(model.id)?.total || 0) }}</span>
+                <div class="detail-row">
+                  <span class="detail-key">已用</span>
+                  <span class="detail-val">{{ formatTokens(getUsage(model.id)?.used || 0) }}</span>
                 </div>
-                <div class="stat-row highlight">
-                  <span class="stat-key">剩余</span>
-                  <span class="stat-val">{{ formatTokens(getUsage(model.id)?.remaining || 0) }}</span>
+                <div class="detail-row">
+                  <span class="detail-key">总计</span>
+                  <span class="detail-val">{{ formatTokens(getUsage(model.id)?.total || 0) }}</span>
+                </div>
+                <div class="detail-row highlight">
+                  <span class="detail-key">剩余</span>
+                  <span class="detail-val">{{ formatTokens(getUsage(model.id)?.remaining || 0) }}</span>
                 </div>
               </div>
             </div>
@@ -111,22 +146,22 @@
 
           <!-- Percent Type (Kimi) -->
           <template v-else-if="getUsage(model.id)?.usageType === 'percent'">
-            <div class="model-body">
+            <div class="card-body percent-type">
               <PercentBar :tiers="getUsage(model.id)?.tiers || []" />
             </div>
           </template>
 
           <!-- Balance Type (DeepSeek) -->
           <template v-else-if="getUsage(model.id)?.usageType === 'balance'">
-            <div class="model-body">
+            <div class="card-body balance-type">
               <BalanceCard :balance="getUsage(model.id)?.balance || 0" :currency="getUsage(model.id)?.currency || 'CNY'" />
             </div>
           </template>
 
           <!-- No Data -->
-          <div v-else class="model-empty">
+          <div v-else class="card-body empty-type">
             <button
-              class="btn-primary btn-sm"
+              class="btn-fetch"
               @click="fetchUsage(model)"
               :disabled="store.fetching[model.id]"
             >
@@ -141,15 +176,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   Coin,
-  DataAnalysis,
-  Document,
-  TrendCharts,
   Refresh,
-  Loading
+  Loading,
+  Plus,
+  CircleCheck,
+  Timer
 } from '@element-plus/icons-vue'
 import type { ModelConfig } from '@/stores/app'
 import { useAppStore } from '@/stores/app'
@@ -184,6 +219,10 @@ const usagePercent = computed(() => {
   return Math.round((usedTokens.value / totalTokens.value) * 10000) / 100
 })
 
+const activeModels = computed(() => {
+  return Object.keys(store.modelUsageMap).length
+})
+
 function getUsage(modelId: string) {
   return store.modelUsageMap[modelId]
 }
@@ -197,6 +236,14 @@ function getProviderLabel(provider: string): string {
     kimi: 'Kimi'
   }
   return labels[provider] || provider
+}
+
+function formatLargeNumber(num: number): string {
+  if (num >= 1e12) return (num / 1e12).toFixed(2) + 'T'
+  if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B'
+  if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M'
+  if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K'
+  return num.toFixed(2)
 }
 
 async function fetchUsage(model: ModelConfig) {
@@ -213,8 +260,15 @@ async function refreshAll() {
 }
 
 onMounted(async () => {
-  await store.loadConfig()
-  await refreshAll()
+  try {
+    await refreshAll()
+  } catch {
+    // silently handle — user can manually refresh
+  }
+})
+
+onUnmounted(() => {
+  store.abortRefresh()
 })
 </script>
 
@@ -222,90 +276,186 @@ onMounted(async () => {
 .dashboard {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
+  min-height: 0;
 }
 
-/* ── Summary grid ── */
-.summary-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 18px;
-}
-
-.summary-card {
-  border-radius: 16px;
-  padding: 22px;
-  display: flex;
-  align-items: center;
-  gap: 18px;
+/* ═══════════════════════════════════════════════════════════
+   Hero Section
+   ═══════════════════════════════════════════════════════════ */
+.hero-section {
   animation: fadeSlideUp var(--duration-slow) var(--ease-spring) both;
 }
 
-.summary-card:hover {
-  transform: translateY(-4px);
+.hero-grid {
+  display: grid;
+  grid-template-columns: 1fr 240px;
+  gap: 16px;
 }
 
-.summary-icon {
-  width: 52px;
-  height: 52px;
-  border-radius: 14px;
+.hero-main {
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 24px;
+  padding: 20px;
+  border-radius: 16px;
   position: relative;
+  overflow: hidden;
+}
+
+.hero-main::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -20%;
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.hero-ring-wrap {
   flex-shrink: 0;
 }
 
-.icon-glow {
-  position: absolute;
-  inset: -3px;
-  border-radius: 17px;
-  opacity: 0.3;
-  filter: blur(12px);
-  transition: opacity var(--duration-normal) var(--ease-smooth);
+.hero-ring-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
 }
 
-.summary-card:hover .icon-glow {
-  opacity: 0.5;
-}
-
-.summary-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.summary-value {
-  font-size: 26px;
+.hero-ring-value {
+  font-size: 28px;
   font-weight: 700;
   color: var(--text-primary);
-  line-height: 1.2;
+  line-height: 1;
+}
+
+.hero-ring-unit {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.hero-stats {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hero-stat-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.hero-stat-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.hero-stat-value {
+  font-size: 18px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
-.summary-label {
-  font-size: 13px;
-  color: var(--text-secondary);
-  margin-top: 4px;
-  font-weight: 500;
+.hero-stat-value.warn {
+  color: var(--neon-amber);
 }
 
-/* ── Section card ── */
-.section-card {
-  border-radius: 16px;
-  padding: 24px;
+.hero-stat-value.ok {
+  color: var(--neon-green);
+}
+
+.hero-divider {
+  height: 1px;
+  background: var(--border-light);
+}
+
+/* ── Hero Side ── */
+.hero-side {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.quick-stat {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
   animation: fadeSlideUp var(--duration-slow) var(--ease-spring) both;
+  transition: transform var(--duration-normal) var(--ease-spring);
+}
+
+.quick-stat:hover {
+  transform: translateX(4px);
+}
+
+.qs-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--glow);
+  box-shadow: 0 0 12px var(--glow);
+}
+
+.qs-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.qs-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.qs-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Models Section
+   ═══════════════════════════════════════════════════════════ */
+.models-section {
+  animation: fadeSlideUp var(--duration-slow) var(--ease-spring) both;
+  animation-delay: 200ms;
 }
 
 .section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
+}
+
+.section-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .section-title {
-  font-size: 17px;
+  font-size: 20px;
   font-weight: 700;
+}
+
+.section-subtitle {
+  font-size: 13px;
+  color: var(--text-secondary);
 }
 
 /* ── Buttons ── */
@@ -313,7 +463,7 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  padding: 9px 18px;
+  padding: 10px 20px;
   border-radius: 10px;
   border: none;
   background: var(--accent-gradient);
@@ -327,8 +477,8 @@ onMounted(async () => {
 }
 
 .btn-primary:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 20px var(--accent-glow);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 24px var(--accent-glow);
 }
 
 .btn-primary:active:not(:disabled) {
@@ -340,12 +490,6 @@ onMounted(async () => {
   cursor: not-allowed;
 }
 
-.btn-sm {
-  padding: 8px 16px;
-  font-size: 12px;
-  border-radius: 9px;
-}
-
 .spin {
   animation: spin 0.8s linear infinite;
 }
@@ -354,57 +498,84 @@ onMounted(async () => {
   to { transform: rotate(360deg); }
 }
 
-/* ── Empty state ── */
+/* ── Empty State ── */
 .empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 16px;
-  padding: 48px 0;
+  padding: 60px 0;
+  border-radius: 20px;
 }
 
-.empty-icon-wrap {
-  width: 80px;
-  height: 80px;
-  border-radius: 20px;
-  background: var(--glass-bg);
+.empty-visual {
+  position: relative;
+  width: 100px;
+  height: 100px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.empty-float {
+.empty-ring {
+  position: absolute;
+  inset: 0;
+  border: 2px dashed var(--border-color);
+  border-radius: 50%;
+  animation: spin 20s linear infinite;
+}
+
+.empty-icon {
   color: var(--text-placeholder);
   animation: float 3s ease-in-out infinite;
 }
 
 .empty-text {
-  font-size: 14px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.empty-hint {
+  font-size: 13px;
   color: var(--text-secondary);
 }
 
-/* ── Model grid ── */
+/* ═══════════════════════════════════════════════════════════
+   Model Grid
+   ═══════════════════════════════════════════════════════════ */
 .model-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
 }
 
 .model-card {
   border-radius: 16px;
-  padding: 22px;
+  overflow: hidden;
   animation: fadeSlideUp var(--duration-slow) var(--ease-spring) both;
+  transition: transform var(--duration-normal) var(--ease-spring),
+              box-shadow var(--duration-normal) var(--ease-smooth);
 }
 
 .model-card:hover {
   transform: translateY(-4px);
+  box-shadow: var(--glass-shadow-hover);
 }
 
-.model-header {
+/* ── Card Header ── */
+.card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 20px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .model-name {
@@ -414,80 +585,151 @@ onMounted(async () => {
 }
 
 .provider-badge {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 3px 10px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
   border-radius: 6px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.provider-badge.mimo { background: rgba(255, 107, 0, 0.12); color: #ff6b00; }
+.provider-badge.openai { background: rgba(16, 163, 127, 0.12); color: #10a37f; }
+.provider-badge.claude { background: rgba(204, 132, 63, 0.12); color: #cc843f; }
+.provider-badge.deepseek { background: rgba(59, 130, 246, 0.12); color: #3b82f6; }
+.provider-badge.kimi { background: rgba(139, 92, 246, 0.12); color: #8b5cf6; }
+
+.card-refresh {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
   background: var(--glass-bg);
   color: var(--text-secondary);
-  border: 1px solid var(--border-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-smooth);
 }
 
-.provider-badge.openai { background: rgba(16, 163, 127, 0.12); color: #10a37f; border-color: rgba(16, 163, 127, 0.2); }
-.provider-badge.claude { background: rgba(204, 132, 63, 0.12); color: #cc843f; border-color: rgba(204, 132, 63, 0.2); }
-.provider-badge.deepseek { background: rgba(59, 130, 246, 0.12); color: #3b82f6; border-color: rgba(59, 130, 246, 0.2); }
-.provider-badge.kimi { background: rgba(139, 92, 246, 0.12); color: #8b5cf6; border-color: rgba(139, 92, 246, 0.2); }
-.provider-badge.mimo { background: rgba(255, 107, 0, 0.12); color: #ff6b00; border-color: rgba(255, 107, 0, 0.2); }
+.card-refresh:hover {
+  background: var(--glass-bg-strong);
+  color: var(--text-primary);
+  border-color: var(--glass-border);
+}
 
-/* ── Model body ── */
-.model-body {
+/* ── Card Body ── */
+.card-body {
+  padding: 16px;
+}
+
+/* Token Type */
+.token-type {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.token-ring-section {
+  flex-shrink: 0;
+}
+
+.token-details {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 18px;
+  gap: 8px;
 }
 
-.model-stats {
-  width: 100%;
-}
-
-.plan-name {
-  text-align: center;
-  font-size: 12px;
-  color: var(--text-placeholder);
-  margin-bottom: 14px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--border-light);
-  font-weight: 500;
-}
-
-.stat-row {
+.detail-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 5px 0;
   font-size: 13px;
 }
 
-.stat-key {
+.detail-key {
   color: var(--text-secondary);
-  font-weight: 500;
 }
 
-.stat-val {
+.detail-val {
   font-weight: 600;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
 }
 
-.stat-row.highlight .stat-val {
-  color: var(--success);
+.detail-row.highlight .detail-val {
+  color: var(--neon-green);
 }
 
-/* ── Model empty ── */
-.model-empty {
+/* Percent Type */
+.percent-type {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Balance Type */
+.balance-type {
+  display: flex;
+  justify-content: center;
+}
+
+/* Empty Type */
+.empty-type {
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 100px;
+  min-height: 80px;
+}
+
+.btn-fetch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 24px;
+  border-radius: 10px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all var(--duration-normal) var(--ease-smooth);
+}
+
+.btn-fetch:hover:not(:disabled) {
+  background: var(--glass-bg-strong);
+  border-color: var(--accent);
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+
+.btn-fetch:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 /* ── Responsive ── */
-@media (max-width: 900px) {
-  .summary-grid {
-    grid-template-columns: repeat(2, 1fr);
+@media (max-width: 1200px) {
+  .hero-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .hero-side {
+    flex-direction: row;
+  }
+}
+
+@media (max-width: 768px) {
+  .hero-main {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .model-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

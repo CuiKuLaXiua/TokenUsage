@@ -47,8 +47,8 @@
             <span class="model-row-badge" :class="model.provider">{{ model.provider }}</span>
           </div>
           <template v-if="store.modelUsageMap[model.id]">
-            <!-- 多层级额度 -->
-            <template v-if="store.modelUsageMap[model.id].tiers?.length">
+            <!-- 多层级额度 (Kimi / percent) -->
+            <template v-if="store.modelUsageMap[model.id].usageType === 'percent' && store.modelUsageMap[model.id].tiers?.length">
               <div v-for="tier in store.modelUsageMap[model.id].tiers" :key="tier.name" class="model-tier-row">
                 <div class="model-tier-header">
                   <span class="model-tier-name">{{ tier.label }}</span>
@@ -71,19 +71,27 @@
                 </div>
               </div>
             </template>
-            <!-- 单层级额度 -->
+            <!-- 余额 (DeepSeek / balance) -->
+            <template v-else-if="store.modelUsageMap[model.id].usageType === 'balance'">
+              <div class="model-row-detail">
+                <span class="model-remaining">
+                  {{ store.modelUsageMap[model.id].currency === 'CNY' ? '¥' : store.modelUsageMap[model.id].currency }} {{ (store.modelUsageMap[model.id].balance || 0).toFixed(2) }}
+                </span>
+              </div>
+            </template>
+            <!-- 单层级额度 (MIMO / OpenAI / Claude / token) -->
             <template v-else>
               <div class="model-row-bar">
                 <div class="model-bar-track">
                   <div
                     class="model-bar-fill"
                     :style="{
-                      width: store.modelUsageMap[model.id].percent + '%',
+                      width: (store.modelUsageMap[model.id].percent || 0) + '%',
                       background: getProgressColor(store.modelUsageMap[model.id].percent)
                     }"
                   ></div>
                 </div>
-                <span class="model-bar-percent">{{ formatPercent(store.modelUsageMap[model.id].percent) }}%</span>
+                <span class="model-bar-percent">{{ formatPercent(store.modelUsageMap[model.id].percent || 0) }}%</span>
               </div>
               <div class="model-row-detail">
                 <span>{{ formatTokens(store.modelUsageMap[model.id].used) }} / {{ formatTokens(store.modelUsageMap[model.id].total) }}</span>
@@ -116,9 +124,15 @@ import { formatTokens, formatPercent, getProgressColor } from '@/utils/format'
 const store = useAppStore()
 const theme = ref('light')
 
-const totalTokens = computed(() => Object.values(store.modelUsageMap).reduce((sum, u) => sum + u.total, 0))
-const usedTokens = computed(() => Object.values(store.modelUsageMap).reduce((sum, u) => sum + u.used, 0))
-const remainingTokens = computed(() => Object.values(store.modelUsageMap).reduce((sum, u) => sum + u.remaining, 0))
+const totalTokens = computed(() => Object.values(store.modelUsageMap)
+  .filter(u => u.usageType === 'token')
+  .reduce((sum, u) => sum + (u.total || 0), 0))
+const usedTokens = computed(() => Object.values(store.modelUsageMap)
+  .filter(u => u.usageType === 'token')
+  .reduce((sum, u) => sum + (u.used || 0), 0))
+const remainingTokens = computed(() => Object.values(store.modelUsageMap)
+  .filter(u => u.usageType === 'token')
+  .reduce((sum, u) => sum + (u.remaining || 0), 0))
 const usagePercent = computed(() => {
   if (totalTokens.value === 0) return 0
   return Math.round((usedTokens.value / totalTokens.value) * 10000) / 100

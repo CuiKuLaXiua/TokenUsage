@@ -62,12 +62,24 @@ export const useAppStore = defineStore('app', () => {
   const currentMonth = ref(new Date().toISOString().slice(0, 7))
   const fetching = reactive<Record<string, boolean>>({})
   const refreshing = ref(false)
+  const isConfigLoaded = ref(false)
+  let refreshAbortFlag = false
 
   async function loadConfig() {
-    const config = await window.electronAPI.loadConfig()
-    if (config.models) {
-      models.value = config.models
+    try {
+      const config = await window.electronAPI.loadConfig()
+      if (config && Array.isArray(config.models)) {
+        models.value = config.models
+      }
+      isConfigLoaded.value = true
+    } catch (error) {
+      console.error('加载配置失败:', error)
+      isConfigLoaded.value = true // still mark as attempted
     }
+  }
+
+  function abortRefresh() {
+    refreshAbortFlag = true
   }
 
   async function saveConfig() {
@@ -113,7 +125,8 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function fetchModelUsage(model: ModelConfig): Promise<ModelUsageStatus | null> {
-    fetching[model.id] = true
+    // 使用 Object.assign 确保响应式更新
+    Object.assign(fetching, { [model.id]: true })
     try {
       let fetchOptions: any
 
@@ -146,19 +159,31 @@ export const useAppStore = defineStore('app', () => {
         return result
       }
       return null
+    } catch (error) {
+      console.error('获取额度失败:', error)
+      throw error
     } finally {
-      fetching[model.id] = false
+      Object.assign(fetching, { [model.id]: false })
     }
   }
 
   async function refreshAll() {
+    refreshAbortFlag = false
     refreshing.value = true
-    for (const model of models.value) {
-      if (model.enabled && model.apiKey) {
-        await fetchModelUsage(model)
+    try {
+      for (const model of models.value) {
+        if (refreshAbortFlag) break
+        if (model.enabled && model.apiKey) {
+          try {
+            await fetchModelUsage(model)
+          } catch {
+            // continue to next model even if one fails
+          }
+        }
       }
+    } finally {
+      refreshing.value = false
     }
-    refreshing.value = false
   }
 
   return {
@@ -168,6 +193,7 @@ export const useAppStore = defineStore('app', () => {
     currentMonth,
     fetching,
     refreshing,
+    isConfigLoaded,
     loadConfig,
     saveConfig,
     loadUsage,
@@ -178,6 +204,7 @@ export const useAppStore = defineStore('app', () => {
     addUsageRecord,
     updateModelUsage,
     fetchModelUsage,
-    refreshAll
+    refreshAll,
+    abortRefresh
   }
 })

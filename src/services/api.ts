@@ -119,7 +119,7 @@ function parseKimiResponse(response: any): ModelUsageStatus | null {
     for (const item of limits) {
       const detail = item?.detail
       if (detail && typeof detail === 'object') {
-        const tier = makeTier('five_hour', '5小时', detail)
+        const tier = makeTier('five_hour', '5H', detail)
         if (tier) tiers.push(tier)
       }
     }
@@ -128,7 +128,7 @@ function parseKimiResponse(response: any): ModelUsageStatus | null {
   // 2. 7天限额 (usage)
   const usage = response.usage
   if (usage && typeof usage === 'object') {
-    const tier = makeTier('seven_day', '7天', usage)
+    const tier = makeTier('seven_day', '7D', usage)
     if (tier) tiers.push(tier)
   }
 
@@ -150,9 +150,9 @@ function parseKimiResponse(response: any): ModelUsageStatus | null {
 
 interface DeepSeekBalanceInfo {
   currency: string
-  total_balance: number
-  granted_balance?: number
-  topped_up_balance?: number
+  total_balance: number | string
+  granted_balance?: number | string
+  topped_up_balance?: number | string
 }
 
 interface DeepSeekResponse {
@@ -165,7 +165,7 @@ function parseDeepSeekResponse(response: DeepSeekResponse): ModelUsageStatus | n
   }
 
   const info = response.balance_infos[0]
-  const balance = info.total_balance ?? 0
+  const balance = Number(info.total_balance) || 0
   const currency = info.currency ?? 'CNY'
 
   return {

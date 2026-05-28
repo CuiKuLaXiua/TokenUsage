@@ -307,7 +307,8 @@ function openFloat() {
   margin-left: 240px;
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   transition: margin-left var(--duration-normal) var(--ease-spring);
 }
 
