@@ -13,6 +13,7 @@ export interface ModelConfig {
   cookies: string
   inputPrice?: number
   outputPrice?: number
+  refreshInterval?: number  // 自动刷新间隔（分钟），0 或 undefined 表示关闭
   enabled: boolean
 }
 
@@ -64,6 +65,7 @@ export const useAppStore = defineStore('app', () => {
   const refreshing = ref(false)
   const isConfigLoaded = ref(false)
   let refreshAbortFlag = false
+  const autoRefreshTimers = new Map<string, ReturnType<typeof setInterval>>()
 
   async function loadConfig() {
     try {
@@ -72,6 +74,7 @@ export const useAppStore = defineStore('app', () => {
         models.value = config.models
       }
       isConfigLoaded.value = true
+      startAutoRefresh()
     } catch (error) {
       console.error('加载配置失败:', error)
       isConfigLoaded.value = true // still mark as attempted
@@ -82,9 +85,38 @@ export const useAppStore = defineStore('app', () => {
     refreshAbortFlag = true
   }
 
+  function stopAutoRefresh() {
+    autoRefreshTimers.forEach((timerId) => clearInterval(timerId))
+    autoRefreshTimers.clear()
+  }
+
+  function startAutoRefresh() {
+    stopAutoRefresh()
+
+    for (const model of models.value) {
+      const interval = model.refreshInterval
+      if (!interval || interval <= 0) continue
+      if (!model.enabled || !model.apiKey) continue
+
+      // 首次立即获取（如果还没有数据）
+      if (!modelUsageMap[model.id]) {
+        fetchModelUsage(model).catch(() => {})
+      }
+
+      const timerId = setInterval(() => {
+        if (!fetching[model.id]) {
+          fetchModelUsage(model).catch(() => {})
+        }
+      }, interval * 60 * 1000)
+
+      autoRefreshTimers.set(model.id, timerId)
+    }
+  }
+
   async function saveConfig() {
     const plainModels = JSON.parse(JSON.stringify(toRaw(models.value)))
     await window.electronAPI.saveConfig({ models: plainModels })
+    startAutoRefresh()
   }
 
   async function loadUsage(month?: string) {
@@ -205,6 +237,8 @@ export const useAppStore = defineStore('app', () => {
     updateModelUsage,
     fetchModelUsage,
     refreshAll,
-    abortRefresh
+    abortRefresh,
+    startAutoRefresh,
+    stopAutoRefresh
   }
 })

@@ -28,6 +28,7 @@
               <th>提供商</th>
               <th>额度</th>
               <th>状态</th>
+              <th>自动刷新</th>
               <th>操作</th>
             </tr>
           </thead>
@@ -91,6 +92,13 @@
                 <span class="status-dot" :class="model.enabled ? 'active' : 'inactive'">
                   {{ model.enabled ? '启用' : '禁用' }}
                 </span>
+              </td>
+              <td>
+                <span v-if="model.refreshInterval && model.refreshInterval > 0" class="refresh-badge">
+                  <el-icon :size="12"><Timer /></el-icon>
+                  每 {{ model.refreshInterval }} 分钟
+                </span>
+                <span v-else class="refresh-off">关闭</span>
               </td>
               <td>
                 <div class="action-group">
@@ -175,6 +183,22 @@
               ></textarea>
             </div>
             <div class="form-field form-field-inline">
+              <label class="form-label">自动刷新</label>
+              <div class="interval-wrap">
+                <input
+                  v-model.number="form.refreshInterval"
+                  type="number"
+                  class="form-input interval-input"
+                  min="0"
+                  max="1440"
+                  step="5"
+                  placeholder="0"
+                />
+                <span class="interval-unit">分钟</span>
+              </div>
+              <span class="interval-hint">0 = 关闭</span>
+            </div>
+            <div class="form-field form-field-inline">
               <label class="form-label">启用</label>
               <button
                 class="toggle-btn"
@@ -206,6 +230,7 @@ import {
   Refresh,
   Loading,
   Close,
+  Timer,
   Setting
 } from '@element-plus/icons-vue'
 import type { ModelConfig } from '@/stores/app'
@@ -224,6 +249,7 @@ const defaultForm: ModelConfig = {
   apiKey: '',
   baseUrl: '',
   cookies: '',
+  refreshInterval: 0,
   enabled: true
 }
 
@@ -466,6 +492,55 @@ async function fetchUsage(model: ModelConfig) {
 
 .status-dot.inactive::before {
   background: var(--text-placeholder);
+}
+
+/* ── Refresh interval ── */
+.interval-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+}
+
+.interval-input {
+  width: 80px !important;
+  text-align: center;
+  -moz-appearance: textfield;
+}
+
+.interval-input::-webkit-inner-spin-button,
+.interval-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.interval-unit {
+  font-size: 12px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.interval-hint {
+  font-size: 11px;
+  color: var(--text-placeholder);
+  flex-shrink: 0;
+}
+
+.refresh-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--accent);
+  background: var(--accent-glow);
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.refresh-off {
+  font-size: 11px;
+  color: var(--text-placeholder);
 }
 
 /* ── Action group ── */

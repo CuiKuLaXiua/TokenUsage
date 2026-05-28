@@ -45,6 +45,10 @@
           <div class="model-row-header">
             <span class="model-row-name">{{ model.name }}</span>
             <span class="model-row-badge" :class="model.provider">{{ model.provider }}</span>
+            <span v-if="model.refreshInterval && model.refreshInterval > 0" class="model-row-timer">
+              <el-icon :size="10"><Timer /></el-icon>
+              {{ model.refreshInterval }}m
+            </span>
           </div>
           <template v-if="store.modelUsageMap[model.id]">
             <!-- 多层级额度 (Kimi / percent) -->
@@ -116,7 +120,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { Refresh, Close } from '@element-plus/icons-vue'
+import { Refresh, Close, Timer } from '@element-plus/icons-vue'
 import { useAppStore } from '@/stores/app'
 import type { ModelConfig } from '@/stores/app'
 import { formatTokens, formatPercent, getProgressColor } from '@/utils/format'
@@ -342,6 +346,19 @@ onMounted(async () => {
 .model-row-badge.deepseek { background: rgba(59, 130, 246, 0.12); color: #3b82f6; border-color: rgba(59, 130, 246, 0.2); }
 .model-row-badge.kimi { background: rgba(139, 92, 246, 0.12); color: #8b5cf6; border-color: rgba(139, 92, 246, 0.2); }
 .model-row-badge.mimo { background: rgba(255, 107, 0, 0.12); color: #ff6b00; border-color: rgba(255, 107, 0, 0.2); }
+
+.model-row-timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-glow);
+  padding: 1px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
 
 .model-row-bar {
   display: flex;
