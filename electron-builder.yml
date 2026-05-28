@@ -1,0 +1,41 @@
+{
+  "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
+  "appId": "com.tokenusage.app",
+  "productName": "Token Usage",
+  "directories": {
+    "buildResources": "build"
+  },
+  "files": [
+    "dist/**/*",
+    "dist-electron/**/*"
+  ],
+  "mac": {
+    "category": "public.app-category.developer-tools",
+    "artifactName": "${productName}-${version}-mac.${ext}",
+    "target": [
+      "dmg",
+      "zip"
+    ]
+  },
+  "win": {
+    "target": [
+      "nsis",
+      "zip"
+    ],
+    "artifactName": "${productName}-${version}-win.${ext}"
+  },
+  "linux": {
+    "target": [
+      "AppImage",
+      "zip"
+    ],
+    "category": "Development",
+    "artifactName": "${productName}-${version}-linux.${ext}"
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "deleteAppDataOnUninstall": true
+  }
+}
