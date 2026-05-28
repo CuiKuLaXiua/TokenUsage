@@ -71,10 +71,12 @@
           <h3 class="section-title neon-text">模型额度</h3>
           <span class="section-subtitle">实时监控各平台 Token 使用情况</span>
         </div>
-        <button class="btn-primary" @click="refreshAll" :disabled="store.refreshing">
-          <el-icon :size="16" :class="{ 'spin': store.refreshing }"><Refresh /></el-icon>
-          <span>刷新全部</span>
-        </button>
+        <div class="section-actions">
+          <button class="btn-primary" @click="refreshAll" :disabled="store.refreshing">
+            <el-icon :size="16" :class="{ 'spin': store.refreshing }"><Refresh /></el-icon>
+            <span>刷新全部</span>
+          </button>
+        </div>
       </div>
 
       <!-- Empty State -->
@@ -440,6 +442,12 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
+}
+
+.section-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 .section-title-wrap {

@@ -175,12 +175,27 @@
             </div>
             <div class="form-field">
               <label class="form-label">Cookie</label>
-              <textarea
-                v-model="form.cookies"
-                class="form-input form-textarea"
-                rows="3"
-                :placeholder="form.provider === 'kimi' ? 'Kimi Coding Plan 不需要 Cookie' : '从浏览器复制 Cookie'"
-              ></textarea>
+              <div class="cookie-field">
+                <textarea
+                  v-model="form.cookies"
+                  class="form-input form-textarea"
+                  rows="3"
+                  :placeholder="form.provider === 'kimi' ? 'Kimi Coding Plan 不需要 Cookie' : '从浏览器复制 Cookie'"
+                ></textarea>
+                <div class="cookie-actions" v-if="form.provider === 'mimo'">
+                  <button 
+                    class="btn-primary btn-sm" 
+                    @click="handleLogin"
+                    :disabled="store.loginState === 'logging-in'"
+                  >
+                    <span v-if="store.loginState === 'logging-in'">登录中...</span>
+                    <span v-else>🔑 登录获取</span>
+                  </button>
+                  <button class="btn-ghost btn-sm" @click="showPasteDialog = true">
+                    📋 粘贴
+                  </button>
+                </div>
+              </div>
             </div>
             <div class="form-field form-field-inline">
               <label class="form-label">自动刷新</label>
@@ -210,9 +225,39 @@
             </div>
           </div>
 
-          <div class="dialog-footer">
+           <div class="dialog-footer">
             <button class="btn-ghost" @click="dialogVisible = false">取消</button>
             <button class="btn-primary" @click="saveModel">保存</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- 粘贴 Cookies 对话框 -->
+    <Transition name="dialog-fade">
+      <div v-if="showPasteDialog" class="dialog-overlay">
+        <div class="dialog-box glass-surface">
+          <div class="dialog-header">
+            <h3 class="dialog-title">粘贴 Cookies</h3>
+            <button class="icon-btn" @click="showPasteDialog = false">
+              <el-icon :size="16"><Close /></el-icon>
+            </button>
+          </div>
+          <div class="dialog-body">
+            <p class="paste-hint">
+              请在 Chrome 浏览器中登录 MiMo 平台后，按 F12 打开开发者工具，
+              在 Console 中执行 <code>document.cookie</code> 复制 cookies，然后粘贴到下方：
+            </p>
+            <textarea
+              v-model="cookiesInput"
+              class="form-input form-textarea"
+              rows="6"
+              placeholder="粘贴 cookies 字符串..."
+            ></textarea>
+          </div>
+          <div class="dialog-footer">
+            <button class="btn-ghost" @click="showPasteDialog = false">取消</button>
+            <button class="btn-primary" @click="handlePasteCookies">确定</button>
           </div>
         </div>
       </div>
@@ -241,6 +286,8 @@ const store = useAppStore()
 
 const dialogVisible = ref(false)
 const isEditing = ref(false)
+const showPasteDialog = ref(false)
+const cookiesInput = ref('')
 
 const defaultForm: ModelConfig = {
   id: '',
@@ -291,6 +338,32 @@ function deleteModel(id: string) {
     await store.removeModel(id)
     ElMessage.success({ message: '删除成功', duration: 2000 })
   }).catch(() => {})
+}
+
+function handlePasteCookies() {
+  if (!cookiesInput.value.trim()) {
+    ElMessage.warning('请输入 cookies')
+    return
+  }
+  form.cookies = cookiesInput.value.trim()
+  showPasteDialog.value = false
+  cookiesInput.value = ''
+  ElMessage.success('Cookies 已填入')
+}
+
+async function handleLogin() {
+  try {
+    const cookies = await window.electronAPI.openMimoLogin()
+    if (cookies) {
+      form.cookies = cookies
+      ElMessage.success('登录成功，Cookies 已获取')
+    } else {
+      ElMessage.warning('登录超时或已取消')
+    }
+  } catch (error) {
+    ElMessage.error('登录失败')
+    console.error('登录失败:', error)
+  }
 }
 
 async function fetchUsage(model: ModelConfig) {
@@ -717,6 +790,36 @@ async function fetchUsage(model: ModelConfig) {
 .form-textarea {
   resize: vertical;
   min-height: 72px;
+}
+
+.cookie-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cookie-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-sm {
+  padding: 4px 12px;
+  font-size: 12px;
+}
+
+.paste-hint {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+
+.paste-hint code {
+  background: var(--glass-bg-strong);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
 }
 
 /* ── Toggle ── */

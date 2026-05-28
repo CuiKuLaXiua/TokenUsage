@@ -37,6 +37,10 @@ export interface ElectronAPI {
   }) => Promise<MimoApiResponse>
   openFloatWindow: () => Promise<boolean>
   closeFloatWindow: () => Promise<boolean>
+  setFloatAlwaysOnTop: (value: boolean) => Promise<boolean>
+  resizeFloatWindow: (width: number, height: number) => Promise<boolean>
+  openMimoLogin: () => Promise<string | null>
+  onLoginNeeded: (callback: () => void) => void
   onConfigUpdated: (callback: () => void) => () => void
 }
 
