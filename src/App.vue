@@ -17,7 +17,7 @@ import { computed, onMounted } from 'vue'
 const route = useRoute()
 const themeStore = useThemeStore()
 const appStore = useAppStore()
-const isFloatRoute = computed(() => route.path.startsWith('/float'))
+const isFloatRoute = computed(() => route.path.startsWith('/float') || route.path === '/ctx-menu')
 
 onMounted(async () => {
   themeStore.initTheme()

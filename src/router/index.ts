@@ -36,6 +36,11 @@ const router = createRouter({
       path: '/float-detail',
       name: 'FloatDetail',
       component: () => import('@/pages/FloatDetail.vue')
+    },
+    {
+      path: '/ctx-menu',
+      name: 'CtxMenu',
+      component: () => import('@/pages/CtxMenu.vue')
     }
   ]
 })

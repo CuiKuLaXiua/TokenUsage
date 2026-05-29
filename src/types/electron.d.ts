@@ -37,9 +37,11 @@ export interface ElectronAPI {
   }) => Promise<MimoApiResponse>
   openFloatWindow: () => Promise<boolean>
   closeFloatWindow: () => Promise<boolean>
+  focusFloatWindow: () => Promise<boolean>
   setFloatAlwaysOnTop: (value: boolean) => Promise<boolean>
   resizeFloatWindow: (width: number, height: number) => Promise<boolean>
   resizeFloatWindowAnimated: (width: number, height: number, duration?: number) => Promise<boolean>
+  debugLog: (msg: string) => Promise<boolean>
   // 窗口拖拽
   startWindowDrag: (options: { mouseX: number; mouseY: number }) => Promise<void>
   windowDragMove: (options: { mouseX: number; mouseY: number }) => Promise<void>
@@ -70,6 +72,27 @@ export interface ElectronAPI {
   // 详情悬浮窗 hover 状态同步
   notifyDetailHover: (state: 'enter' | 'leave') => Promise<void>
   onDetailHoverChanged: (callback: (state: 'enter' | 'leave') => void) => () => void
+  // 右键菜单弹出窗
+  showCtxMenu: (options: {
+    screenX: number
+    screenY: number
+    modelId: string | null
+    modelName: string | null
+    theme: string
+    layoutMode: string
+    alwaysOnTop: boolean
+  }) => Promise<boolean>
+  hideCtxMenu: () => Promise<boolean>
+  sendCtxMenuAction: (action: string) => Promise<boolean>
+  onCtxMenuConfig: (callback: (config: {
+    modelId: string | null
+    modelName: string | null
+    theme: string
+    layoutMode: string
+    alwaysOnTop: boolean
+  }) => void) => () => void
+  onNativeContextMenu: (callback: (pos: { x: number; y: number }) => void) => () => void
+  onExecuteCtxMenuAction: (callback: (action: string) => void) => () => void
 }
 
 declare global {

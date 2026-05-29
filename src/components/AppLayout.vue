@@ -1,7 +1,7 @@
 <template>
   <div class="app-layout">
     <ParticleBg />
-    
+
     <!-- 自定义标题栏 -->
     <div class="title-bar" :class="{ 'is-mac': isMac }">
       <div class="title-bar-drag">
@@ -10,17 +10,37 @@
       <div v-if="!isMac" class="title-bar-controls">
         <button class="title-btn" @click="minimize" title="最小化">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <rect x="1" y="5.5" width="10" height="1" rx="0.5" fill="currentColor"/>
+            <rect
+              x="1"
+              y="5.5"
+              width="10"
+              height="1"
+              rx="0.5"
+              fill="currentColor"
+            />
           </svg>
         </button>
         <button class="title-btn" @click="maximize" title="最大化">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <rect x="1.5" y="1.5" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1"/>
+            <rect
+              x="1.5"
+              y="1.5"
+              width="9"
+              height="9"
+              rx="1"
+              stroke="currentColor"
+              stroke-width="1"
+            />
           </svg>
         </button>
         <button class="title-btn close-btn" @click="close" title="关闭">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <path d="M2 2L10 10M10 2L2 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <path
+              d="M2 2L10 10M10 2L2 10"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+            />
           </svg>
         </button>
       </div>
@@ -48,14 +68,20 @@
             <el-icon :size="20"><component :is="item.icon" /></el-icon>
           </div>
           <Transition name="nav-label">
-            <span v-show="!isCollapsed" class="nav-label">{{ item.label }}</span>
+            <span v-show="!isCollapsed" class="nav-label">{{
+              item.label
+            }}</span>
           </Transition>
           <div v-if="$route.path === item.path" class="nav-active-bar"></div>
         </router-link>
       </nav>
 
       <div class="sidebar-footer">
-        <button class="icon-btn" @click="toggleSidebar" :title="isCollapsed ? '展开' : '收起'">
+        <button
+          class="icon-btn"
+          @click="toggleSidebar"
+          :title="isCollapsed ? '展开' : '收起'"
+        >
           <el-icon :size="18">
             <component :is="isCollapsed ? Expand : Fold" />
           </el-icon>
@@ -70,9 +96,14 @@
           <button class="icon-btn" @click="openFloat" title="悬浮窗">
             <el-icon :size="18"><Monitor /></el-icon>
           </button>
-          <button class="icon-btn theme-toggle" @click="themeStore.toggleTheme()">
+          <button
+            class="icon-btn theme-toggle"
+            @click="themeStore.toggleTheme()"
+          >
             <Transition name="theme-icon" mode="out-in">
-              <el-icon v-if="themeStore.isDark" :size="18" key="sun"><Sunny /></el-icon>
+              <el-icon v-if="themeStore.isDark" :size="18" key="sun"
+                ><Sunny
+              /></el-icon>
               <el-icon v-else :size="18" key="moon"><Moon /></el-icon>
             </Transition>
           </button>
@@ -87,8 +118,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, computed } from "vue";
+import { useRoute } from "vue-router";
 import {
   Odometer,
   Setting,
@@ -98,58 +129,58 @@ import {
   Fold,
   Sunny,
   Moon,
-  Monitor
-} from '@element-plus/icons-vue'
-import { useThemeStore } from '@/stores/theme'
-import type { Component } from 'vue'
-import ParticleBg from './ParticleBg.vue'
+  Monitor,
+} from "@element-plus/icons-vue";
+import { useThemeStore } from "@/stores/theme";
+import type { Component } from "vue";
+import ParticleBg from "./ParticleBg.vue";
 
-const route = useRoute()
-const themeStore = useThemeStore()
-const isCollapsed = ref(false)
+const route = useRoute();
+const themeStore = useThemeStore();
+const isCollapsed = ref(false);
 
 // 检测是否为 macOS
 const isMac = computed(() => {
-  return navigator.platform.toUpperCase().indexOf('MAC') >= 0
-})
+  return navigator.platform.toUpperCase().indexOf("MAC") >= 0;
+});
 
 interface NavItem {
-  path: string
-  label: string
-  icon: Component
+  path: string;
+  label: string;
+  icon: Component;
 }
 
 const navItems: NavItem[] = [
-  { path: '/dashboard', label: '仪表盘', icon: Odometer },
-  { path: '/config', label: '配置管理', icon: Setting },
-  { path: '/usage', label: '用量详情', icon: TrendCharts },
-  { path: '/export', label: '数据导出', icon: Download }
-]
+  { path: "/dashboard", label: "仪表盘", icon: Odometer },
+  { path: "/config", label: "配置管理", icon: Setting },
+  { path: "/usage", label: "用量详情", icon: TrendCharts },
+  { path: "/export", label: "数据导出", icon: Download },
+];
 
 const title = computed(() => {
-  const item = navItems.find(n => n.path === route.path)
-  return item?.label || 'Token Usage'
-})
+  const item = navItems.find((n) => n.path === route.path);
+  return item?.label || "Token Usage";
+});
 
 function toggleSidebar() {
-  isCollapsed.value = !isCollapsed.value
+  isCollapsed.value = !isCollapsed.value;
 }
 
 function openFloat() {
-  window.electronAPI.openFloatWindow()
+  window.electronAPI.openFloatWindow();
 }
 
 // 窗口控制函数
 function minimize() {
-  window.electronAPI.windowMinimize()
+  window.electronAPI.windowMinimize();
 }
 
 function maximize() {
-  window.electronAPI.windowMaximize()
+  window.electronAPI.windowMaximize();
 }
 
 function close() {
-  window.electronAPI.windowClose()
+  window.electronAPI.windowClose();
 }
 </script>
 
@@ -418,7 +449,9 @@ function close() {
   margin-top: 36px; /* 标题栏高度 */
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 36px); /* 减去标题栏高度 */
+  /* 使用 dvh (dynamic viewport height) 优先，回退到 vh */
+  height: calc(100dvh - 36px);
+  height: calc(100vh - 36px);
   overflow: hidden;
   transition: margin-left var(--duration-normal) var(--ease-spring);
 }
@@ -480,7 +513,8 @@ function close() {
 /* ── Content ── */
 .content-area {
   flex: 1;
-  padding: 28px;
+  min-height: 0; /* 关键：允许 flex 子项收缩到内容高度以下，使 overflow 生效 */
+  padding: 15px;
   overflow-y: auto;
   overflow-x: hidden;
 }

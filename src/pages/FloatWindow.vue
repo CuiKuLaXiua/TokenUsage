@@ -8,63 +8,6 @@
     @mouseleave="onFloatLeave"
     @mousedown="onWindowDragStart"
   >
-    <!-- Unified context menu -->
-    <Teleport to="body">
-      <div
-        v-if="menuVisible"
-        class="ctx-overlay"
-        @click="menuVisible = false"
-        @contextmenu.prevent="menuVisible = false"
-      >
-        <div
-          class="ctx-menu"
-          :style="{ left: menuX + 'px', top: menuY + 'px' }"
-          @click.stop
-        >
-          <!-- Model-specific actions -->
-          <template v-if="ctxModel">
-            <div class="ctx-header">{{ ctxModel.name }}</div>
-            <div class="ctx-item" @click="doFetch(ctxModel)">
-              <el-icon :size="13"><Refresh /></el-icon><span>刷新额度</span>
-            </div>
-            <div class="ctx-sep"></div>
-          </template>
-
-          <!-- Global actions -->
-          <div class="ctx-item" @click="doRefreshAll">
-            <el-icon :size="13"><Refresh /></el-icon><span>刷新全部</span>
-          </div>
-          <div class="ctx-sep"></div>
-          <div
-            class="ctx-item"
-            :class="{ active: layoutMode === 'list' }"
-            @click="doLayout('list')"
-          >
-            <el-icon :size="13"><List /></el-icon><span>列表模式</span>
-          </div>
-          <div
-            class="ctx-item"
-            :class="{ active: layoutMode === 'carousel' }"
-            @click="doLayout('carousel')"
-          >
-            <el-icon :size="13"><Grid /></el-icon><span>轮播模式</span>
-          </div>
-          <div class="ctx-sep"></div>
-          <div
-            class="ctx-item"
-            :class="{ active: alwaysOnTop }"
-            @click="doToggleTop"
-          >
-            <el-icon :size="13"><Top /></el-icon><span>窗口置顶</span>
-          </div>
-          <div class="ctx-sep"></div>
-          <div class="ctx-item danger" @click="doClose">
-            <el-icon :size="13"><Close /></el-icon><span>关闭悬浮窗</span>
-          </div>
-        </div>
-      </div>
-    </Teleport>
-
     <!-- Empty -->
     <div v-if="store.models.length === 0" class="float-empty">
       <div class="empty-icon-wrap">
@@ -78,26 +21,31 @@
       <div class="compact-wrap">
         <div class="compact-card" :data-model-id="'__overview__'">
           <div class="ov-row">
-            <div class="ov-ring" :style="ringCSS(usagePercent)">
+            <div class="ov-ring" :style="ringCSS(agg.mainRing.value.percent)">
               <div class="ov-ring-inner">
-                <span class="ov-pct">{{ usagePercent.toFixed(0) }}</span>
-                <span class="ov-pct-u">%</span>
+                <span class="ov-pct">{{ agg.mainRing.value.source !== 'none' ? agg.mainRing.value.percent.toFixed(0) : '—' }}</span>
+                <span class="ov-pct-u">{{ agg.mainRing.value.source !== 'none' ? '%' : '' }}</span>
               </div>
             </div>
             <div class="ov-nums">
-              <div class="ov-n">
-                <span class="ov-nv">{{ fmtLg(totalTokens) }}</span>
-                <span class="ov-nl">总配额</span>
+              <div class="ov-n" v-if="agg.tokenAgg.value">
+                <span class="ov-nv">{{ fmtLg(agg.tokenAgg.value.used) }}/{{ fmtLg(agg.tokenAgg.value.total) }}</span>
+                <span class="ov-nl">Token {{ agg.tokenAgg.value.percent.toFixed(0) }}%</span>
               </div>
-              <div class="ov-n">
-                <span class="ov-nv warn">{{ fmtLg(usedTokens) }}</span>
-                <span class="ov-nl">已使用</span>
+              <div class="ov-n" v-if="agg.percentAgg.value">
+                <span class="ov-nv warn">{{ agg.percentAgg.value.worstLabel }} {{ agg.percentAgg.value.worstPercent.toFixed(0) }}%</span>
+                <span class="ov-nl">时间窗口</span>
               </div>
-              <div class="ov-n">
-                <span class="ov-nv ok">{{ fmtLg(remainingTokens) }}</span>
-                <span class="ov-nl">剩余</span>
+              <div class="ov-n" v-if="agg.balanceAgg.value">
+                <span class="ov-nv ok">{{ agg.balanceAgg.value.currency === 'CNY' ? '¥' : agg.balanceAgg.value.currency }}{{ agg.balanceAgg.value.totalBalance.toFixed(0) }}</span>
+                <span class="ov-nl">余额</span>
               </div>
             </div>
+          </div>
+          <div class="ov-types" v-if="agg.hasAnyData.value">
+            <span class="ov-type-tag t">T:{{ agg.typeCounts.value.token }}</span>
+            <span class="ov-type-tag p">P:{{ agg.typeCounts.value.percent }}</span>
+            <span class="ov-type-tag b">B:{{ agg.typeCounts.value.balance }}</span>
           </div>
         </div>
       </div>
@@ -118,29 +66,33 @@
           <!-- Overview slide -->
           <div class="cslide" :data-model-id="'__overview__'">
             <div class="cslide-body ov-slide">
-              <div class="ov-ring-lg" :style="ringCSS(usagePercent, 80)">
+              <div class="ov-ring-lg" :style="ringCSS(agg.mainRing.value.percent, 80)">
                 <div class="ov-ring-lg-in">
-                  <span class="ov-pct-lg">{{ usagePercent.toFixed(1) }}</span>
-                  <span class="ov-pct-u-lg">%</span>
+                  <span class="ov-pct-lg">{{ agg.mainRing.value.source !== 'none' ? agg.mainRing.value.percent.toFixed(1) : '—' }}</span>
+                  <span class="ov-pct-u-lg">{{ agg.mainRing.value.source !== 'none' ? '%' : '' }}</span>
                 </div>
               </div>
               <div class="ov-stats">
-                <div class="ov-st">
-                  <span class="ov-stv">{{ fmtLg(totalTokens) }}</span
-                  ><span class="ov-stl">总配额</span>
+                <div class="ov-st" v-if="agg.tokenAgg.value">
+                  <span class="ov-stv">{{ fmtLg(agg.tokenAgg.value.used) }}/{{ fmtLg(agg.tokenAgg.value.total) }}</span
+                  ><span class="ov-stl">Token {{ agg.tokenAgg.value.percent.toFixed(0) }}%</span>
                 </div>
-                <div class="ov-st">
-                  <span class="ov-stv warn">{{ fmtLg(usedTokens) }}</span
-                  ><span class="ov-stl">已使用</span>
+                <div class="ov-st" v-if="agg.percentAgg.value">
+                  <span class="ov-stv warn">{{ agg.percentAgg.value.worstLabel }} {{ agg.percentAgg.value.worstPercent.toFixed(0) }}%</span
+                  ><span class="ov-stl">最紧张窗口</span>
                 </div>
-                <div class="ov-st">
-                  <span class="ov-stv ok">{{ fmtLg(remainingTokens) }}</span
-                  ><span class="ov-stl">剩余</span>
+                <div class="ov-st" v-if="agg.balanceAgg.value">
+                  <span class="ov-stv ok">{{ agg.balanceAgg.value.currency === 'CNY' ? '¥' : agg.balanceAgg.value.currency }}{{ agg.balanceAgg.value.totalBalance.toFixed(2) }}</span
+                  ><span class="ov-stl">余额</span>
                 </div>
               </div>
               <div class="ov-foot">
                 <span class="ov-cnt">{{ store.models.length }}</span
                 ><span class="ov-cntl">个模型</span>
+                <span class="ov-type-sep"></span>
+                <span class="ov-type-tag t">T{{ agg.typeCounts.value.token }}</span>
+                <span class="ov-type-tag p">P{{ agg.typeCounts.value.percent }}</span>
+                <span class="ov-type-tag b">B{{ agg.typeCounts.value.balance }}</span>
               </div>
             </div>
           </div>
@@ -273,11 +225,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, nextTick, watch } from "vue";
 import {
-  Refresh,
-  Close,
-  Grid,
-  List,
-  Top,
   Clock,
   DataAnalysis,
 } from "@element-plus/icons-vue";
@@ -289,10 +236,12 @@ import {
   getProgressColor,
   formatResetTime,
 } from "@/utils/format";
+import { useUsageAggregation } from "@/composables/useUsageAggregation";
 
 type LayoutMode = "list" | "carousel";
 
 const store = useAppStore();
+const agg = useUsageAggregation();
 const theme = ref("light");
 const layoutMode = ref<LayoutMode>(
   (localStorage.getItem("floatLayout") as LayoutMode) || "list",
@@ -303,6 +252,8 @@ const floatRef = ref<HTMLElement | null>(null);
 const alwaysOnTop = ref(localStorage.getItem("floatAlwaysOnTop") !== "false");
 let unsubCfg: (() => void) | null = null;
 let unsubDetailHover: (() => void) | null = null;
+let unsubCtxAction: (() => void) | null = null;
+let unsubNativeCtx: (() => void) | null = null;
 
 // ── 详情窗口 hover 控制 ──
 let showDetailTimer: ReturnType<typeof setTimeout> | null = null
@@ -329,6 +280,8 @@ async function hideDetailWindow() {
 }
 
 function onFloatEnter() {
+  // 鼠标进入时聚焦窗口，确保右键菜单能正常触发
+  window.electronAPI.focusFloatWindow()
   if (layoutMode.value !== 'list' || isDragging.value) return
   if (hideDetailTimer) { clearTimeout(hideDetailTimer); hideDetailTimer = null }
   if (showDetailTimer) return
@@ -352,33 +305,12 @@ function onFloatLeave() {
   }, HIDE_DELAY)
 }
 
-// Menu state
-const menuVisible = ref(false);
-const menuX = ref(0);
-const menuY = ref(0);
+// Context menu state
+const ctxMenuOpen = ref(false)
+let ctxMenuTimer: ReturnType<typeof setTimeout> | null = null
 const ctxModel = ref<ModelConfig | null>(null);
 
 // Computed
-const totalTokens = computed(() =>
-  Object.values(store.modelUsageMap)
-    .filter((u) => u.usageType === "token")
-    .reduce((s, u) => s + (u.total || 0), 0),
-);
-const usedTokens = computed(() =>
-  Object.values(store.modelUsageMap)
-    .filter((u) => u.usageType === "token")
-    .reduce((s, u) => s + (u.used || 0), 0),
-);
-const remainingTokens = computed(() =>
-  Object.values(store.modelUsageMap)
-    .filter((u) => u.usageType === "token")
-    .reduce((s, u) => s + (u.remaining || 0), 0),
-);
-const usagePercent = computed(() =>
-  totalTokens.value === 0
-    ? 0
-    : Math.round((usedTokens.value / totalTokens.value) * 10000) / 100,
-);
 const slideCount = computed(() => 1 + store.models.length);
 
 // Helpers
@@ -414,21 +346,28 @@ function ringCSS(pct: number, size = 80) {
 
 // Resize — now only used for carousel mode
 const FLOAT_WIDTH = 280;
-const FLOAT_LIST_HEIGHT = 104;
+const FLOAT_LIST_HEIGHT = 128;
 const FLOAT_CAROUSEL_HEIGHT = 280;
 
-function resizeToFit(_animate = false) {
-  nextTick(() => {
-    if (layoutMode.value === 'carousel') {
-      window.electronAPI.resizeFloatWindow(FLOAT_WIDTH, FLOAT_CAROUSEL_HEIGHT)
-    } else {
-      window.electronAPI.resizeFloatWindow(FLOAT_WIDTH, FLOAT_LIST_HEIGHT)
-    }
-  })
+let resizeTimer: ReturnType<typeof setTimeout> | null = null
+
+function resizeToFit() {
+  // 取消上一次尚未执行的 resize，避免竞态
+  if (resizeTimer) { clearTimeout(resizeTimer); resizeTimer = null }
+  // 使用 setTimeout 而非 nextTick，等待浏览器完成布局绘制后再 resize
+  // nextTick 可能在 v-if 分支切换的 DOM 更新完成前触发
+  const mode = layoutMode.value
+  const targetH = mode === 'carousel' ? FLOAT_CAROUSEL_HEIGHT : FLOAT_LIST_HEIGHT
+  window.electronAPI.debugLog(`resizeToFit: mode=${mode}, target=${FLOAT_WIDTH}x${targetH}`)
+  resizeTimer = setTimeout(() => {
+    resizeTimer = null
+    window.electronAPI.debugLog(`resizeToFit: executing ${FLOAT_WIDTH}x${targetH}`)
+    window.electronAPI.resizeFloatWindow(FLOAT_WIDTH, targetH)
+  }, 50)
 }
 
 // Menu
-function showMenu(e: MouseEvent) {
+async function showMenu(e: MouseEvent) {
   // 拖拽后不弹菜单
   if (hasMoved.value) return;
 
@@ -444,48 +383,52 @@ function showMenu(e: MouseEvent) {
     el = el.parentElement
   }
 
-  // 窗口较小时智能定位，避免菜单被裁剪
-  const MENU_W = 150
-  const MENU_H = 240
-  let mx = e.clientX
-  let my = e.clientY
-  if (mx + MENU_W > window.innerWidth) mx = Math.max(4, window.innerWidth - MENU_W)
-  if (my + MENU_H > window.innerHeight) my = Math.max(4, e.clientY - MENU_H)
-  menuX.value = mx
-  menuY.value = my
-  menuVisible.value = true
+  // 标记菜单已打开，阻止原生 context-menu 事件重复触发
+  ctxMenuOpen.value = true
+  if (ctxMenuTimer) { clearTimeout(ctxMenuTimer); ctxMenuTimer = null }
+  ctxMenuTimer = setTimeout(() => { ctxMenuOpen.value = false }, 300)
+
+  // 通过 IPC 在主进程创建独立菜单弹出窗口
+  window.electronAPI.showCtxMenu({
+    screenX: e.screenX,
+    screenY: e.screenY,
+    modelId: ctxModel.value?.id ?? null,
+    modelName: ctxModel.value?.name ?? null,
+    theme: theme.value,
+    layoutMode: layoutMode.value,
+    alwaysOnTop: alwaysOnTop.value
+  })
 }
 
-function doFetch(m: ModelConfig) {
-  menuVisible.value = false;
-  fetchModel(m);
-}
-function doRefreshAll() {
-  menuVisible.value = false;
-  store.requestRefreshAll();
-}
-function doLayout(mode: LayoutMode) {
-  layoutMode.value = mode;
-  localStorage.setItem("floatLayout", mode);
-  menuVisible.value = false;
-  if (mode === "carousel") {
-    hideDetailWindow()
-    nextTick(() => {
-      idx.value = 0;
-      go(0);
-      updateActiveSlide();
-    });
+function handleCtxMenuAction(action: string) {
+  switch (action) {
+    case 'fetch-model':
+      if (ctxModel.value) fetchModel(ctxModel.value)
+      break
+    case 'refresh-all':
+      store.requestRefreshAll()
+      break
+    case 'set-layout:list':
+      layoutMode.value = 'list'
+      localStorage.setItem('floatLayout', 'list')
+      hideDetailWindow()
+      nextTick(() => resizeToFit())
+      break
+    case 'set-layout:carousel':
+      layoutMode.value = 'carousel'
+      localStorage.setItem('floatLayout', 'carousel')
+      hideDetailWindow()
+      nextTick(() => { idx.value = 0; go(0); updateActiveSlide(); resizeToFit() })
+      break
+    case 'toggle-top':
+      alwaysOnTop.value = !alwaysOnTop.value
+      localStorage.setItem('floatAlwaysOnTop', String(alwaysOnTop.value))
+      window.electronAPI.setFloatAlwaysOnTop(alwaysOnTop.value)
+      break
+    case 'close-float':
+      window.electronAPI.closeFloatWindow()
+      break
   }
-}
-function doToggleTop() {
-  alwaysOnTop.value = !alwaysOnTop.value;
-  localStorage.setItem("floatAlwaysOnTop", String(alwaysOnTop.value));
-  window.electronAPI.setFloatAlwaysOnTop(alwaysOnTop.value);
-  menuVisible.value = false;
-}
-function doClose() {
-  menuVisible.value = false;
-  window.electronAPI.closeFloatWindow();
 }
 
 // Carousel
@@ -570,6 +513,13 @@ const DIRECTION_THRESHOLD = 10; // 判断方向的最小移动距离
 function onWindowDragStart(e: MouseEvent) {
   // 忽略右键（右键菜单单独处理）
   if (e.button !== 0) return;
+
+  // 菜单打开时点击浮窗其他区域 → 关闭菜单
+  if (ctxMenuOpen.value) {
+    ctxMenuOpen.value = false
+    window.electronAPI.hideCtxMenu()
+    return
+  }
   
   windowDragStartX = e.screenX;
   windowDragStartY = e.screenY;
@@ -686,6 +636,27 @@ onMounted(async () => {
       onFloatLeave()
     }
   })
+  // 监听菜单动作执行
+  unsubCtxAction = window.electronAPI.onExecuteCtxMenuAction((action: string) => {
+    handleCtxMenuAction(action)
+  })
+  // 监听原生 context-menu 事件（窗口未聚焦时的兜底，修复 Issue #1）
+  unsubNativeCtx = window.electronAPI.onNativeContextMenu((pos: { x: number; y: number }) => {
+    // 如果 DOM 事件已经处理了，跳过
+    if (ctxMenuOpen.value) return
+    ctxMenuOpen.value = true
+    if (ctxMenuTimer) { clearTimeout(ctxMenuTimer) }
+    ctxMenuTimer = setTimeout(() => { ctxMenuOpen.value = false }, 300)
+    window.electronAPI.showCtxMenu({
+      screenX: pos.x,
+      screenY: pos.y,
+      modelId: null,
+      modelName: null,
+      theme: theme.value,
+      layoutMode: layoutMode.value,
+      alwaysOnTop: alwaysOnTop.value
+    })
+  })
 });
 onUnmounted(() => {
   // 关闭详情窗口
@@ -693,11 +664,15 @@ onUnmounted(() => {
   store.stopSubscription();
   unsubCfg?.();
   unsubDetailHover?.();
+  unsubCtxAction?.();
+  unsubNativeCtx?.();
   cleanupDragListeners();
+  if (ctxMenuTimer) { clearTimeout(ctxMenuTimer); ctxMenuTimer = null }
 });
 
 // Re-resize when layout mode or model count changes
-watch(layoutMode, () => {
+watch(layoutMode, (newVal) => {
+  window.electronAPI.debugLog(`watch(layoutMode): changed to ${newVal}`)
   resizeToFit();
   if (layoutMode.value === "carousel") nextTick(updateActiveSlide);
 });
@@ -869,6 +844,34 @@ watch(
 .ov-nl {
   font-size: 10px;
   color: var(--text-secondary);
+}
+
+/* ── type distribution row ── */
+.ov-types {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-light);
+}
+
+.ov-type-tag {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.ov-type-tag.t { color: var(--neon-amber); background: rgba(251, 191, 36, 0.12); }
+.ov-type-tag.p { color: var(--neon-red); background: rgba(248, 113, 113, 0.12); }
+.ov-type-tag.b { color: var(--neon-green); background: rgba(34, 211, 238, 0.12); }
+
+.ov-type-sep {
+  width: 1px;
+  height: 10px;
+  background: var(--border-light);
+  margin: 0 4px;
 }
 
 /* ═══ Carousel ═══ */
@@ -1239,93 +1242,5 @@ watch(
   border-radius: 3px;
   background: var(--accent);
   opacity: 1;
-}
-
-/* ═══ Context Menu ═══ */
-.ctx-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 9998;
-}
-.ctx-menu {
-  position: fixed;
-  z-index: 9999;
-  min-width: 148px;
-  background: var(--glass-bg-strong);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--glass-border);
-  border-radius: 12px;
-  padding: 6px;
-  box-shadow:
-    0 12px 40px rgba(0, 0, 0, 0.35),
-    0 0 0 1px rgba(255, 255, 255, 0.05) inset;
-  animation: menuElastic 0.35s var(--ease-spring) both;
-  transform-origin: top left;
-}
-@keyframes menuElastic {
-  0% {
-    opacity: 0;
-    transform: scale(0.5) translateY(-12px);
-  }
-  55% {
-    transform: scale(1.06) translateY(2px);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-}
-.ctx-header {
-  padding: 7px 12px;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--accent);
-  opacity: 0.8;
-}
-.ctx-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 9px 12px;
-  border-radius: 8px;
-  font-size: 12px;
-  color: var(--text-primary);
-  cursor: pointer;
-  transition: all 0.15s var(--ease-smooth);
-}
-.ctx-item:hover {
-  background: var(--glass-bg);
-  transform: translateX(2px);
-}
-.ctx-item:hover .el-icon {
-  animation: iconWiggle 0.35s ease;
-}
-@keyframes iconWiggle {
-  0%,
-  100% {
-    transform: rotate(0);
-  }
-  25% {
-    transform: rotate(-10deg);
-  }
-  75% {
-    transform: rotate(10deg);
-  }
-}
-.ctx-item.active {
-  color: var(--accent);
-  background: rgba(0, 212, 255, 0.06);
-}
-.ctx-item.danger {
-  color: #f87171;
-}
-.ctx-item.danger:hover {
-  background: rgba(248, 113, 113, 0.1);
-}
-.ctx-sep {
-  height: 1px;
-  background: var(--border-light);
-  margin: 4px 6px;
 }
 </style>

@@ -24,6 +24,7 @@ process.on('unhandledRejection', (reason) => {
 let mainWindow: BrowserWindow | null = null
 let floatWindow: BrowserWindow | null = null
 let detailWindow: BrowserWindow | null = null
+let ctxMenuWindow: BrowserWindow | null = null
 const loginManager = new LoginWindowManager()
 
 const dataDir = join(homedir(), '.token-usage')
@@ -100,6 +101,8 @@ const FLOAT_HEIGHT = 104
 const DETAIL_WIDTH = 320
 const DETAIL_HEIGHT = 420
 const DETAIL_GAP = 8
+const CTX_MENU_WIDTH = 200
+const CTX_MENU_HEIGHT = 290
 
 function createFloatWindow() {
   floatWindow = new BrowserWindow({
@@ -125,10 +128,22 @@ function createFloatWindow() {
     })
   }
 
+  // Fix: 捕获原生右键事件（即使窗口未聚焦也能触发，解决 Issue #1）
+  floatWindow.webContents.on('context-menu', (_, params) => {
+    floatWindow?.webContents.send('native-context-menu', {
+      x: params.x,
+      y: params.y
+    })
+  })
+
   floatWindow.on('closed', () => {
     // 主窗口关闭时同步关闭详情窗口
     if (detailWindow && !detailWindow.isDestroyed()) {
       detailWindow.close()
+    }
+    // 关闭右键菜单
+    if (ctxMenuWindow && !ctxMenuWindow.isDestroyed()) {
+      ctxMenuWindow.close()
     }
     floatWindow = null
   })
@@ -178,6 +193,52 @@ function createDetailWindow() {
   return detailWindow
 }
 
+function createCtxMenuWindow() {
+  if (ctxMenuWindow && !ctxMenuWindow.isDestroyed()) {
+    return ctxMenuWindow
+  }
+
+  ctxMenuWindow = new BrowserWindow({
+    width: CTX_MENU_WIDTH,
+    height: CTX_MENU_HEIGHT,
+    resizable: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    frame: false,
+    transparent: true,
+    show: false,
+    webPreferences: {
+      preload: join(__dirname, 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true
+    }
+  })
+
+  ctxMenuWindow.setAlwaysOnTop(true, 'pop-up-menu')
+
+  if (isDev) {
+    ctxMenuWindow.loadURL('http://localhost:3000/#/ctx-menu')
+  } else {
+    ctxMenuWindow.loadFile(join(__dirname, '../dist/index.html'), {
+      hash: '/ctx-menu'
+    })
+  }
+
+  // Auto-close when clicking outside
+  ctxMenuWindow.on('blur', () => {
+    if (ctxMenuWindow && !ctxMenuWindow.isDestroyed()) {
+      ctxMenuWindow.close()
+      ctxMenuWindow = null
+    }
+  })
+
+  ctxMenuWindow.on('closed', () => {
+    ctxMenuWindow = null
+  })
+
+  return ctxMenuWindow
+}
+
 /**
  * 计算详情窗口位置，支持边缘检测
  */
@@ -203,6 +264,35 @@ function computeDetailPosition(
   if (y + DETAIL_HEIGHT > screenH - 20) {
     y = Math.max(0, anchorY + anchorH - DETAIL_HEIGHT)
   }
+
+  return { x: Math.round(x), y: Math.round(y) }
+}
+
+/**
+ * 计算右键菜单位置，支持屏幕边缘检测
+ */
+function computeCtxMenuPosition(
+  anchorX: number,
+  anchorY: number
+): { x: number; y: number } {
+  const { width: screenW, height: screenH } =
+    require('electron').screen.getPrimaryDisplay().workAreaSize
+
+  let x = anchorX
+  let y = anchorY
+
+  // 右侧越界
+  if (x + CTX_MENU_WIDTH > screenW - 10) {
+    x = Math.max(0, screenW - CTX_MENU_WIDTH - 10)
+  }
+
+  // 底部越界：翻转到光标上方
+  if (y + CTX_MENU_HEIGHT > screenH - 10) {
+    y = Math.max(0, anchorY - CTX_MENU_HEIGHT)
+  }
+
+  // 顶部安全边距
+  if (y < 0) y = 10
 
   return { x: Math.round(x), y: Math.round(y) }
 }
@@ -316,6 +406,10 @@ ipcMain.handle('close-float-window', () => {
     detailWindow.close()
     detailWindow = null
   }
+  if (ctxMenuWindow && !ctxMenuWindow.isDestroyed()) {
+    ctxMenuWindow.close()
+    ctxMenuWindow = null
+  }
   if (floatWindow) {
     floatWindow.close()
     floatWindow = null
@@ -324,6 +418,13 @@ ipcMain.handle('close-float-window', () => {
 })
 
 // ── 详情悬浮窗 IPC ──
+
+ipcMain.handle('focus-float-window', () => {
+  if (floatWindow && !floatWindow.isDestroyed()) {
+    floatWindow.focus()
+  }
+  return true
+})
 
 ipcMain.handle('show-float-detail', (_, options: {
   anchorX: number
@@ -375,6 +476,71 @@ ipcMain.handle('notify-detail-hover', (_event, state: 'enter' | 'leave') => {
   }
 })
 
+// ── 右键菜单弹出窗 IPC ──
+
+ipcMain.handle('show-ctx-menu', (_, options: {
+  screenX: number
+  screenY: number
+  modelId: string | null
+  modelName: string | null
+  theme: string
+  layoutMode: string
+  alwaysOnTop: boolean
+}) => {
+  // 关闭已有菜单
+  if (ctxMenuWindow && !ctxMenuWindow.isDestroyed()) {
+    ctxMenuWindow.close()
+    ctxMenuWindow = null
+  }
+
+  const win = createCtxMenuWindow()
+  if (!win) return false
+
+  const { x, y } = computeCtxMenuPosition(options.screenX, options.screenY)
+  win.setPosition(x, y)
+
+  // 发送菜单配置到弹出窗口渲染进程
+  win.webContents.send('ctx-menu-config', {
+    modelId: options.modelId,
+    modelName: options.modelName,
+    theme: options.theme,
+    layoutMode: options.layoutMode,
+    alwaysOnTop: options.alwaysOnTop
+  })
+
+  // 不抢焦点地显示
+  win.showInactive()
+  // 短暂延迟后聚焦，使 blur 事件能够正常触发（点击外部关闭）
+  setTimeout(() => {
+    if (ctxMenuWindow && !ctxMenuWindow.isDestroyed()) {
+      ctxMenuWindow.focus()
+    }
+  }, 80)
+
+  return true
+})
+
+ipcMain.handle('hide-ctx-menu', () => {
+  if (ctxMenuWindow && !ctxMenuWindow.isDestroyed()) {
+    ctxMenuWindow.close()
+    ctxMenuWindow = null
+  }
+  return true
+})
+
+ipcMain.handle('ctx-menu-action', (_, action: string) => {
+  // 转发动作到浮窗执行
+  if (floatWindow && !floatWindow.isDestroyed()) {
+    floatWindow.webContents.send('execute-ctx-menu-action', action)
+  }
+  // 关闭菜单
+  if (ctxMenuWindow && !ctxMenuWindow.isDestroyed()) {
+    ctxMenuWindow.close()
+    ctxMenuWindow = null
+  }
+  return true
+})
+
 ipcMain.handle('get-float-window-bounds', () => {
   if (!floatWindow || floatWindow.isDestroyed()) return null
   const [x, y] = floatWindow.getPosition()
@@ -389,14 +555,34 @@ ipcMain.handle('set-float-always-on-top', (_, value: boolean) => {
   return true
 })
 
+const _logFile = join(app.getPath('temp'), 'tokenusage-debug.log')
+function _dbg(msg: string) {
+  const line = `[${new Date().toLocaleTimeString()}] ${msg}\n`
+  try { require('fs').appendFileSync(_logFile, line) } catch {}
+}
+
 ipcMain.handle('resize-float-window', (_, width: number, height: number) => {
   if (floatWindow && !floatWindow.isDestroyed()) {
     const [currentWidth, currentHeight] = floatWindow.getSize()
     // 只在尺寸有明显变化时调整，避免频繁闪烁
     if (Math.abs(currentWidth - width) > 5 || Math.abs(currentHeight - height) > 5) {
+      _dbg(`resize-float-window: ${currentWidth}x${currentHeight} -> ${width}x${height}`)
+      // Windows 无边框窗口在 resizable=false 时可能无法正确缩小
+      // 临时切换 resizable 状态以确保 setSize 生效
+      floatWindow.setResizable(true)
       floatWindow.setSize(width, height)
+      floatWindow.setResizable(false)
+      const [afterW, afterH] = floatWindow.getSize()
+      _dbg(`  after setSize: ${afterW}x${afterH}`)
+    } else {
+      _dbg(`resize-float-window: skipped (diff too small) ${currentWidth}x${currentHeight} -> ${width}x${height}`)
     }
   }
+  return true
+})
+
+ipcMain.handle('debug-log', (_, msg: string) => {
+  _dbg(`[renderer] ${msg}`)
   return true
 })
 

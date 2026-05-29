@@ -6,27 +6,61 @@
         <!-- Main Token Ring -->
         <div class="hero-main glass-surface">
           <div class="hero-ring-wrap">
-            <TokenRing :percent="usagePercent" :size="120" :stroke="6">
+            <TokenRing :percent="agg.mainRing.value.percent" :size="120" :stroke="6">
               <div class="hero-ring-inner">
-                <span class="hero-ring-value">{{ usagePercent.toFixed(1) }}</span>
-                <span class="hero-ring-unit">%</span>
+                <span class="hero-ring-value">
+                  {{ agg.mainRing.value.source !== 'none' ? agg.mainRing.value.percent.toFixed(1) : '—' }}
+                </span>
+                <span class="hero-ring-unit">{{ agg.mainRing.value.source !== 'none' ? '%' : '' }}</span>
               </div>
             </TokenRing>
           </div>
           <div class="hero-stats">
-            <div class="hero-stat-item">
-              <span class="hero-stat-label">总配额</span>
-              <span class="hero-stat-value neon-text">{{ formatLargeNumber(totalTokens) }}</span>
+            <!-- 主环标注 -->
+            <div class="hero-alert" v-if="agg.mainRing.value.source !== 'none'">
+              <span class="hero-alert-dot unified"></span>
+              <span class="hero-alert-text">{{ agg.mainRing.value.label }}</span>
+              <span class="hero-alert-sub" v-if="agg.unifiedTokenPool.value.total > 0">
+                {{ formatLargeNumber(agg.unifiedTokenPool.value.used) }} / {{ formatLargeNumber(agg.unifiedTokenPool.value.total) }}
+              </span>
             </div>
-            <div class="hero-divider"></div>
-            <div class="hero-stat-item">
-              <span class="hero-stat-label">已使用</span>
-              <span class="hero-stat-value warn">{{ formatLargeNumber(usedTokens) }}</span>
+            <div class="hero-alert ok" v-else-if="agg.hasAnyData.value">
+              <span class="hero-alert-dot ok"></span>
+              <span class="hero-alert-text">{{ agg.mainRing.value.label }}</span>
             </div>
-            <div class="hero-divider"></div>
-            <div class="hero-stat-item">
-              <span class="hero-stat-label">剩余额度</span>
-              <span class="hero-stat-value ok">{{ formatLargeNumber(remainingTokens) }}</span>
+
+            <!-- Token 汇总行 -->
+            <template v-if="agg.tokenAgg.value">
+              <div class="hero-divider"></div>
+              <div class="hero-stat-item">
+                <span class="hero-stat-label">总配额</span>
+                <span class="hero-stat-value neon-text">{{ formatLargeNumber(agg.tokenAgg.value.total) }}</span>
+              </div>
+              <div class="hero-stat-item">
+                <span class="hero-stat-label">已使用</span>
+                <span class="hero-stat-value warn">{{ formatLargeNumber(agg.tokenAgg.value.used) }}</span>
+              </div>
+              <div class="hero-stat-item">
+                <span class="hero-stat-label">剩余</span>
+                <span class="hero-stat-value ok">{{ formatLargeNumber(agg.tokenAgg.value.remaining) }}</span>
+              </div>
+            </template>
+
+            <!-- Balance 汇总行 -->
+            <template v-if="agg.balanceAgg.value">
+              <div class="hero-divider"></div>
+              <div class="hero-stat-item">
+                <span class="hero-stat-label">账户余额</span>
+                <span class="hero-stat-value neon-text">
+                  {{ agg.balanceAgg.value.currency === 'CNY' ? '¥' : agg.balanceAgg.value.currency }}
+                  {{ agg.balanceAgg.value.totalBalance.toFixed(2) }}
+                </span>
+              </div>
+            </template>
+
+            <!-- 无数据 -->
+            <div v-if="!agg.hasAnyData.value" class="hero-stat-empty">
+              <span class="hero-stat-label">点击下方模型卡获取额度</span>
             </div>
           </div>
         </div>
@@ -47,18 +81,81 @@
               <el-icon :size="20"><CircleCheck /></el-icon>
             </div>
             <div class="qs-info">
-              <span class="qs-value"><CountUp :value="activeModels" :duration="800" /></span>
+              <span class="qs-value">
+                <CountUp :value="activeModels" :duration="800" />
+              </span>
               <span class="qs-label">已获取额度</span>
             </div>
           </div>
           <div class="quick-stat glass-surface" style="animation-delay: 300ms">
             <div class="qs-icon" style="--glow: var(--neon-amber)">
-              <el-icon :size="20"><Timer /></el-icon>
+              <el-icon :size="20"><DataBoard /></el-icon>
             </div>
             <div class="qs-info">
-              <span class="qs-value">实时</span>
-              <span class="qs-label">监控状态</span>
+              <span class="qs-value qs-type-counts">
+                <span class="qs-tag t">{{ agg.typeCounts.value.token }}</span>
+                <span class="qs-tag p">{{ agg.typeCounts.value.percent }}</span>
+                <span class="qs-tag b">{{ agg.typeCounts.value.balance }}</span>
+              </span>
+              <span class="qs-label">T / 窗口 / 余额</span>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Type Summary Cards -->
+      <div class="type-summary" v-if="agg.hasAnyData.value">
+        <!-- Token 汇总卡 -->
+        <div v-if="agg.tokenAgg.value" class="type-card glass-surface">
+          <div class="tc-header">
+            <span class="tc-title">📦 Token 额度</span>
+            <span class="tc-count">{{ agg.tokenAgg.value.modelCount }} 个模型</span>
+          </div>
+          <div class="tc-bar-track">
+            <div
+              class="tc-bar-fill"
+              :style="{
+                width: Math.min(100, agg.tokenAgg.value.percent) + '%',
+                background: getProgressColor(agg.tokenAgg.value.percent)
+              }"
+            ></div>
+          </div>
+          <div class="tc-meta">
+            <span>{{ formatLargeNumber(agg.tokenAgg.value.used) }} / {{ formatLargeNumber(agg.tokenAgg.value.total) }}</span>
+            <span class="tc-pct">{{ agg.tokenAgg.value.percent.toFixed(1) }}%</span>
+          </div>
+        </div>
+
+        <!-- 时间窗口汇总卡 -->
+        <div v-if="agg.percentAgg.value" class="type-card glass-surface">
+          <div class="tc-header">
+            <span class="tc-title">⏱ 时间窗口</span>
+            <span class="tc-count">{{ agg.percentAgg.value.modelCount }} 个模型</span>
+          </div>
+          <div class="tc-bar-track">
+            <div
+              class="tc-bar-fill"
+              :style="{
+                width: Math.min(100, agg.percentAgg.value.worstPercent) + '%',
+                background: getProgressColor(agg.percentAgg.value.worstPercent)
+              }"
+            ></div>
+          </div>
+          <div class="tc-meta">
+            <span>最紧张: {{ agg.percentAgg.value.worstLabel }}</span>
+            <span class="tc-pct">{{ agg.percentAgg.value.worstPercent.toFixed(1) }}%</span>
+          </div>
+        </div>
+
+        <!-- 余额汇总卡 -->
+        <div v-if="agg.balanceAgg.value" class="type-card glass-surface">
+          <div class="tc-header">
+            <span class="tc-title">💰 账户余额</span>
+            <span class="tc-count">{{ agg.balanceAgg.value.modelCount }} 个模型</span>
+          </div>
+          <div class="tc-balance">
+            <span class="tc-currency">{{ agg.balanceAgg.value.currency === 'CNY' ? '¥' : agg.balanceAgg.value.currency }}</span>
+            <span class="tc-amount">{{ agg.balanceAgg.value.totalBalance.toFixed(2) }}</span>
           </div>
         </div>
       </div>
@@ -178,7 +275,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   Coin,
@@ -186,40 +283,19 @@ import {
   Loading,
   Plus,
   CircleCheck,
-  Timer
+  DataBoard
 } from '@element-plus/icons-vue'
 import type { ModelConfig } from '@/stores/app'
 import { useAppStore } from '@/stores/app'
-import { formatTokens } from '@/utils/format'
+import { formatTokens, getProgressColor } from '@/utils/format'
+import { useUsageAggregation } from '@/composables/useUsageAggregation'
 import TokenRing from '@/components/TokenRing.vue'
 import PercentBar from '@/components/PercentBar.vue'
 import BalanceCard from '@/components/BalanceCard.vue'
 import CountUp from '@/components/CountUp.vue'
 
 const store = useAppStore()
-
-const totalTokens = computed(() => {
-  return Object.values(store.modelUsageMap)
-    .filter(u => u.usageType === 'token')
-    .reduce((sum, u) => sum + (u.total || 0), 0)
-})
-
-const usedTokens = computed(() => {
-  return Object.values(store.modelUsageMap)
-    .filter(u => u.usageType === 'token')
-    .reduce((sum, u) => sum + (u.used || 0), 0)
-})
-
-const remainingTokens = computed(() => {
-  return Object.values(store.modelUsageMap)
-    .filter(u => u.usageType === 'token')
-    .reduce((sum, u) => sum + (u.remaining || 0), 0)
-})
-
-const usagePercent = computed(() => {
-  if (totalTokens.value === 0) return 0
-  return Math.round((usedTokens.value / totalTokens.value) * 10000) / 100
-})
+const agg = useUsageAggregation()
 
 const activeModels = computed(() => {
   return Object.keys(store.modelUsageMap).length
@@ -263,7 +339,6 @@ async function refreshAll() {
 
 onMounted(async () => {
   // 数据已在 loadConfig 时从主进程缓存获取
-  // 不需要再调用 refreshAll
 })
 </script>
 
@@ -273,6 +348,7 @@ onMounted(async () => {
   flex-direction: column;
   gap: 20px;
   min-height: 0;
+  width: 100%;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -286,6 +362,7 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: 1fr 240px;
   gap: 16px;
+  min-width: 0; /* 防止 grid 溢出 */
 }
 
 .hero-main {
@@ -338,7 +415,57 @@ onMounted(async () => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 7px;
+}
+
+.hero-alert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: var(--glass-bg);
+  border: 1px solid var(--border-light);
+}
+
+.hero-alert-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.hero-alert-dot.token {
+  background: var(--neon-amber);
+  box-shadow: 0 0 6px var(--neon-amber);
+}
+
+.hero-alert-dot.percent {
+  background: var(--neon-red);
+  box-shadow: 0 0 6px var(--neon-red);
+}
+
+.hero-alert-dot.unified {
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+}
+
+.hero-alert-dot.ok {
+  background: var(--neon-green);
+  box-shadow: 0 0 6px var(--neon-green);
+}
+
+.hero-alert-text {
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.hero-alert-sub {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
 }
 
 .hero-stat-item {
@@ -369,6 +496,12 @@ onMounted(async () => {
 .hero-divider {
   height: 1px;
   background: var(--border-light);
+}
+
+.hero-stat-empty {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0;
 }
 
 /* ── Hero Side ── */
@@ -417,9 +550,117 @@ onMounted(async () => {
   color: var(--text-primary);
 }
 
+.qs-type-counts {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.qs-tag {
+  font-size: 13px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 5px;
+}
+
+.qs-tag.t { color: var(--neon-amber); background: rgba(251, 191, 36, 0.12); }
+.qs-tag.p { color: var(--neon-red); background: rgba(248, 113, 113, 0.12); }
+.qs-tag.b { color: var(--neon-green); background: rgba(34, 211, 238, 0.12); }
+
 .qs-label {
   font-size: 11px;
   color: var(--text-secondary);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Type Summary Cards
+   ═══════════════════════════════════════════════════════════ */
+.type-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+  animation: fadeSlideUp var(--duration-slow) var(--ease-spring) both;
+  animation-delay: 100ms;
+}
+
+.type-card {
+  padding: 14px 16px;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: transform var(--duration-normal) var(--ease-spring),
+              box-shadow var(--duration-normal) var(--ease-smooth);
+}
+
+.type-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--glass-shadow-hover);
+}
+
+.tc-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tc-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.tc-count {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.tc-bar-track {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border-light);
+  overflow: hidden;
+}
+
+.tc-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 1.2s var(--ease-spring);
+}
+
+.tc-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.tc-pct {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.tc-balance {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.tc-currency {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.tc-amount {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -547,8 +788,9 @@ onMounted(async () => {
    ═══════════════════════════════════════════════════════════ */
 .model-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 12px;
+  min-width: 0; /* 防止 grid 溢出 */
 }
 
 .model-card {
@@ -717,9 +959,35 @@ onMounted(async () => {
   .hero-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .hero-side {
     flex-direction: row;
+  }
+
+  .type-summary {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 适配 Electron 最小宽度 1000px */
+@media (max-width: 1000px) {
+  .hero-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .hero-main {
+    padding: 16px;
+    gap: 16px;
+  }
+
+  .hero-ring-wrap {
+    transform: scale(0.85);
+  }
+
+  .model-grid {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px;
   }
 }
 
@@ -728,7 +996,7 @@ onMounted(async () => {
     flex-direction: column;
     text-align: center;
   }
-  
+
   .model-grid {
     grid-template-columns: 1fr;
   }

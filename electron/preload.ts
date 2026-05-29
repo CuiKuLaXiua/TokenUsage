@@ -16,9 +16,11 @@ export interface ElectronAPI {
   }) => Promise<any>
   openFloatWindow: () => Promise<boolean>
   closeFloatWindow: () => Promise<boolean>
+  focusFloatWindow: () => Promise<boolean>
   setFloatAlwaysOnTop: (value: boolean) => Promise<boolean>
   resizeFloatWindow: (width: number, height: number) => Promise<boolean>
   resizeFloatWindowAnimated: (width: number, height: number, duration: number) => Promise<boolean>
+  debugLog: (msg: string) => Promise<boolean>
   startWindowDrag: (options: { mouseX: number; mouseY: number }) => Promise<void>
   windowDragMove: (options: { mouseX: number; mouseY: number }) => Promise<void>
   stopWindowDrag: () => Promise<void>
@@ -48,6 +50,27 @@ export interface ElectronAPI {
   // 详情悬浮窗 hover 状态同步
   notifyDetailHover: (state: 'enter' | 'leave') => Promise<void>
   onDetailHoverChanged: (callback: (state: 'enter' | 'leave') => void) => () => void
+  // 右键菜单弹出窗
+  showCtxMenu: (options: {
+    screenX: number
+    screenY: number
+    modelId: string | null
+    modelName: string | null
+    theme: string
+    layoutMode: string
+    alwaysOnTop: boolean
+  }) => Promise<boolean>
+  hideCtxMenu: () => Promise<boolean>
+  sendCtxMenuAction: (action: string) => Promise<boolean>
+  onCtxMenuConfig: (callback: (config: {
+    modelId: string | null
+    modelName: string | null
+    theme: string
+    layoutMode: string
+    alwaysOnTop: boolean
+  }) => void) => () => void
+  onNativeContextMenu: (callback: (pos: { x: number; y: number }) => void) => () => void
+  onExecuteCtxMenuAction: (callback: (action: string) => void) => () => void
 }
 
 const electronAPI: ElectronAPI = {
@@ -59,9 +82,11 @@ const electronAPI: ElectronAPI = {
   fetchMimoUsage: (options) => ipcRenderer.invoke('fetch-mimo-usage', options),
   openFloatWindow: () => ipcRenderer.invoke('open-float-window'),
   closeFloatWindow: () => ipcRenderer.invoke('close-float-window'),
+  focusFloatWindow: () => ipcRenderer.invoke('focus-float-window'),
   setFloatAlwaysOnTop: (value) => ipcRenderer.invoke('set-float-always-on-top', value),
   resizeFloatWindow: (width, height) => ipcRenderer.invoke('resize-float-window', width, height),
   resizeFloatWindowAnimated: (width, height, duration) => ipcRenderer.invoke('resize-float-window-animated', width, height, duration),
+  debugLog: (msg: string) => ipcRenderer.invoke('debug-log', msg),
   startWindowDrag: (options) => ipcRenderer.invoke('start-window-drag', options),
   windowDragMove: (options) => ipcRenderer.invoke('window-drag-move', options),
   stopWindowDrag: () => ipcRenderer.invoke('stop-window-drag'),
@@ -114,6 +139,25 @@ const electronAPI: ElectronAPI = {
     return () => {
       ipcRenderer.removeListener('detail-hover-changed', wrapper)
     }
+  },
+  // 右键菜单弹出窗
+  showCtxMenu: (options) => ipcRenderer.invoke('show-ctx-menu', options),
+  hideCtxMenu: () => ipcRenderer.invoke('hide-ctx-menu'),
+  sendCtxMenuAction: (action) => ipcRenderer.invoke('ctx-menu-action', action),
+  onCtxMenuConfig: (callback) => {
+    const wrapper = (_: any, config: any) => callback(config)
+    ipcRenderer.on('ctx-menu-config', wrapper)
+    return () => { ipcRenderer.removeListener('ctx-menu-config', wrapper) }
+  },
+  onNativeContextMenu: (callback) => {
+    const wrapper = (_: any, pos: { x: number; y: number }) => callback(pos)
+    ipcRenderer.on('native-context-menu', wrapper)
+    return () => { ipcRenderer.removeListener('native-context-menu', wrapper) }
+  },
+  onExecuteCtxMenuAction: (callback) => {
+    const wrapper = (_: any, action: string) => callback(action)
+    ipcRenderer.on('execute-ctx-menu-action', wrapper)
+    return () => { ipcRenderer.removeListener('execute-ctx-menu-action', wrapper) }
   }
 }
 
