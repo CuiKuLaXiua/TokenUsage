@@ -1,6 +1,31 @@
 <template>
   <div class="app-layout">
     <ParticleBg />
+    
+    <!-- 自定义标题栏 -->
+    <div class="title-bar" :class="{ 'is-mac': isMac }">
+      <div class="title-bar-drag">
+        <span v-if="isMac" class="title-bar-text">Token Usage</span>
+      </div>
+      <div v-if="!isMac" class="title-bar-controls">
+        <button class="title-btn" @click="minimize" title="最小化">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <rect x="1" y="5.5" width="10" height="1" rx="0.5" fill="currentColor"/>
+          </svg>
+        </button>
+        <button class="title-btn" @click="maximize" title="最大化">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <rect x="1.5" y="1.5" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1"/>
+          </svg>
+        </button>
+        <button class="title-btn close-btn" @click="close" title="关闭">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M2 2L10 10M10 2L2 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
     <aside class="sidebar" :class="{ collapsed: isCollapsed }">
       <div class="logo">
         <div class="logo-icon">
@@ -84,6 +109,11 @@ const route = useRoute()
 const themeStore = useThemeStore()
 const isCollapsed = ref(false)
 
+// 检测是否为 macOS
+const isMac = computed(() => {
+  return navigator.platform.toUpperCase().indexOf('MAC') >= 0
+})
+
 interface NavItem {
   path: string
   label: string
@@ -109,13 +139,96 @@ function toggleSidebar() {
 function openFloat() {
   window.electronAPI.openFloatWindow()
 }
+
+// 窗口控制函数
+function minimize() {
+  window.electronAPI.windowMinimize()
+}
+
+function maximize() {
+  window.electronAPI.windowMaximize()
+}
+
+function close() {
+  window.electronAPI.windowClose()
+}
 </script>
 
 <style scoped>
 .app-layout {
   display: flex;
+  flex-direction: column;
   min-height: 100vh;
   background: var(--bg-primary);
+}
+
+/* ── Title Bar ── */
+.title-bar {
+  height: 36px;
+  background: var(--sidebar-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-bottom: 1px solid var(--border-light);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 200;
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.title-bar.is-mac {
+  padding-left: 78px; /* 为 macOS 交通灯留出空间 */
+}
+
+.title-bar-drag {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+}
+
+.title-bar-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--accent-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.title-bar-controls {
+  display: flex;
+  align-items: center;
+  -webkit-app-region: no-drag;
+}
+
+.title-btn {
+  width: 46px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.title-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+
+.title-btn.close-btn:hover {
+  background: #e81123;
+  color: #fff;
 }
 
 /* ── Sidebar ── */
@@ -129,7 +242,7 @@ function openFloat() {
   flex-direction: column;
   position: fixed;
   left: 0;
-  top: 0;
+  top: 36px; /* 从标题栏下方开始 */
   bottom: 0;
   z-index: 100;
   transition: width var(--duration-normal) var(--ease-spring);
@@ -305,9 +418,10 @@ function openFloat() {
 .main-content {
   flex: 1;
   margin-left: 240px;
+  margin-top: 36px; /* 标题栏高度 */
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: calc(100vh - 36px); /* 减去标题栏高度 */
   overflow: hidden;
   transition: margin-left var(--duration-normal) var(--ease-spring);
 }
@@ -327,9 +441,7 @@ function openFloat() {
   align-items: center;
   justify-content: space-between;
   padding: 0 28px;
-  position: sticky;
-  top: 0;
-  z-index: 50;
+  flex-shrink: 0;
 }
 
 .page-title {

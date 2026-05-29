@@ -101,6 +101,14 @@ const usage = computed(() => store.modelUsageMap[props.model.id])
 <style scoped>
 .float-model-card {
   width: 100%;
+  padding: 2px;
+  border-radius: 10px;
+  transition: transform 0.25s var(--ease-spring), box-shadow 0.25s, background 0.25s;
+}
+.float-model-card:hover {
+  transform: translateY(-1px);
+  background: var(--glass-bg);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.1);
 }
 
 .card-header {
@@ -177,6 +185,20 @@ const usage = computed(() => store.modelUsageMap[props.model.id])
   height: 100%;
   border-radius: 2px;
   transition: width 0.8s var(--ease-spring);
+  position: relative;
+}
+.token-fill::after {
+  content: '';
+  position: absolute;
+  right: 0; top: 0; bottom: 0;
+  width: 12px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3));
+  border-radius: 0 2px 2px 0;
+  animation: shimmer 2s ease-in-out infinite;
+}
+@keyframes shimmer {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
 }
 
 .token-percent {
@@ -267,6 +289,16 @@ const usage = computed(() => store.modelUsageMap[props.model.id])
   height: 100%;
   border-radius: 2px;
   transition: width 0.8s var(--ease-spring);
+  position: relative;
+}
+.tier-fill::after {
+  content: '';
+  position: absolute;
+  right: 0; top: 0; bottom: 0;
+  width: 10px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25));
+  border-radius: 0 2px 2px 0;
+  animation: shimmer 2.5s ease-in-out infinite;
 }
 
 .tier-detail {

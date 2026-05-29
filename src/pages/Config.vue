@@ -59,6 +59,10 @@
                         <span>{{ formatTokens(tier.used) }} / {{ formatTokens(tier.total) }}</span>
                         <span class="tier-remaining">余 {{ formatTokens(tier.remaining) }}</span>
                       </div>
+                      <div v-if="tier.resetAt" class="tier-reset">
+                        <el-icon :size="10"><Clock /></el-icon>
+                        <span>{{ formatResetTime(tier.resetAt) }}</span>
+                      </div>
                     </div>
                   </template>
                   <!-- 余额 (DeepSeek / balance) -->
@@ -157,34 +161,38 @@
               </select>
             </div>
             <div class="form-field">
-              <label class="form-label">API 地址</label>
-              <input
-                v-model="form.baseUrl"
-                class="form-input"
-                placeholder="留空使用默认地址"
-              />
-            </div>
-            <div class="form-field">
               <label class="form-label">API 密钥 <span class="required">*</span></label>
-              <input
-                v-model="form.apiKey"
-                class="form-input"
-                type="password"
-                placeholder="Bearer Token"
-              />
+              <div class="input-with-suffix">
+                <input
+                  v-model="form.apiKey"
+                  class="form-input"
+                  :type="showApiKey ? 'text' : 'password'"
+                  :placeholder="form.provider === 'mimo' ? 'Bearer Token（MiMo 同时需要 Cookie）' : 'Bearer Token'"
+                />
+                <button
+                  type="button"
+                  class="suffix-btn"
+                  @click="showApiKey = !showApiKey"
+                  :title="showApiKey ? '隐藏' : '显示'"
+                >
+                  <el-icon :size="14">
+                    <component :is="showApiKey ? Hide : View" />
+                  </el-icon>
+                </button>
+              </div>
             </div>
-            <div class="form-field">
-              <label class="form-label">Cookie</label>
+            <div v-if="form.provider === 'mimo'" class="form-field">
+              <label class="form-label">Cookie <span class="required">*</span></label>
               <div class="cookie-field">
                 <textarea
                   v-model="form.cookies"
                   class="form-input form-textarea"
                   rows="3"
-                  :placeholder="form.provider === 'kimi' ? 'Kimi Coding Plan 不需要 Cookie' : '从浏览器复制 Cookie'"
+                  placeholder="从浏览器复制 Cookie"
                 ></textarea>
-                <div class="cookie-actions" v-if="form.provider === 'mimo'">
-                  <button 
-                    class="btn-primary btn-sm" 
+                <div class="cookie-actions">
+                  <button
+                    class="btn-primary btn-sm"
                     @click="handleLogin"
                     :disabled="store.loginState === 'logging-in'"
                   >
@@ -276,11 +284,14 @@ import {
   Loading,
   Close,
   Timer,
-  Setting
+  Clock,
+  Setting,
+  View,
+  Hide
 } from '@element-plus/icons-vue'
 import type { ModelConfig } from '@/stores/app'
 import { useAppStore } from '@/stores/app'
-import { formatTokens, getProgressColor } from '@/utils/format'
+import { formatTokens, getProgressColor, formatResetTime } from '@/utils/format'
 
 const store = useAppStore()
 
@@ -288,6 +299,7 @@ const dialogVisible = ref(false)
 const isEditing = ref(false)
 const showPasteDialog = ref(false)
 const cookiesInput = ref('')
+const showApiKey = ref(false)
 
 const defaultForm: ModelConfig = {
   id: '',
@@ -317,6 +329,10 @@ function editModel(model: ModelConfig) {
 async function saveModel() {
   if (!form.name || !form.apiKey) {
     ElMessage.warning({ message: '请填写必填字段', duration: 2000 })
+    return
+  }
+  if (form.provider === 'mimo' && !form.cookies) {
+    ElMessage.warning({ message: 'MiMo 需要填写 Cookie', duration: 2000 })
     return
   }
 
@@ -535,6 +551,16 @@ async function fetchUsage(model: ModelConfig) {
 .tier-remaining {
   color: var(--success);
   font-weight: 600;
+}
+
+.tier-reset {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9px;
+  color: var(--text-placeholder);
+  margin-top: 2px;
+  padding-left: 34px;
 }
 
 .no-data {
@@ -790,6 +816,39 @@ async function fetchUsage(model: ModelConfig) {
 .form-textarea {
   resize: vertical;
   min-height: 72px;
+}
+
+.input-with-suffix {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-with-suffix .form-input {
+  padding-right: 38px;
+}
+
+.suffix-btn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-placeholder);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--duration-fast) var(--ease-smooth);
+}
+
+.suffix-btn:hover {
+  background: var(--glass-bg-strong);
+  color: var(--text-secondary);
 }
 
 .cookie-field {

@@ -18,9 +18,13 @@ export interface ElectronAPI {
   closeFloatWindow: () => Promise<boolean>
   setFloatAlwaysOnTop: (value: boolean) => Promise<boolean>
   resizeFloatWindow: (width: number, height: number) => Promise<boolean>
+  resizeFloatWindowAnimated: (width: number, height: number, duration?: number) => Promise<boolean>
   onConfigUpdated: (callback: () => void) => () => void
   openMimoLogin: () => Promise<string | null>
   onLoginNeeded: (callback: () => void) => () => void
+  windowMinimize: () => Promise<void>
+  windowMaximize: () => Promise<void>
+  windowClose: () => Promise<void>
 }
 
 const electronAPI: ElectronAPI = {
@@ -34,6 +38,7 @@ const electronAPI: ElectronAPI = {
   closeFloatWindow: () => ipcRenderer.invoke('close-float-window'),
   setFloatAlwaysOnTop: (value) => ipcRenderer.invoke('set-float-always-on-top', value),
   resizeFloatWindow: (width, height) => ipcRenderer.invoke('resize-float-window', width, height),
+  resizeFloatWindowAnimated: (width, height, duration) => ipcRenderer.invoke('resize-float-window-animated', width, height, duration),
   onConfigUpdated: (callback) => {
     const wrapper = () => callback()
     ipcRenderer.on('config-updated', wrapper)
@@ -48,7 +53,10 @@ const electronAPI: ElectronAPI = {
     return () => {
       ipcRenderer.removeListener('login-needed', wrapper)
     }
-  }
+  },
+  windowMinimize: () => ipcRenderer.invoke('window-minimize'),
+  windowMaximize: () => ipcRenderer.invoke('window-maximize'),
+  windowClose: () => ipcRenderer.invoke('window-close')
 }
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI)

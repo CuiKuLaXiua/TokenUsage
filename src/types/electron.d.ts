@@ -39,9 +39,13 @@ export interface ElectronAPI {
   closeFloatWindow: () => Promise<boolean>
   setFloatAlwaysOnTop: (value: boolean) => Promise<boolean>
   resizeFloatWindow: (width: number, height: number) => Promise<boolean>
+  resizeFloatWindowAnimated: (width: number, height: number, duration?: number) => Promise<boolean>
   openMimoLogin: () => Promise<string | null>
   onLoginNeeded: (callback: () => void) => void
   onConfigUpdated: (callback: () => void) => () => void
+  windowMinimize: () => Promise<void>
+  windowMaximize: () => Promise<void>
+  windowClose: () => Promise<void>
 }
 
 declare global {

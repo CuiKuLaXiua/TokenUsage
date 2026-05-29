@@ -65,8 +65,9 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true
     },
-    titleBarStyle: 'hiddenInset',
-    frame: process.platform === 'darwin' ? false : true,
+    frame: false,
+    titleBarStyle: 'hidden',
+    ...(process.platform === 'darwin' ? { trafficLightPosition: { x: 12, y: 16 } } : {}),
     icon: join(__dirname, '../public/vite.svg')
   })
 
@@ -96,7 +97,7 @@ function createFloatWindow() {
     width: 280,
     height: 280,
     minWidth: 220,
-    minHeight: 200,
+    minHeight: 80,
     resizable: true,
     alwaysOnTop: true,
     skipTaskbar: true,
@@ -248,6 +249,31 @@ ipcMain.handle('resize-float-window', (_, width: number, height: number) => {
   return true
 })
 
+ipcMain.handle('resize-float-window-animated', (_, width: number, height: number, duration: number = 300) => {
+  if (!floatWindow || floatWindow.isDestroyed()) return false
+  const [startW, startH] = floatWindow.getSize()
+  const targetW = Math.round(width)
+  const targetH = Math.round(height)
+  if (Math.abs(startW - targetW) <= 2 && Math.abs(startH - targetH) <= 2) return false
+
+  const startTime = Date.now()
+  const step = () => {
+    const elapsed = Date.now() - startTime
+    const progress = Math.min(elapsed / duration, 1)
+    // ease-out cubic
+    const t = 1 - Math.pow(1 - progress, 3)
+    floatWindow!.setSize(
+      Math.round(startW + (targetW - startW) * t),
+      Math.round(startH + (targetH - startH) * t)
+    )
+    if (progress < 1) {
+      setTimeout(step, 16)
+    }
+  }
+  step()
+  return true
+})
+
 // 登录窗口管理
 let loginInProgress = false
 let loginPromise: Promise<string | null> | null = null
@@ -356,6 +382,23 @@ async function doLogin(loginUrl: string, resolve: (value: string | null) => void
     resolve(cookies)
   })
 }
+
+// 窗口控制
+ipcMain.handle('window-minimize', () => {
+  mainWindow?.minimize()
+})
+
+ipcMain.handle('window-maximize', () => {
+  if (mainWindow?.isMaximized()) {
+    mainWindow.unmaximize()
+  } else {
+    mainWindow?.maximize()
+  }
+})
+
+ipcMain.handle('window-close', () => {
+  mainWindow?.close()
+})
 
 // API调用 - 在主进程中处理，避免CORS问题
 ipcMain.handle('fetch-mimo-usage', async (_, options) => {
