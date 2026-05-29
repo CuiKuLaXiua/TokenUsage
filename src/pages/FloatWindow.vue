@@ -67,6 +67,9 @@
 
     <!-- Empty -->
     <div v-if="store.models.length === 0" class="float-empty">
+      <div class="empty-icon-wrap">
+        <el-icon :size="28" class="empty-float"><DataAnalysis /></el-icon>
+      </div>
       <span>右键菜单添加模型</span>
     </div>
 
@@ -291,6 +294,7 @@ import {
   List,
   Top,
   Clock,
+  DataAnalysis,
 } from "@element-plus/icons-vue";
 import { useAppStore } from "@/stores/app";
 import type { ModelConfig } from "@/stores/app";
@@ -614,21 +618,20 @@ const hasMoved = ref(false);
 let windowDragStartX = 0;
 let windowDragStartY = 0;
 const DRAG_THRESHOLD = 5;
+// 轮播模式下的拖拽方向判断
+let dragDirection: 'unknown' | 'horizontal' | 'vertical' = 'unknown';
+const DIRECTION_THRESHOLD = 10; // 判断方向的最小移动距离
 
 function onWindowDragStart(e: MouseEvent) {
   // 忽略右键（右键菜单单独处理）
   if (e.button !== 0) return;
-  // 忽略轮播模式下的 carousel-track 内部拖拽（已有自己的 drag 逻辑）
-  if (layoutMode.value === 'carousel') {
-    const target = e.target as HTMLElement;
-    if (target.closest('.carousel-track')) return;
-  }
+  
   windowDragStartX = e.screenX;
   windowDragStartY = e.screenY;
   isDragging.value = true;
   hasMoved.value = false;
-  window.electronAPI.startWindowDrag({ mouseX: e.screenX, mouseY: e.screenY });
-
+  dragDirection = 'unknown';
+  
   // 使用 document 级别事件，防止快速拖拽时鼠标移出窗口导致中断
   document.addEventListener('mousemove', onDocMouseMove, true);
   document.addEventListener('mouseup', onDocMouseUp, true);
@@ -636,9 +639,35 @@ function onWindowDragStart(e: MouseEvent) {
 
 function onDocMouseMove(e: MouseEvent) {
   if (!isDragging.value) return;
-  const dx = Math.abs(e.screenX - windowDragStartX);
-  const dy = Math.abs(e.screenY - windowDragStartY);
-  if (dx > DRAG_THRESHOLD || dy > DRAG_THRESHOLD) {
+  
+  const dx = e.screenX - windowDragStartX;
+  const dy = e.screenY - windowDragStartY;
+  const absDx = Math.abs(dx);
+  const absDy = Math.abs(dy);
+  
+  // 判断拖拽方向（只判断一次）
+  if (dragDirection === 'unknown' && (absDx > DIRECTION_THRESHOLD || absDy > DIRECTION_THRESHOLD)) {
+    if (layoutMode.value === 'carousel') {
+      // 轮播模式：水平移动更多 = 切换 slide，垂直移动更多 = 拖拽窗口
+      dragDirection = absDx > absDy ? 'horizontal' : 'vertical';
+    } else {
+      // 列表模式：任意方向都是窗口拖拽
+      dragDirection = 'vertical';
+    }
+    
+    // 确定是窗口拖拽后，启动 IPC 拖拽
+    if (dragDirection === 'vertical') {
+      window.electronAPI.startWindowDrag({ mouseX: windowDragStartX, mouseY: windowDragStartY });
+    }
+  }
+  
+  // 轮播模式下的水平拖拽由 carousel 自己处理，不移动窗口
+  if (layoutMode.value === 'carousel' && dragDirection === 'horizontal') {
+    return;
+  }
+  
+  // 超过阈值后开始移动窗口
+  if (absDx > DRAG_THRESHOLD || absDy > DRAG_THRESHOLD) {
     hasMoved.value = true;
   }
   if (hasMoved.value) {
@@ -650,7 +679,11 @@ function onDocMouseUp() {
   cleanupDragListeners();
   if (!isDragging.value) return;
   isDragging.value = false;
-  window.electronAPI.stopWindowDrag();
+  // 只有实际启动了窗口拖拽才需要停止
+  if (dragDirection === 'vertical') {
+    window.electronAPI.stopWindowDrag();
+  }
+  dragDirection = 'unknown';
 }
 
 function cleanupDragListeners() {
@@ -662,7 +695,10 @@ function onWindowDragEnd() {
   cleanupDragListeners();
   if (!isDragging.value) return;
   isDragging.value = false;
-  window.electronAPI.stopWindowDrag();
+  if (dragDirection === 'vertical') {
+    window.electronAPI.stopWindowDrag();
+  }
+  dragDirection = 'unknown';
 }
 
 // Fetch
@@ -729,10 +765,33 @@ watch(
 .float-empty {
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 10px;
   font-size: 12px;
   color: var(--text-placeholder);
+}
+
+.empty-icon-wrap {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: var(--glass-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-light);
+}
+
+.empty-float {
+  color: var(--text-placeholder);
+  animation: emptyPulse 3s ease-in-out infinite;
+}
+
+@keyframes emptyPulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.7; }
 }
 
 /* ═══ List ═══ */
@@ -762,7 +821,8 @@ watch(
   transition:
     transform 0.25s var(--ease-spring),
     box-shadow 0.25s,
-    background 0.25s;
+    background 0.25s,
+    border-radius 0.25s;
   border-radius: 0;
 }
 .list-card:hover {
@@ -900,21 +960,21 @@ watch(
   position: absolute;
   inset: -4px;
   border-radius: 50%;
-  background: inherit;
-  filter: blur(8px);
-  opacity: 0.25;
+  background: var(--accent);
+  filter: blur(12px);
+  opacity: 0.15;
   animation: ringBreath 3s ease-in-out infinite;
   z-index: -1;
 }
 @keyframes ringBreath {
   0%,
   100% {
-    opacity: 0.15;
-    transform: scale(0.92);
+    opacity: 0.1;
+    transform: scale(0.9);
   }
   50% {
-    opacity: 0.35;
-    transform: scale(1.08);
+    opacity: 0.25;
+    transform: scale(1.06);
   }
 }
 
@@ -976,8 +1036,8 @@ watch(
   display: flex;
   flex-direction: column;
   transition:
-    transform 0.5s var(--ease-spring),
-    opacity 0.4s var(--ease-smooth);
+    transform 0.35s var(--ease-spring),
+    opacity 0.3s var(--ease-smooth);
   opacity: 0.5;
   transform: scale(0.9) rotateY(6deg);
 }
@@ -1293,18 +1353,26 @@ watch(
   pointer-events: auto;
 }
 .dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  min-height: 14px;
+  cursor: pointer;
+}
+.dot::before {
+  content: "";
   display: block;
-  width: 4px;
-  height: 4px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: var(--text-secondary);
   opacity: 0.3;
-  cursor: pointer;
   transition: all 0.2s;
 }
-.dot.on {
-  width: 12px;
-  border-radius: 2px;
+.dot.on::before {
+  width: 16px;
+  border-radius: 3px;
   background: var(--accent);
   opacity: 1;
 }
@@ -1318,7 +1386,7 @@ watch(
 .ctx-menu {
   position: fixed;
   z-index: 9999;
-  min-width: 140px;
+  min-width: 148px;
   background: var(--glass-bg-strong);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
@@ -1345,7 +1413,7 @@ watch(
   }
 }
 .ctx-header {
-  padding: 6px 10px;
+  padding: 7px 12px;
   font-size: 11px;
   font-weight: 700;
   color: var(--accent);
@@ -1355,7 +1423,7 @@ watch(
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 10px;
+  padding: 9px 12px;
   border-radius: 8px;
   font-size: 12px;
   color: var(--text-primary);
@@ -1394,6 +1462,6 @@ watch(
 .ctx-sep {
   height: 1px;
   background: var(--border-light);
-  margin: 4px 8px;
+  margin: 4px 6px;
 }
 </style>

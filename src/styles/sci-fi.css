@@ -23,8 +23,8 @@
 
   /* ── Text ── */
   --text-primary: #e8eaf0;
-  --text-secondary: #8b90a0;
-  --text-placeholder: #4e5366;
+  --text-secondary: #9ca3af;
+  --text-placeholder: #5a6078;
 
   /* ── Border ── */
   --border-color: rgba(0, 212, 255, 0.1);
@@ -85,12 +85,12 @@
 
   /* ── Text ── */
   --text-primary: #1a1d28;
-  --text-secondary: #5a6070;
-  --text-placeholder: #9ba1b0;
+  --text-secondary: #444a55;
+  --text-placeholder: #6b7280;
 
   /* ── Border ── */
   --border-color: rgba(0, 100, 180, 0.1);
-  --border-light: rgba(0, 100, 180, 0.05);
+  --border-light: rgba(0, 80, 150, 0.08);
 
   /* ── Neon Accents (muted for light) ── */
   --neon-blue: #0090b8;
@@ -108,7 +108,7 @@
   --accent-glow: rgba(0, 144, 184, 0.15);
 
   /* ── Semantic ── */
-  --success: #0891b2;
+  --success: #0e7490;
   --warning: #d97706;
   --danger: #dc2626;
 

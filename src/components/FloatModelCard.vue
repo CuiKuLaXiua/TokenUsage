@@ -120,7 +120,7 @@ const usage = computed(() => store.modelUsageMap[props.model.id])
 }
 
 .model-name {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
   overflow: hidden;
@@ -136,7 +136,7 @@ const usage = computed(() => store.modelUsageMap[props.model.id])
 }
 
 .provider-badge {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   padding: 2px 8px;
   border-radius: 4px;
@@ -157,7 +157,7 @@ const usage = computed(() => store.modelUsageMap[props.model.id])
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 600;
   color: var(--accent);
   background: var(--accent-glow);
@@ -194,7 +194,7 @@ const usage = computed(() => store.modelUsageMap[props.model.id])
   width: 12px;
   background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3));
   border-radius: 0 2px 2px 0;
-  animation: shimmer 2s ease-in-out infinite;
+  animation: shimmer 2.5s ease-in-out infinite;
 }
 @keyframes shimmer {
   0%, 100% { opacity: 0; }
@@ -253,7 +253,7 @@ const usage = computed(() => store.modelUsageMap[props.model.id])
 }
 
 .tier-name {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-secondary);
   background: var(--glass-bg);
@@ -263,7 +263,7 @@ const usage = computed(() => store.modelUsageMap[props.model.id])
 }
 
 .tier-percent {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-secondary);
   min-width: 32px;
@@ -304,11 +304,12 @@ const usage = computed(() => store.modelUsageMap[props.model.id])
 .tier-detail {
   display: flex;
   justify-content: space-between;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-secondary);
 }
 
 .tier-remaining {
+  font-size: 11px;
   color: var(--success);
   font-weight: 600;
 }
@@ -317,7 +318,7 @@ const usage = computed(() => store.modelUsageMap[props.model.id])
   display: flex;
   align-items: center;
   gap: 3px;
-  font-size: 9px;
+  font-size: 10px;
   color: var(--text-placeholder);
   margin-top: 2px;
 }
@@ -325,7 +326,7 @@ const usage = computed(() => store.modelUsageMap[props.model.id])
 /* Fetch button */
 .fetch-btn {
   width: 100%;
-  padding: 6px;
+  padding: 8px 12px;
   border-radius: 6px;
   border: 1px solid var(--glass-border);
   background: var(--glass-bg);
