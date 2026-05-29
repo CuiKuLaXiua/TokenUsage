@@ -19,6 +19,10 @@ export interface ElectronAPI {
   setFloatAlwaysOnTop: (value: boolean) => Promise<boolean>
   resizeFloatWindow: (width: number, height: number) => Promise<boolean>
   resizeFloatWindowAnimated: (width: number, height: number, duration: number) => Promise<boolean>
+  startWindowDrag: (options: { mouseX: number; mouseY: number }) => Promise<void>
+  windowDragMove: (options: { mouseX: number; mouseY: number }) => Promise<void>
+  stopWindowDrag: () => Promise<void>
+  setFloatWindowPosition: (x: number, y: number) => Promise<boolean>
   onConfigUpdated: (callback: () => void) => () => void
   openMimoLogin: () => Promise<string | null>
   onLoginNeeded: (callback: () => void) => () => void
@@ -45,6 +49,10 @@ const electronAPI: ElectronAPI = {
   setFloatAlwaysOnTop: (value) => ipcRenderer.invoke('set-float-always-on-top', value),
   resizeFloatWindow: (width, height) => ipcRenderer.invoke('resize-float-window', width, height),
   resizeFloatWindowAnimated: (width, height, duration) => ipcRenderer.invoke('resize-float-window-animated', width, height, duration),
+  startWindowDrag: (options) => ipcRenderer.invoke('start-window-drag', options),
+  windowDragMove: (options) => ipcRenderer.invoke('window-drag-move', options),
+  stopWindowDrag: () => ipcRenderer.invoke('stop-window-drag'),
+  setFloatWindowPosition: (x, y) => ipcRenderer.invoke('set-float-window-position', x, y),
   onConfigUpdated: (callback) => {
     const wrapper = () => callback()
     ipcRenderer.on('config-updated', wrapper)

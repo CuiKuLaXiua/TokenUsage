@@ -5,7 +5,8 @@
     :data-theme="theme"
     @contextmenu.prevent="showMenu($event)"
     @mouseenter="expandList"
-    @mouseleave="collapseList"
+    @mouseleave="onMouseLeave"
+    @mousedown="onWindowDragStart"
   >
     <!-- Unified context menu -->
     <Teleport to="body">
@@ -99,7 +100,7 @@
             </div>
           </div>
           <!-- Models -->
-          <div class="list-models" :class="{ expanded: listExpanded }">
+          <div class="list-models" :class="{ expanded: listExpanded, 'expand-upward': expandUpward }">
             <div
               v-for="(model, i) in store.models"
               :key="model.id"
@@ -317,12 +318,27 @@ let unsubCfg: (() => void) | null = null;
 
 // List expand state
 const listExpanded = ref(false)
+const expandUpward = ref(false)
 let collapseTimer: ReturnType<typeof setTimeout> | null = null
 
 function expandList() {
   if (collapseTimer) { clearTimeout(collapseTimer); collapseTimer = null }
   if (layoutMode.value !== 'list' || listExpanded.value) return
+  
+  // 检测窗口位置，决定展开方向
+  const screenH = window.screen.height
+  const winBottom = window.screenY + window.innerHeight
+  expandUpward.value = winBottom > screenH - 100 // 距屏幕底部 < 100px 时向上展开
+  
   listExpanded.value = true
+  
+  // 向上展开时，重置滚动位置到顶部，确保列表可见
+  if (expandUpward.value && listScrollRef.value) {
+    nextTick(() => {
+      listScrollRef.value!.scrollTop = 0
+    })
+  }
+  
   // 立即测量并动画缩放窗口，CSS 不再做过渡，由 Electron 窗口动画替代
   resizeToFit(true)
 }
@@ -330,9 +346,35 @@ function collapseList() {
   if (layoutMode.value !== 'list' || menuVisible.value) return
   collapseTimer = setTimeout(() => {
     if (menuVisible.value) return
+    
+    // 向上展开收起时，需要把窗口位置移回原处
+    // 先计算收起前的位置和高度，再执行收起
+    const wasExpandingUpward = expandUpward.value
+    const prevScreenY = window.screenY
+    const prevHeight = window.innerHeight
+    
     listExpanded.value = false
+    expandUpward.value = false
+    
     resizeToFit(true)
+    
+    // 向上展开收起后，需要把窗口向下移回
+    // 由于 resizeToFit 是异步的（nextTick），延迟一点执行位置调整
+    if (wasExpandingUpward) {
+      setTimeout(() => {
+        const targetHeight = MIN_HEIGHT
+        const heightDiff = prevHeight - targetHeight
+        if (heightDiff > 0) {
+          window.electronAPI.setFloatWindowPosition(window.screenX, prevScreenY + heightDiff)
+        }
+      }, 350) // 等动画完成
+    }
   }, 300)
+}
+
+function onMouseLeave() {
+  collapseList()
+  // 拖拽结束已由 document 级别 mouseup 处理，无需在此调用
 }
 
 // Menu state
@@ -417,14 +459,29 @@ function resizeToFit(animate = false) {
     const contentHeight = el.scrollHeight
     el.style.height = ''
 
-    const height = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, contentHeight))
+    const newHeight = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, contentHeight))
+    
+    // 向上展开时，需要同时调整窗口位置
+    if (expandUpward.value && listExpanded.value) {
+      const currentHeight = window.innerHeight
+      const heightDiff = newHeight - currentHeight
+      if (heightDiff > 0) {
+        // 先移动窗口上移，再调整大小，避免闪烁
+        const newY = window.screenY - heightDiff
+        window.electronAPI.setFloatWindowPosition(window.screenX, newY)
+      }
+    }
+    
     const fn = animate ? window.electronAPI.resizeFloatWindowAnimated : window.electronAPI.resizeFloatWindow
-    fn(FLOAT_WIDTH, height, 300)
+    fn(FLOAT_WIDTH, newHeight, 300)
   })
 }
 
 // Menu
 function showMenu(e: MouseEvent) {
+  // 拖拽后不弹菜单
+  if (hasMoved.value) return;
+
   // 展开菜单时取消任何待执行的收起
   if (collapseTimer) { clearTimeout(collapseTimer); collapseTimer = null }
 
@@ -515,7 +572,7 @@ function onWheel(e: WheelEvent) {
   if (next !== idx.value) go(next);
 }
 
-// Drag to swipe
+// Drag to swipe (carousel)
 let dragStartX = 0;
 let dragScrollLeft = 0;
 let dragging = false;
@@ -551,6 +608,63 @@ function onDragEnd(e: MouseEvent) {
   go(Math.max(0, Math.min(slideCount.value - 1, target)));
 }
 
+// Window drag (IPC-based, replaces -webkit-app-region: drag)
+const isDragging = ref(false);
+const hasMoved = ref(false);
+let windowDragStartX = 0;
+let windowDragStartY = 0;
+const DRAG_THRESHOLD = 5;
+
+function onWindowDragStart(e: MouseEvent) {
+  // 忽略右键（右键菜单单独处理）
+  if (e.button !== 0) return;
+  // 忽略轮播模式下的 carousel-track 内部拖拽（已有自己的 drag 逻辑）
+  if (layoutMode.value === 'carousel') {
+    const target = e.target as HTMLElement;
+    if (target.closest('.carousel-track')) return;
+  }
+  windowDragStartX = e.screenX;
+  windowDragStartY = e.screenY;
+  isDragging.value = true;
+  hasMoved.value = false;
+  window.electronAPI.startWindowDrag({ mouseX: e.screenX, mouseY: e.screenY });
+
+  // 使用 document 级别事件，防止快速拖拽时鼠标移出窗口导致中断
+  document.addEventListener('mousemove', onDocMouseMove, true);
+  document.addEventListener('mouseup', onDocMouseUp, true);
+}
+
+function onDocMouseMove(e: MouseEvent) {
+  if (!isDragging.value) return;
+  const dx = Math.abs(e.screenX - windowDragStartX);
+  const dy = Math.abs(e.screenY - windowDragStartY);
+  if (dx > DRAG_THRESHOLD || dy > DRAG_THRESHOLD) {
+    hasMoved.value = true;
+  }
+  if (hasMoved.value) {
+    window.electronAPI.windowDragMove({ mouseX: e.screenX, mouseY: e.screenY });
+  }
+}
+
+function onDocMouseUp() {
+  cleanupDragListeners();
+  if (!isDragging.value) return;
+  isDragging.value = false;
+  window.electronAPI.stopWindowDrag();
+}
+
+function cleanupDragListeners() {
+  document.removeEventListener('mousemove', onDocMouseMove, true);
+  document.removeEventListener('mouseup', onDocMouseUp, true);
+}
+
+function onWindowDragEnd() {
+  cleanupDragListeners();
+  if (!isDragging.value) return;
+  isDragging.value = false;
+  window.electronAPI.stopWindowDrag();
+}
+
 // Fetch
 async function fetchModel(m: ModelConfig) {
   await store.requestRefresh(m.id);
@@ -581,6 +695,7 @@ onMounted(async () => {
 onUnmounted(() => {
   store.stopSubscription();
   unsubCfg?.();
+  cleanupDragListeners();
 });
 
 // Re-resize when layout mode or model count changes
@@ -609,7 +724,6 @@ watch(
   flex-direction: column;
   /* 顶部边缘微光 */
   box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
-  -webkit-app-region: drag;
 }
 
 .float-empty {
@@ -619,14 +733,12 @@ watch(
   justify-content: center;
   font-size: 12px;
   color: var(--text-placeholder);
-  -webkit-app-region: no-drag;
 }
 
 /* ═══ List ═══ */
 .list-wrap {
   flex: 1;
   overflow: hidden;
-  -webkit-app-region: no-drag;
 }
 
 .list-scroll {
@@ -715,6 +827,26 @@ watch(
     opacity: 1;
     transform: translateY(0) scale(1);
   }
+}
+
+/* 向上展开时，动画从下方弹入 */
+@keyframes cardPopInUpward {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* 向上展开模式：概览卡在底部，列表在上方 */
+.list-models.expand-upward {
+  order: -1;
+}
+.list-models.expand-upward .list-card {
+  animation-name: cardPopInUpward;
 }
 
 /* overview in list */
@@ -821,7 +953,6 @@ watch(
   overflow: hidden;
   position: relative;
   perspective: 900px;
-  -webkit-app-region: no-drag;
 }
 .carousel-track {
   display: flex;

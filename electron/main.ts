@@ -255,6 +255,43 @@ ipcMain.handle('resize-float-window', (_, width: number, height: number) => {
   return true
 })
 
+// 拖拽状态管理
+const dragState = new Map<number, { startMouseX: number; startMouseY: number; startPosX: number; startPosY: number }>()
+
+ipcMain.handle('start-window-drag', (event, options: { mouseX: number; mouseY: number }) => {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  if (!win || win.isDestroyed()) return
+  const [posX, posY] = win.getPosition()
+  dragState.set(win.id, {
+    startMouseX: options.mouseX,
+    startMouseY: options.mouseY,
+    startPosX: posX,
+    startPosY: posY
+  })
+})
+
+ipcMain.handle('window-drag-move', (event, options: { mouseX: number; mouseY: number }) => {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  if (!win || win.isDestroyed()) return
+  const state = dragState.get(win.id)
+  if (!state) return
+  const dx = options.mouseX - state.startMouseX
+  const dy = options.mouseY - state.startMouseY
+  win.setPosition(state.startPosX + dx, state.startPosY + dy)
+})
+
+ipcMain.handle('stop-window-drag', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  if (!win) return
+  dragState.delete(win.id)
+})
+
+ipcMain.handle('set-float-window-position', (_, x: number, y: number) => {
+  if (!floatWindow || floatWindow.isDestroyed()) return false
+  floatWindow.setPosition(Math.round(x), Math.round(y))
+  return true
+})
+
 ipcMain.handle('resize-float-window-animated', (_, width: number, height: number, duration: number = 300) => {
   if (!floatWindow || floatWindow.isDestroyed()) return false
   const [startW, startH] = floatWindow.getSize()
