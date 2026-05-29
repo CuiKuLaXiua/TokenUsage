@@ -17,7 +17,7 @@ import { computed, onMounted } from 'vue'
 const route = useRoute()
 const themeStore = useThemeStore()
 const appStore = useAppStore()
-const isFloatRoute = computed(() => route.path === '/float')
+const isFloatRoute = computed(() => route.path.startsWith('/float'))
 
 onMounted(async () => {
   themeStore.initTheme()

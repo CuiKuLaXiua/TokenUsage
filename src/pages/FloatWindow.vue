@@ -4,8 +4,8 @@
     class="float-window"
     :data-theme="theme"
     @contextmenu.prevent="showMenu($event)"
-    @mouseenter="expandList"
-    @mouseleave="onMouseLeave"
+    @mouseenter="onFloatEnter"
+    @mouseleave="onFloatLeave"
     @mousedown="onWindowDragStart"
   >
     <!-- Unified context menu -->
@@ -73,45 +73,30 @@
       <span>右键菜单添加模型</span>
     </div>
 
-    <!-- List mode -->
+    <!-- List mode (compact overview) -->
     <template v-else-if="layoutMode === 'list'">
-      <div class="list-wrap">
-        <div ref="listScrollRef" class="list-scroll">
-          <!-- Overview -->
-          <div class="list-card ov-card" :data-model-id="'__overview__'">
-            <div class="ov-row">
-              <div class="ov-ring" :style="ringCSS(usagePercent)">
-                <div class="ov-ring-inner">
-                  <span class="ov-pct">{{ usagePercent.toFixed(0) }}</span>
-                  <span class="ov-pct-u">%</span>
-                </div>
-              </div>
-              <div class="ov-nums">
-                <div class="ov-n">
-                  <span class="ov-nv">{{ fmtLg(totalTokens) }}</span
-                  ><span class="ov-nl">总配额</span>
-                </div>
-                <div class="ov-n">
-                  <span class="ov-nv warn">{{ fmtLg(usedTokens) }}</span
-                  ><span class="ov-nl">已使用</span>
-                </div>
-                <div class="ov-n">
-                  <span class="ov-nv ok">{{ fmtLg(remainingTokens) }}</span
-                  ><span class="ov-nl">剩余</span>
-                </div>
+      <div class="compact-wrap">
+        <div class="compact-card" :data-model-id="'__overview__'">
+          <div class="ov-row">
+            <div class="ov-ring" :style="ringCSS(usagePercent)">
+              <div class="ov-ring-inner">
+                <span class="ov-pct">{{ usagePercent.toFixed(0) }}</span>
+                <span class="ov-pct-u">%</span>
               </div>
             </div>
-          </div>
-          <!-- Models -->
-          <div class="list-models" :class="{ expanded: listExpanded, 'expand-upward': expandUpward }">
-            <div
-              v-for="(model, i) in store.models"
-              :key="model.id"
-              class="list-card"
-              :data-model-id="model.id"
-              :style="{ animationDelay: i * 40 + 'ms' }"
-            >
-              <FloatModelCard :model="model" @fetch="fetchModel(model)" />
+            <div class="ov-nums">
+              <div class="ov-n">
+                <span class="ov-nv">{{ fmtLg(totalTokens) }}</span>
+                <span class="ov-nl">总配额</span>
+              </div>
+              <div class="ov-n">
+                <span class="ov-nv warn">{{ fmtLg(usedTokens) }}</span>
+                <span class="ov-nl">已使用</span>
+              </div>
+              <div class="ov-n">
+                <span class="ov-nv ok">{{ fmtLg(remainingTokens) }}</span>
+                <span class="ov-nl">剩余</span>
+              </div>
             </div>
           </div>
         </div>
@@ -304,7 +289,6 @@ import {
   getProgressColor,
   formatResetTime,
 } from "@/utils/format";
-import FloatModelCard from "@/components/FloatModelCard.vue";
 
 type LayoutMode = "list" | "carousel";
 
@@ -316,69 +300,56 @@ const layoutMode = ref<LayoutMode>(
 const idx = ref(0);
 const carouselRef = ref<HTMLElement | null>(null);
 const floatRef = ref<HTMLElement | null>(null);
-const listScrollRef = ref<HTMLElement | null>(null);
 const alwaysOnTop = ref(localStorage.getItem("floatAlwaysOnTop") !== "false");
 let unsubCfg: (() => void) | null = null;
+let unsubDetailHover: (() => void) | null = null;
 
-// List expand state
-const listExpanded = ref(false)
-const expandUpward = ref(false)
-let collapseTimer: ReturnType<typeof setTimeout> | null = null
+// ── 详情窗口 hover 控制 ──
+let showDetailTimer: ReturnType<typeof setTimeout> | null = null
+let hideDetailTimer: ReturnType<typeof setTimeout> | null = null
+const isDetailHovered = ref(false)
+const SHOW_DELAY = 200   // 悬停 200ms 后弹出详情
+const HIDE_DELAY = 300   // 离开 300ms 后关闭详情
 
-function expandList() {
-  if (collapseTimer) { clearTimeout(collapseTimer); collapseTimer = null }
-  if (layoutMode.value !== 'list' || listExpanded.value) return
-  
-  // 检测窗口位置，决定展开方向
-  const screenH = window.screen.height
-  const winBottom = window.screenY + window.innerHeight
-  expandUpward.value = winBottom > screenH - 100 // 距屏幕底部 < 100px 时向上展开
-  
-  listExpanded.value = true
-  
-  // 向上展开时，重置滚动位置到顶部，确保列表可见
-  if (expandUpward.value && listScrollRef.value) {
-    nextTick(() => {
-      listScrollRef.value!.scrollTop = 0
-    })
-  }
-  
-  // 立即测量并动画缩放窗口，CSS 不再做过渡，由 Electron 窗口动画替代
-  resizeToFit(true)
+async function showDetailWindow() {
+  if (layoutMode.value !== 'list') return
+  // 获取当前窗口 bounds，传给主进程计算详情窗口位置
+  const bounds = await window.electronAPI.getFloatWindowBounds()
+  if (!bounds) return
+  window.electronAPI.showFloatDetail({
+    anchorX: bounds.x,
+    anchorY: bounds.y,
+    anchorW: bounds.width,
+    anchorH: bounds.height
+  })
 }
-function collapseList() {
-  if (layoutMode.value !== 'list' || menuVisible.value) return
-  collapseTimer = setTimeout(() => {
-    if (menuVisible.value) return
-    
-    // 向上展开收起时，需要把窗口位置移回原处
-    // 先计算收起前的位置和高度，再执行收起
-    const wasExpandingUpward = expandUpward.value
-    const prevScreenY = window.screenY
-    const prevHeight = window.innerHeight
-    
-    listExpanded.value = false
-    expandUpward.value = false
-    
-    resizeToFit(true)
-    
-    // 向上展开收起后，需要把窗口向下移回
-    // 由于 resizeToFit 是异步的（nextTick），延迟一点执行位置调整
-    if (wasExpandingUpward) {
-      setTimeout(() => {
-        const targetHeight = MIN_HEIGHT
-        const heightDiff = prevHeight - targetHeight
-        if (heightDiff > 0) {
-          window.electronAPI.setFloatWindowPosition(window.screenX, prevScreenY + heightDiff)
-        }
-      }, 350) // 等动画完成
+
+async function hideDetailWindow() {
+  window.electronAPI.hideFloatDetail()
+}
+
+function onFloatEnter() {
+  if (layoutMode.value !== 'list' || isDragging.value) return
+  if (hideDetailTimer) { clearTimeout(hideDetailTimer); hideDetailTimer = null }
+  if (showDetailTimer) return
+  showDetailTimer = setTimeout(() => {
+    showDetailTimer = null
+    if (isDragging.value) return
+    showDetailWindow()
+  }, SHOW_DELAY)
+}
+
+function onFloatLeave() {
+  if (layoutMode.value !== 'list' || isDragging.value) return
+  if (showDetailTimer) { clearTimeout(showDetailTimer); showDetailTimer = null }
+  if (hideDetailTimer) return
+  hideDetailTimer = setTimeout(() => {
+    hideDetailTimer = null
+    // 如果详情窗口正在被 hover，不关闭
+    if (!isDetailHovered.value) {
+      hideDetailWindow()
     }
-  }, 300)
-}
-
-function onMouseLeave() {
-  collapseList()
-  // 拖拽结束已由 document 级别 mouseup 处理，无需在此调用
+  }, HIDE_DELAY)
 }
 
 // Menu state
@@ -441,43 +412,18 @@ function ringCSS(pct: number, size = 80) {
   };
 }
 
-// Resize
+// Resize — now only used for carousel mode
 const FLOAT_WIDTH = 280;
-const MIN_HEIGHT = 80;
-const MAX_HEIGHT = 500;
+const FLOAT_LIST_HEIGHT = 104;
+const FLOAT_CAROUSEL_HEIGHT = 280;
 
-function resizeToFit(animate = false) {
+function resizeToFit(_animate = false) {
   nextTick(() => {
     if (layoutMode.value === 'carousel') {
-      const fn = animate ? window.electronAPI.resizeFloatWindowAnimated : window.electronAPI.resizeFloatWindow
-      fn(FLOAT_WIDTH, 280, 300)
-      return
+      window.electronAPI.resizeFloatWindow(FLOAT_WIDTH, FLOAT_CAROUSEL_HEIGHT)
+    } else {
+      window.electronAPI.resizeFloatWindow(FLOAT_WIDTH, FLOAT_LIST_HEIGHT)
     }
-
-    const el = floatRef.value
-    if (!el) return
-
-    // 临时去掉 height:100vh，让容器缩到内容的自然高度再测量
-    el.style.height = 'auto'
-    el.offsetHeight // 强制回流
-    const contentHeight = el.scrollHeight
-    el.style.height = ''
-
-    const newHeight = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, contentHeight))
-    
-    // 向上展开时，需要同时调整窗口位置
-    if (expandUpward.value && listExpanded.value) {
-      const currentHeight = window.innerHeight
-      const heightDiff = newHeight - currentHeight
-      if (heightDiff > 0) {
-        // 先移动窗口上移，再调整大小，避免闪烁
-        const newY = window.screenY - heightDiff
-        window.electronAPI.setFloatWindowPosition(window.screenX, newY)
-      }
-    }
-    
-    const fn = animate ? window.electronAPI.resizeFloatWindowAnimated : window.electronAPI.resizeFloatWindow
-    fn(FLOAT_WIDTH, newHeight, 300)
   })
 }
 
@@ -485,9 +431,6 @@ function resizeToFit(animate = false) {
 function showMenu(e: MouseEvent) {
   // 拖拽后不弹菜单
   if (hasMoved.value) return;
-
-  // 展开菜单时取消任何待执行的收起
-  if (collapseTimer) { clearTimeout(collapseTimer); collapseTimer = null }
 
   // Walk up from target to find a model card
   let el = e.target as HTMLElement | null
@@ -525,12 +468,14 @@ function doLayout(mode: LayoutMode) {
   layoutMode.value = mode;
   localStorage.setItem("floatLayout", mode);
   menuVisible.value = false;
-  if (mode === "carousel")
+  if (mode === "carousel") {
+    hideDetailWindow()
     nextTick(() => {
       idx.value = 0;
       go(0);
       updateActiveSlide();
     });
+  }
 }
 function doToggleTop() {
   alwaysOnTop.value = !alwaysOnTop.value;
@@ -668,6 +613,10 @@ function onDocMouseMove(e: MouseEvent) {
   
   // 超过阈值后开始移动窗口
   if (absDx > DRAG_THRESHOLD || absDy > DRAG_THRESHOLD) {
+    if (!hasMoved.value) {
+      // 拖拽开始时关闭详情窗口
+      hideDetailWindow()
+    }
     hasMoved.value = true;
   }
   if (hasMoved.value) {
@@ -713,7 +662,6 @@ onMounted(async () => {
   try {
     await store.loadConfig();
     resizeToFit();
-    // 数据已在 loadConfig 时从主进程缓存获取
   } catch {}
   if (layoutMode.value === "carousel") {
     nextTick(() => {
@@ -727,10 +675,24 @@ onMounted(async () => {
       .then(() => resizeToFit())
       .catch(() => {});
   });
+  // 监听详情窗口 hover 状态，避免鼠标桥接时误关闭
+  unsubDetailHover = window.electronAPI.onDetailHoverChanged((state) => {
+    isDetailHovered.value = state === 'enter'
+    if (state === 'enter') {
+      // 详情窗口被 hover，取消关闭计时器
+      if (hideDetailTimer) { clearTimeout(hideDetailTimer); hideDetailTimer = null }
+    } else {
+      // 详情窗口失去 hover，开始延迟关闭
+      onFloatLeave()
+    }
+  })
 });
 onUnmounted(() => {
+  // 关闭详情窗口
+  hideDetailWindow()
   store.stopSubscription();
   unsubCfg?.();
+  unsubDetailHover?.();
   cleanupDragListeners();
 });
 
@@ -794,124 +756,26 @@ watch(
   50% { opacity: 0.7; }
 }
 
-/* ═══ List ═══ */
-.list-wrap {
+/* ═══ Compact list (overview only) ═══ */
+.compact-wrap {
   flex: 1;
-  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
 }
-
-.list-scroll {
-  height: 100%;
-  overflow-y: auto;
-  overflow-x: hidden;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-light) transparent;
-}
-.list-scroll::-webkit-scrollbar {
-  width: 3px;
-}
-.list-scroll::-webkit-scrollbar-thumb {
-  background: var(--border-light);
-  border-radius: 2px;
-}
-
-.list-card {
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--border-light);
+.compact-card {
+  width: 100%;
+  padding: 6px 0;
+  border-radius: 10px;
   transition:
     transform 0.25s var(--ease-spring),
     box-shadow 0.25s,
-    background 0.25s,
-    border-radius 0.25s;
-  border-radius: 0;
+    background 0.25s;
 }
-.list-card:hover {
-  transform: translateY(-1px);
+.compact-card:hover {
   background: var(--glass-bg);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-  border-radius: 12px;
-}
-.list-card:last-child {
-  border-bottom: none;
-}
-
-/* 模型列表折叠/展开 — 无 CSS 动画，由 Electron 窗口 resize 动画替代 */
-.list-models {
-  display: none;
-  opacity: 0;
-}
-.list-models.expanded {
-  display: block;
-  opacity: 1;
-}
-.list-models.expanded .list-card {
-  animation: cardPopIn 0.35s var(--ease-spring) both;
-}
-.list-models.expanded .list-card:nth-child(1) {
-  animation-delay: 0.03s;
-}
-.list-models.expanded .list-card:nth-child(2) {
-  animation-delay: 0.06s;
-}
-.list-models.expanded .list-card:nth-child(3) {
-  animation-delay: 0.09s;
-}
-.list-models.expanded .list-card:nth-child(4) {
-  animation-delay: 0.12s;
-}
-.list-models.expanded .list-card:nth-child(5) {
-  animation-delay: 0.15s;
-}
-.list-models.expanded .list-card:nth-child(6) {
-  animation-delay: 0.18s;
-}
-.list-models.expanded .list-card:nth-child(7) {
-  animation-delay: 0.21s;
-}
-.list-models.expanded .list-card:nth-child(8) {
-  animation-delay: 0.24s;
-}
-.list-models.expanded .list-card:nth-child(9) {
-  animation-delay: 0.27s;
-}
-.list-models.expanded .list-card:nth-child(10) {
-  animation-delay: 0.3s;
-}
-
-@keyframes cardPopIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px) scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-/* 向上展开时，动画从下方弹入 */
-@keyframes cardPopInUpward {
-  from {
-    opacity: 0;
-    transform: translateY(-10px) scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-/* 向上展开模式：概览卡在底部，列表在上方 */
-.list-models.expand-upward {
-  order: -1;
-}
-.list-models.expand-upward .list-card {
-  animation-name: cardPopInUpward;
-}
-
-/* overview in list */
-.ov-card {
-  padding: 10px;
 }
 .ov-row {
   display: flex;

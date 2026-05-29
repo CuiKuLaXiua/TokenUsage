@@ -23,6 +23,16 @@ export interface ElectronAPI {
   windowDragMove: (options: { mouseX: number; mouseY: number }) => Promise<void>
   stopWindowDrag: () => Promise<void>
   setFloatWindowPosition: (x: number, y: number) => Promise<boolean>
+  // 详情悬浮窗
+  showFloatDetail: (options: {
+    anchorX: number
+    anchorY: number
+    anchorW: number
+    anchorH: number
+  }) => Promise<boolean>
+  hideFloatDetail: () => Promise<boolean>
+  resizeDetailWindow: (width: number, height: number) => Promise<boolean>
+  getFloatWindowBounds: () => Promise<{ x: number; y: number; width: number; height: number } | null>
   onConfigUpdated: (callback: () => void) => () => void
   openMimoLogin: () => Promise<string | null>
   onLoginNeeded: (callback: () => void) => () => void
@@ -35,6 +45,9 @@ export interface ElectronAPI {
   refreshModel: (modelId: string) => Promise<boolean>
   onUsageUpdated: (callback: (data: { modelId: string, data: any }) => void) => () => void
   onUsageFetching: (callback: (data: { modelId: string, fetching: boolean }) => void) => () => void
+  // 详情悬浮窗 hover 状态同步
+  notifyDetailHover: (state: 'enter' | 'leave') => Promise<void>
+  onDetailHoverChanged: (callback: (state: 'enter' | 'leave') => void) => () => void
 }
 
 const electronAPI: ElectronAPI = {
@@ -53,6 +66,11 @@ const electronAPI: ElectronAPI = {
   windowDragMove: (options) => ipcRenderer.invoke('window-drag-move', options),
   stopWindowDrag: () => ipcRenderer.invoke('stop-window-drag'),
   setFloatWindowPosition: (x, y) => ipcRenderer.invoke('set-float-window-position', x, y),
+  // 详情悬浮窗
+  showFloatDetail: (options) => ipcRenderer.invoke('show-float-detail', options),
+  hideFloatDetail: () => ipcRenderer.invoke('hide-float-detail'),
+  resizeDetailWindow: (width, height) => ipcRenderer.invoke('resize-detail-window', width, height),
+  getFloatWindowBounds: () => ipcRenderer.invoke('get-float-window-bounds'),
   onConfigUpdated: (callback) => {
     const wrapper = () => callback()
     ipcRenderer.on('config-updated', wrapper)
@@ -87,6 +105,14 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.on('usage-fetching', wrapper)
     return () => {
       ipcRenderer.removeListener('usage-fetching', wrapper)
+    }
+  },
+  notifyDetailHover: (state) => ipcRenderer.invoke('notify-detail-hover', state),
+  onDetailHoverChanged: (callback) => {
+    const wrapper = (_: any, state: 'enter' | 'leave') => callback(state)
+    ipcRenderer.on('detail-hover-changed', wrapper)
+    return () => {
+      ipcRenderer.removeListener('detail-hover-changed', wrapper)
     }
   }
 }

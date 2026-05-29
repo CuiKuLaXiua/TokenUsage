@@ -23,6 +23,7 @@ process.on('unhandledRejection', (reason) => {
 
 let mainWindow: BrowserWindow | null = null
 let floatWindow: BrowserWindow | null = null
+let detailWindow: BrowserWindow | null = null
 const loginManager = new LoginWindowManager()
 
 const dataDir = join(homedir(), '.token-usage')
@@ -70,7 +71,7 @@ function createWindow() {
     frame: false,
     titleBarStyle: 'hidden',
     ...(process.platform === 'darwin' ? { trafficLightPosition: { x: 12, y: 16 } } : {}),
-    icon: join(__dirname, '../public/vite.svg')
+    icon: join(__dirname, '../public/logo.png')
   })
 
   if (isDev) {
@@ -94,13 +95,17 @@ function createWindow() {
   })
 }
 
+const FLOAT_WIDTH = 280
+const FLOAT_HEIGHT = 104
+const DETAIL_WIDTH = 320
+const DETAIL_HEIGHT = 420
+const DETAIL_GAP = 8
+
 function createFloatWindow() {
   floatWindow = new BrowserWindow({
-    width: 280,
-    height: 280,
-    minWidth: 220,
-    minHeight: 80,
-    resizable: true,
+    width: FLOAT_WIDTH,
+    height: FLOAT_HEIGHT,
+    resizable: false,
     alwaysOnTop: true,
     skipTaskbar: true,
     frame: false,
@@ -109,7 +114,7 @@ function createFloatWindow() {
       nodeIntegration: false,
       contextIsolation: true
     },
-    icon: join(__dirname, '../public/vite.svg')
+    icon: join(__dirname, '../public/logo.png')
   })
 
   if (isDev) {
@@ -121,8 +126,85 @@ function createFloatWindow() {
   }
 
   floatWindow.on('closed', () => {
+    // 主窗口关闭时同步关闭详情窗口
+    if (detailWindow && !detailWindow.isDestroyed()) {
+      detailWindow.close()
+    }
     floatWindow = null
   })
+}
+
+function createDetailWindow() {
+  if (detailWindow && !detailWindow.isDestroyed()) {
+    return detailWindow
+  }
+
+  if (!floatWindow || floatWindow.isDestroyed()) {
+    return null
+  }
+
+  detailWindow = new BrowserWindow({
+    width: DETAIL_WIDTH,
+    height: DETAIL_HEIGHT,
+    resizable: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    frame: false,
+    show: false,
+    parent: floatWindow,
+    webPreferences: {
+      preload: join(__dirname, 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true
+    },
+    icon: join(__dirname, '../public/logo.png')
+  })
+
+  // 确保详情窗口在主窗口之上
+  detailWindow.setAlwaysOnTop(true, 'pop-up-menu')
+
+  if (isDev) {
+    detailWindow.loadURL('http://localhost:3000/#/float-detail')
+  } else {
+    detailWindow.loadFile(join(__dirname, '../dist/index.html'), {
+      hash: '/float-detail'
+    })
+  }
+
+  detailWindow.on('closed', () => {
+    detailWindow = null
+  })
+
+  return detailWindow
+}
+
+/**
+ * 计算详情窗口位置，支持边缘检测
+ */
+function computeDetailPosition(
+  anchorX: number,
+  anchorY: number,
+  anchorW: number,
+  anchorH: number
+): { x: number; y: number } {
+  const { width: screenW, height: screenH } =
+    require('electron').screen.getPrimaryDisplay().workAreaSize
+
+  // 默认在右侧
+  let x = anchorX + anchorW + DETAIL_GAP
+  let y = anchorY
+
+  // 右侧空间不足，放左侧
+  if (x + DETAIL_WIDTH > screenW - 20) {
+    x = Math.max(0, anchorX - DETAIL_WIDTH - DETAIL_GAP)
+  }
+
+  // 底部空间不足，向上对齐
+  if (y + DETAIL_HEIGHT > screenH - 20) {
+    y = Math.max(0, anchorY + anchorH - DETAIL_HEIGHT)
+  }
+
+  return { x: Math.round(x), y: Math.round(y) }
 }
 
 app.whenReady().then(() => {
@@ -230,11 +312,74 @@ ipcMain.handle('open-float-window', () => {
 })
 
 ipcMain.handle('close-float-window', () => {
+  if (detailWindow && !detailWindow.isDestroyed()) {
+    detailWindow.close()
+    detailWindow = null
+  }
   if (floatWindow) {
     floatWindow.close()
     floatWindow = null
   }
   return true
+})
+
+// ── 详情悬浮窗 IPC ──
+
+ipcMain.handle('show-float-detail', (_, options: {
+  anchorX: number
+  anchorY: number
+  anchorW: number
+  anchorH: number
+}) => {
+  const win = createDetailWindow()
+  if (!win) return false
+
+  const { x, y } = computeDetailPosition(
+    options.anchorX,
+    options.anchorY,
+    options.anchorW,
+    options.anchorH
+  )
+
+  win.setPosition(x, y)
+
+  if (!win.isVisible()) {
+    win.show()
+    win.focus()
+  }
+
+  return true
+})
+
+ipcMain.handle('hide-float-detail', () => {
+  if (detailWindow && !detailWindow.isDestroyed()) {
+    detailWindow.hide()
+  }
+  return true
+})
+
+ipcMain.handle('resize-detail-window', (_, width: number, height: number) => {
+  if (detailWindow && !detailWindow.isDestroyed()) {
+    const MIN_H = 120
+    const MAX_H = 520
+    const clamped = Math.round(Math.min(MAX_H, Math.max(MIN_H, height)))
+    detailWindow.setSize(Math.round(width), clamped)
+  }
+  return true
+})
+
+ipcMain.handle('notify-detail-hover', (_event, state: 'enter' | 'leave') => {
+  // 将详情窗口的 hover 状态广播给主悬浮窗
+  if (floatWindow && !floatWindow.isDestroyed()) {
+    floatWindow.webContents.send('detail-hover-changed', state)
+  }
+})
+
+ipcMain.handle('get-float-window-bounds', () => {
+  if (!floatWindow || floatWindow.isDestroyed()) return null
+  const [x, y] = floatWindow.getPosition()
+  const [w, h] = floatWindow.getSize()
+  return { x, y, width: w, height: h }
 })
 
 ipcMain.handle('set-float-always-on-top', (_, value: boolean) => {

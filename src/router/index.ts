@@ -31,6 +31,11 @@ const router = createRouter({
       path: '/float',
       name: 'Float',
       component: () => import('@/pages/FloatWindow.vue')
+    },
+    {
+      path: '/float-detail',
+      name: 'FloatDetail',
+      component: () => import('@/pages/FloatDetail.vue')
     }
   ]
 })

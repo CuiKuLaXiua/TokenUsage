@@ -29,8 +29,7 @@
     <aside class="sidebar" :class="{ collapsed: isCollapsed }">
       <div class="logo">
         <div class="logo-icon">
-          <div class="logo-glow"></div>
-          <span class="logo-letter">T</span>
+          <img src="/logo.png" alt="Token Usage" class="logo-img" />
         </div>
         <Transition name="logo-text">
           <span v-show="!isCollapsed" class="logo-text">Token Usage</span>
@@ -269,28 +268,26 @@ function close() {
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  background: var(--accent-gradient);
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
   flex-shrink: 0;
+  overflow: hidden;
 }
 
 .logo-glow {
-  position: absolute;
-  inset: -4px;
-  border-radius: 16px;
-  background: var(--accent-gradient);
-  opacity: 0.3;
-  filter: blur(10px);
-  animation: pulseGlow 3s ease-in-out infinite;
+  display: none;
 }
 
 .logo-letter {
-  color: #fff;
-  font-weight: 700;
-  font-size: 20px;
+  display: none;
+}
+
+.logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
   position: relative;
   z-index: 1;
 }

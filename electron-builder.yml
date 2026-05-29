@@ -15,14 +15,16 @@
     "target": [
       "dmg",
       "zip"
-    ]
+    ],
+    "icon": "build/icon.png"
   },
   "win": {
     "target": [
       "nsis",
       "zip"
     ],
-    "artifactName": "${productName}-${version}-win.${ext}"
+    "artifactName": "${productName}-${version}-win.${ext}",
+    "icon": "build/icon.png"
   },
   "linux": {
     "target": [
@@ -30,12 +32,15 @@
       "zip"
     ],
     "category": "Development",
-    "artifactName": "${productName}-${version}-linux.${ext}"
+    "artifactName": "${productName}-${version}-linux.${ext}",
+    "icon": "build/icon.png"
   },
   "nsis": {
     "oneClick": false,
     "perMachine": false,
     "allowToChangeInstallationDirectory": true,
-    "deleteAppDataOnUninstall": true
+    "deleteAppDataOnUninstall": true,
+    "installerIcon": "build/icon.png",
+    "uninstallerIcon": "build/icon.png"
   }
 }
