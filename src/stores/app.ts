@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia'
 import { ref, reactive, toRaw } from 'vue'
-import { extractUsage, MIMO_DEFAULT_BASE_URL, KIMI_DEFAULT_BASE_URL, DEEPSEEK_DEFAULT_BASE_URL } from '@/services/api'
 
 export type UsageType = 'token' | 'balance' | 'percent'
 
@@ -65,15 +64,16 @@ export const useAppStore = defineStore('app', () => {
   const fetching = reactive<Record<string, boolean>>({})
   const refreshing = ref(false)
   const isConfigLoaded = ref(false)
-  let refreshAbortFlag = false
-  const autoRefreshTimers = new Map<string, ReturnType<typeof setInterval>>()
 
   // Login state
   type LoginState = 'idle' | 'logging-in' | 'complete' | 'failed'
   const loginState = ref<LoginState>('idle')
   const loginError = ref<string | null>(null)
-  let pendingRetry: (() => void) | null = null
-  let loginRetryInProgress = false
+
+  // 订阅清理函数
+  let unsubUsage: (() => void) | null = null
+  let unsubFetching: (() => void) | null = null
+  let unsubLogin: (() => void) | null = null
 
   async function loadConfig() {
     try {
@@ -82,169 +82,53 @@ export const useAppStore = defineStore('app', () => {
         models.value = config.models
       }
       isConfigLoaded.value = true
-      startAutoRefresh()
 
-      // 注册 login-needed 事件监听
-      window.electronAPI.onLoginNeeded(() => {
-        loginState.value = 'idle'
-        loginError.value = null
-      })
+      // 获取主进程缓存的数据
+      const cached = await window.electronAPI.getCachedUsage()
+      Object.assign(modelUsageMap, cached)
+
+      // 订阅后续更新
+      initSubscription()
     } catch (error) {
       console.error('加载配置失败:', error)
-      isConfigLoaded.value = true // still mark as attempted
+      isConfigLoaded.value = true
     }
   }
 
-  function abortRefresh() {
-    refreshAbortFlag = true
+  function initSubscription() {
+    // 避免重复订阅
+    if (unsubUsage) unsubUsage()
+    if (unsubFetching) unsubFetching()
+    if (unsubLogin) unsubLogin()
+
+    // 监听数据更新
+    unsubUsage = window.electronAPI.onUsageUpdated(({ modelId, data }) => {
+      modelUsageMap[modelId] = data
+      fetching[modelId] = false
+    })
+
+    // 监听 fetching 状态
+    unsubFetching = window.electronAPI.onUsageFetching(({ modelId, fetching: isFetching }) => {
+      fetching[modelId] = isFetching
+    })
+
+    // 监听 login-needed
+    unsubLogin = window.electronAPI.onLoginNeeded(() => {
+      loginState.value = 'idle'
+      loginError.value = null
+    })
   }
 
-  function stopAutoRefresh() {
-    autoRefreshTimers.forEach((timerId) => clearInterval(timerId))
-    autoRefreshTimers.clear()
-  }
-
-  function startAutoRefresh() {
-    stopAutoRefresh()
-
-    for (const model of models.value) {
-      const interval = model.refreshInterval
-      if (!interval || interval <= 0) continue
-      if (!model.enabled || !model.apiKey) continue
-
-      // 首次立即获取（如果还没有数据）- 使用 await 串行执行
-      if (!modelUsageMap[model.id]) {
-        // 不等待完成，但确保不会同时触发多个登录
-        fetchModelUsage(model).catch(() => {})
-      }
-
-      const timerId = setInterval(() => {
-        if (!fetching[model.id]) {
-          fetchModelUsage(model).catch(() => {})
-        }
-      }, interval * 60 * 1000)
-
-      autoRefreshTimers.set(model.id, timerId)
-    }
-  }
-
-  async function startMimoLogin(): Promise<void> {
-    if (loginState.value === 'logging-in') {
-      console.log('[Login] 已经在登录中，跳过')
-      return // 已经在登录中，不重复触发
-    }
-
-    console.log('[Login] 开始登录流程')
-    loginState.value = 'logging-in'
-    loginError.value = null
-
-    try {
-      console.log('[Login] 调用 openMimoLogin IPC')
-      const cookies = await window.electronAPI.openMimoLogin()
-      console.log('[Login] openMimoLogin 返回:', cookies ? '成功获取 cookie' : '返回 null')
-
-      if (cookies) {
-        // 更新所有 MiMo 模型的 cookies
-        for (const model of models.value) {
-          if (model.provider === 'mimo') {
-            model.cookies = cookies
-          }
-        }
-        await saveConfig()
-        loginState.value = 'complete'
-        console.log('[Login] 登录完成，cookies 已保存')
-
-        // 触发 pending 重试
-        if (pendingRetry) {
-          console.log('[Login] 触发 pending 重试')
-          const retryFn = pendingRetry
-          pendingRetry = null
-          retryFn()
-        }
-
-        // 2 秒后恢复 idle
-        setTimeout(() => {
-          if (loginState.value === 'complete') {
-            loginState.value = 'idle'
-          }
-        }, 2000)
-      } else {
-        // 超时或用户未登录
-        loginState.value = 'failed'
-        loginError.value = '登录超时或已取消'
-        loginRetryInProgress = false
-        console.warn('[Login] 登录超时或已取消')
-      }
-    } catch (error) {
-      loginState.value = 'failed'
-      loginError.value = error instanceof Error ? error.message : '登录失败'
-      loginRetryInProgress = false
-      console.error('[Login] 登录失败:', error)
-    }
-  }
-
-  function retryAfterLogin(model: ModelConfig): void {
-    // 防止多次同时触发
-    if (loginRetryInProgress || loginState.value === 'logging-in') {
-      console.log('[Login] 登录已在进行中，跳过重复触发')
-      return
-    }
-
-    loginRetryInProgress = true
-    console.log('[Login] 设置 pendingRetry 并启动登录')
-
-    // 将 fetchModelUsage 包装为回调，存入 pendingRetry
-    pendingRetry = () => {
-      console.log('[Login] 执行 pendingRetry，重新获取数据')
-      // 重新读取 config 获取最新的 cookies
-      window.electronAPI.loadConfig().then(config => {
-        const mimoModel = config.models?.find((m: any) => m.provider === 'mimo')
-        if (mimoModel) {
-          // 更新 store 中的 model cookies
-          const storeModel = models.value.find(m => m.id === model.id)
-          if (storeModel) {
-            storeModel.cookies = mimoModel.cookies
-          }
-        }
-        fetchModelUsage(model).catch(() => {})
-      }).finally(() => {
-        loginRetryInProgress = false
-      })
-    }
-    startMimoLogin()
-  }
-
-  function resetLoginState(): void {
-    loginState.value = 'idle'
-    loginError.value = null
-    pendingRetry = null
-    loginRetryInProgress = false
-  }
-
-  /**
-   * 手动设置 MiMo cookies
-   */
-  async function setMimoCookies(cookies: string): Promise<void> {
-    for (const model of models.value) {
-      if (model.provider === 'mimo') {
-        model.cookies = cookies
-      }
-    }
-    await saveConfig()
-    loginState.value = 'complete'
-
-    // 2 秒后恢复 idle
-    setTimeout(() => {
-      if (loginState.value === 'complete') {
-        loginState.value = 'idle'
-      }
-    }, 2000)
+  function stopSubscription() {
+    if (unsubUsage) { unsubUsage(); unsubUsage = null }
+    if (unsubFetching) { unsubFetching(); unsubFetching = null }
+    if (unsubLogin) { unsubLogin(); unsubLogin = null }
   }
 
   async function saveConfig() {
     const plainModels = JSON.parse(JSON.stringify(toRaw(models.value)))
     await window.electronAPI.saveConfig({ models: plainModels })
-    startAutoRefresh()
+    // 主进程收到后会自动 refresher.restart()
   }
 
   async function loadUsage(month?: string) {
@@ -284,91 +168,102 @@ export const useAppStore = defineStore('app', () => {
     modelUsageMap[modelId] = usage
   }
 
-  async function fetchModelUsage(model: ModelConfig): Promise<ModelUsageStatus | null> {
-    // 使用 Object.assign 确保响应式更新
-    Object.assign(fetching, { [model.id]: true })
+  /**
+   * 请求主进程刷新单个模型
+   */
+  async function requestRefresh(modelId: string) {
+    fetching[modelId] = true
     try {
-      let fetchOptions: any
-
-      if (model.provider === 'kimi') {
-        fetchOptions = {
-          url: model.baseUrl || KIMI_DEFAULT_BASE_URL,
-          apiKey: model.apiKey,
-          method: 'GET',
-          headers: { 'Accept': 'application/json' }
-        }
-      } else if (model.provider === 'deepseek') {
-        fetchOptions = {
-          url: model.baseUrl || DEEPSEEK_DEFAULT_BASE_URL,
-          apiKey: model.apiKey,
-          method: 'GET',
-          headers: { 'Accept': 'application/json' }
-        }
-      } else {
-        fetchOptions = {
-          url: model.baseUrl || MIMO_DEFAULT_BASE_URL,
-          apiKey: model.apiKey,
-          cookies: model.cookies || ''
-        }
-      }
-
-      const responseData = await window.electronAPI.fetchMimoUsage(fetchOptions)
-      const result = extractUsage(responseData, model.provider)
-      if (result) {
-        modelUsageMap[model.id] = result
-        return result
-      }
-      return null
+      await window.electronAPI.refreshModel(modelId)
     } catch (error) {
-      console.error('获取额度失败:', error)
-
-      // 检测 Cookie 过期，自动触发重新登录（仅 MiMo provider）
-      // 注意：跨 IPC 传递的错误会丢失自定义属性，所以检查错误消息
-      const isCookieExpired = model.provider === 'mimo' &&
-        ((error as any)?.code === 'COOKIE_EXPIRED' ||
-         (error instanceof Error && error.message.includes('Cookie expired')))
-
-      if (isCookieExpired) {
-        console.log('[fetchModelUsage] 检测到 COOKIE_EXPIRED, loginRetryInProgress:', loginRetryInProgress)
-        if (!loginRetryInProgress) {
-          console.log('[fetchModelUsage] 触发 retryAfterLogin')
-          retryAfterLogin(model)
-        } else {
-          console.log('[fetchModelUsage] 登录已在进行中，跳过')
-        }
-        return null
-      }
-
+      fetching[modelId] = false
       throw error
-    } finally {
-      Object.assign(fetching, { [model.id]: false })
     }
   }
 
-  async function refreshAll() {
+  /**
+   * 请求主进程刷新所有模型
+   */
+  async function requestRefreshAll() {
     if (refreshing.value) {
-      console.log('[refreshAll] 已在刷新中，跳过')
+      console.log('[Store] 已在刷新中，跳过')
       return
     }
-    console.log('[refreshAll] 开始刷新所有模型')
-    refreshAbortFlag = false
+    console.log('[Store] 请求刷新所有模型')
     refreshing.value = true
     try {
-      for (const model of models.value) {
-        if (refreshAbortFlag) break
-        if (model.enabled && model.apiKey) {
-          console.log('[refreshAll] 刷新模型:', model.name, model.provider)
-          try {
-            await fetchModelUsage(model)
-          } catch {
-            // continue to next model even if one fails
-          }
-        }
-      }
+      await window.electronAPI.refreshAllModels()
     } finally {
       refreshing.value = false
-      console.log('[refreshAll] 刷新完成')
     }
+  }
+
+  /**
+   * 手动设置 MiMo cookies
+   */
+  async function setMimoCookies(cookies: string): Promise<void> {
+    for (const model of models.value) {
+      if (model.provider === 'mimo') {
+        model.cookies = cookies
+      }
+    }
+    await saveConfig()
+    loginState.value = 'complete'
+
+    // 2 秒后恢复 idle
+    setTimeout(() => {
+      if (loginState.value === 'complete') {
+        loginState.value = 'idle'
+      }
+    }, 2000)
+  }
+
+  /**
+   * 开始 MiMo 登录流程
+   */
+  async function startMimoLogin(): Promise<void> {
+    if (loginState.value === 'logging-in') {
+      console.log('[Login] 已经在登录中，跳过')
+      return
+    }
+
+    console.log('[Login] 开始登录流程')
+    loginState.value = 'logging-in'
+    loginError.value = null
+
+    try {
+      const cookies = await window.electronAPI.openMimoLogin()
+
+      if (cookies) {
+        // 更新所有 MiMo 模型的 cookies
+        for (const model of models.value) {
+          if (model.provider === 'mimo') {
+            model.cookies = cookies
+          }
+        }
+        await saveConfig()
+        loginState.value = 'complete'
+        console.log('[Login] 登录完成，cookies 已保存')
+
+        // 2 秒后恢复 idle
+        setTimeout(() => {
+          if (loginState.value === 'complete') {
+            loginState.value = 'idle'
+          }
+        }, 2000)
+      } else {
+        loginState.value = 'failed'
+        loginError.value = '登录超时或已取消'
+      }
+    } catch (error) {
+      loginState.value = 'failed'
+      loginError.value = error instanceof Error ? error.message : '登录失败'
+    }
+  }
+
+  function resetLoginState(): void {
+    loginState.value = 'idle'
+    loginError.value = null
   }
 
   return {
@@ -390,14 +285,11 @@ export const useAppStore = defineStore('app', () => {
     removeModel,
     addUsageRecord,
     updateModelUsage,
-    fetchModelUsage,
-    refreshAll,
-    abortRefresh,
-    startAutoRefresh,
-    stopAutoRefresh,
+    requestRefresh,
+    requestRefreshAll,
     startMimoLogin,
-    retryAfterLogin,
     resetLoginState,
-    setMimoCookies
+    setMimoCookies,
+    stopSubscription
   }
 })

@@ -383,10 +383,10 @@ async function handleLogin() {
 }
 
 async function fetchUsage(model: ModelConfig) {
-  const result = await store.fetchModelUsage(model)
-  if (result) {
+  try {
+    await store.requestRefresh(model.id)
     ElMessage.success({ message: `${model.name} 额度获取成功`, duration: 2000 })
-  } else {
+  } catch {
     ElMessage.error({ message: '数据解析失败', duration: 2500 })
   }
 }

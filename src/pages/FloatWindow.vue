@@ -458,7 +458,7 @@ function doFetch(m: ModelConfig) {
 }
 function doRefreshAll() {
   menuVisible.value = false;
-  store.refreshAll();
+  store.requestRefreshAll();
 }
 function doLayout(mode: LayoutMode) {
   layoutMode.value = mode;
@@ -553,7 +553,7 @@ function onDragEnd(e: MouseEvent) {
 
 // Fetch
 async function fetchModel(m: ModelConfig) {
-  await store.fetchModelUsage(m);
+  await store.requestRefresh(m.id);
 }
 
 // Lifecycle
@@ -563,8 +563,7 @@ onMounted(async () => {
   try {
     await store.loadConfig();
     resizeToFit();
-    await store.refreshAll();
-    resizeToFit();
+    // 数据已在 loadConfig 时从主进程缓存获取
   } catch {}
   if (layoutMode.value === "carousel") {
     nextTick(() => {
@@ -580,7 +579,7 @@ onMounted(async () => {
   });
 });
 onUnmounted(() => {
-  store.stopAutoRefresh();
+  store.stopSubscription();
   unsubCfg?.();
 });
 

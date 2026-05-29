@@ -18,13 +18,19 @@ export interface ElectronAPI {
   closeFloatWindow: () => Promise<boolean>
   setFloatAlwaysOnTop: (value: boolean) => Promise<boolean>
   resizeFloatWindow: (width: number, height: number) => Promise<boolean>
-  resizeFloatWindowAnimated: (width: number, height: number, duration?: number) => Promise<boolean>
+  resizeFloatWindowAnimated: (width: number, height: number, duration: number) => Promise<boolean>
   onConfigUpdated: (callback: () => void) => () => void
   openMimoLogin: () => Promise<string | null>
   onLoginNeeded: (callback: () => void) => () => void
   windowMinimize: () => Promise<void>
   windowMaximize: () => Promise<void>
   windowClose: () => Promise<void>
+  // 新增：统一刷新相关
+  getCachedUsage: () => Promise<Record<string, any>>
+  refreshAllModels: () => Promise<boolean>
+  refreshModel: (modelId: string) => Promise<boolean>
+  onUsageUpdated: (callback: (data: { modelId: string, data: any }) => void) => () => void
+  onUsageFetching: (callback: (data: { modelId: string, fetching: boolean }) => void) => () => void
 }
 
 const electronAPI: ElectronAPI = {
@@ -56,7 +62,25 @@ const electronAPI: ElectronAPI = {
   },
   windowMinimize: () => ipcRenderer.invoke('window-minimize'),
   windowMaximize: () => ipcRenderer.invoke('window-maximize'),
-  windowClose: () => ipcRenderer.invoke('window-close')
+  windowClose: () => ipcRenderer.invoke('window-close'),
+  // 统一刷新相关
+  getCachedUsage: () => ipcRenderer.invoke('get-cached-usage'),
+  refreshAllModels: () => ipcRenderer.invoke('refresh-all-models'),
+  refreshModel: (modelId) => ipcRenderer.invoke('refresh-model', modelId),
+  onUsageUpdated: (callback) => {
+    const wrapper = (_: any, data: any) => callback(data)
+    ipcRenderer.on('usage-updated', wrapper)
+    return () => {
+      ipcRenderer.removeListener('usage-updated', wrapper)
+    }
+  },
+  onUsageFetching: (callback) => {
+    const wrapper = (_: any, data: any) => callback(data)
+    ipcRenderer.on('usage-fetching', wrapper)
+    return () => {
+      ipcRenderer.removeListener('usage-fetching', wrapper)
+    }
+  }
 }
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI)

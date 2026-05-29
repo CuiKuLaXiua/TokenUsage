@@ -7,6 +7,7 @@ import { homedir } from 'os'
 import { config as loadDotenv } from 'dotenv'
 import { isValidMonth, isValidConfig, isAllowedUrl, isValidUsageData } from './ipc-validators'
 import { LoginWindowManager } from './login'
+import { UsageRefresher } from './refresher'
 
 // 加载 .env.local 环境变量
 loadDotenv({ path: join(__dirname, '../.env.local') })
@@ -27,6 +28,7 @@ const loginManager = new LoginWindowManager()
 const dataDir = join(homedir(), '.token-usage')
 const configPath = join(dataDir, 'config.json')
 const usagePath = join(dataDir, 'usage')
+const refresher = new UsageRefresher(configPath)
 
 function ensureDataDir() {
   if (!existsSync(dataDir)) {
@@ -126,6 +128,7 @@ function createFloatWindow() {
 app.whenReady().then(() => {
   ensureDataDir()
   createWindow()
+  refresher.start()  // 启动统一刷新
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -166,6 +169,9 @@ ipcMain.handle('save-config', (_, config) => {
     BrowserWindow.getAllWindows().forEach(win => {
       win.webContents.send('config-updated')
     })
+
+    // 重启刷新服务
+    refresher.restart()
 
     return true
   } catch (error) {
@@ -398,6 +404,21 @@ ipcMain.handle('window-maximize', () => {
 
 ipcMain.handle('window-close', () => {
   mainWindow?.close()
+})
+
+// 统一刷新相关
+ipcMain.handle('get-cached-usage', () => {
+  return refresher.getCachedData()
+})
+
+ipcMain.handle('refresh-all-models', async () => {
+  await refresher.refreshAll()
+  return true
+})
+
+ipcMain.handle('refresh-model', async (_, modelId: string) => {
+  await refresher.fetchModelById(modelId)
+  return true
 })
 
 // API调用 - 在主进程中处理，避免CORS问题
