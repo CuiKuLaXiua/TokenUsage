@@ -280,9 +280,18 @@ async function hideDetailWindow() {
 }
 
 function onFloatEnter() {
-  // 鼠标进入时聚焦窗口，确保右键菜单能正常触发
-  window.electronAPI.focusFloatWindow()
-  if (layoutMode.value !== 'list' || isDragging.value) return
+  // 重置拖拽状态，避免残留状态影响右键菜单
+  if (isDragging.value) {
+    isDragging.value = false
+    cleanupDragListeners()
+  }
+  hasMoved.value = false
+  // 关闭可能打开的右键菜单（详情窗口与右键菜单互斥）
+  if (ctxMenuOpen.value) {
+    ctxMenuOpen.value = false
+    window.electronAPI.hideCtxMenu()
+  }
+  if (layoutMode.value !== 'list') return
   if (hideDetailTimer) { clearTimeout(hideDetailTimer); hideDetailTimer = null }
   if (showDetailTimer) return
   showDetailTimer = setTimeout(() => {
@@ -368,8 +377,18 @@ function resizeToFit() {
 
 // Menu
 async function showMenu(e: MouseEvent) {
-  // 拖拽后不弹菜单
+  // 拖拽后不弹菜单，或拖拽状态残留时清理
+  if (isDragging.value) {
+    isDragging.value = false
+    hasMoved.value = false
+    cleanupDragListeners()
+  }
   if (hasMoved.value) return;
+
+  // 详情窗口与右键菜单互斥：打开菜单时先关闭详情窗口
+  if (showDetailTimer) { clearTimeout(showDetailTimer); showDetailTimer = null }
+  if (hideDetailTimer) { clearTimeout(hideDetailTimer); hideDetailTimer = null }
+  hideDetailWindow()
 
   // Walk up from target to find a model card
   let el = e.target as HTMLElement | null
@@ -642,6 +661,10 @@ onMounted(async () => {
   })
   // 监听原生 context-menu 事件（窗口未聚焦时的兜底，修复 Issue #1）
   unsubNativeCtx = window.electronAPI.onNativeContextMenu((pos: { x: number; y: number }) => {
+    // 详情窗口与右键菜单互斥：打开菜单时先关闭详情窗口
+    if (showDetailTimer) { clearTimeout(showDetailTimer); showDetailTimer = null }
+    if (hideDetailTimer) { clearTimeout(hideDetailTimer); hideDetailTimer = null }
+    hideDetailWindow()
     // 如果 DOM 事件已经处理了，跳过
     if (ctxMenuOpen.value) return
     ctxMenuOpen.value = true
