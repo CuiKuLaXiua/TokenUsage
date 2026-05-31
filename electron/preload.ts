@@ -71,6 +71,7 @@ export interface ElectronAPI {
   }) => void) => () => void
   onNativeContextMenu: (callback: (pos: { x: number; y: number }) => void) => () => void
   onExecuteCtxMenuAction: (callback: (action: string) => void) => () => void
+  onCtxMenuClosed: (callback: () => void) => () => void
 }
 
 const electronAPI: ElectronAPI = {
@@ -158,6 +159,11 @@ const electronAPI: ElectronAPI = {
     const wrapper = (_: any, action: string) => callback(action)
     ipcRenderer.on('execute-ctx-menu-action', wrapper)
     return () => { ipcRenderer.removeListener('execute-ctx-menu-action', wrapper) }
+  },
+  onCtxMenuClosed: (callback) => {
+    const wrapper = () => callback()
+    ipcRenderer.on('ctx-menu-closed', wrapper)
+    return () => { ipcRenderer.removeListener('ctx-menu-closed', wrapper) }
   }
 }
 

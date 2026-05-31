@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, net } from 'electron'
 import { join } from 'path'
 
 const isDev = !app.isPackaged
+const rendererUrl = process.env.ELECTRON_RENDERER_URL || 'http://localhost:3000'
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
 import { homedir } from 'os'
 import { config as loadDotenv } from 'dotenv'
@@ -76,7 +77,7 @@ function createWindow() {
   })
 
   if (isDev) {
-    mainWindow.loadURL('http://localhost:3000')
+    mainWindow.loadURL(rendererUrl)
     mainWindow.webContents.openDevTools()
   } else {
     mainWindow.loadFile(join(__dirname, '../dist/index.html'))
@@ -121,7 +122,7 @@ function createFloatWindow() {
   })
 
   if (isDev) {
-    floatWindow.loadURL('http://localhost:3000/#/float')
+    floatWindow.loadURL(rendererUrl + '/#/float')
   } else {
     floatWindow.loadFile(join(__dirname, '../dist/index.html'), {
       hash: '/float'
@@ -141,10 +142,7 @@ function createFloatWindow() {
     if (detailWindow && !detailWindow.isDestroyed()) {
       detailWindow.close()
     }
-    // 关闭右键菜单
-    if (ctxMenuWindow && !ctxMenuWindow.isDestroyed()) {
-      ctxMenuWindow.close()
-    }
+    closeCtxMenu()
     floatWindow = null
   })
 }
@@ -179,7 +177,7 @@ function createDetailWindow() {
   detailWindow.setAlwaysOnTop(true, 'pop-up-menu')
 
   if (isDev) {
-    detailWindow.loadURL('http://localhost:3000/#/float-detail')
+    detailWindow.loadURL(rendererUrl + '/#/float-detail')
   } else {
     detailWindow.loadFile(join(__dirname, '../dist/index.html'), {
       hash: '/float-detail'
@@ -217,7 +215,7 @@ function createCtxMenuWindow() {
   ctxMenuWindow.setAlwaysOnTop(true, 'pop-up-menu')
 
   if (isDev) {
-    ctxMenuWindow.loadURL('http://localhost:3000/#/ctx-menu')
+    ctxMenuWindow.loadURL(rendererUrl + '/#/ctx-menu')
   } else {
     ctxMenuWindow.loadFile(join(__dirname, '../dist/index.html'), {
       hash: '/ctx-menu'
@@ -226,17 +224,30 @@ function createCtxMenuWindow() {
 
   // Auto-close when clicking outside
   ctxMenuWindow.on('blur', () => {
-    if (ctxMenuWindow && !ctxMenuWindow.isDestroyed()) {
-      ctxMenuWindow.close()
-      ctxMenuWindow = null
-    }
+    closeCtxMenu()
   })
 
   ctxMenuWindow.on('closed', () => {
+    // 确保窗口关闭时也发送通知（兜底）
     ctxMenuWindow = null
+    if (floatWindow && !floatWindow.isDestroyed()) {
+      floatWindow.webContents.send('ctx-menu-closed')
+    }
   })
 
   return ctxMenuWindow
+}
+
+// 关闭右键菜单窗口并通知浮窗
+function closeCtxMenu() {
+  if (ctxMenuWindow && !ctxMenuWindow.isDestroyed()) {
+    ctxMenuWindow.close()
+    ctxMenuWindow = null
+  }
+  // 通知浮窗右键菜单已关闭，重置状态
+  if (floatWindow && !floatWindow.isDestroyed()) {
+    floatWindow.webContents.send('ctx-menu-closed')
+  }
 }
 
 /**
@@ -406,10 +417,7 @@ ipcMain.handle('close-float-window', () => {
     detailWindow.close()
     detailWindow = null
   }
-  if (ctxMenuWindow && !ctxMenuWindow.isDestroyed()) {
-    ctxMenuWindow.close()
-    ctxMenuWindow = null
-  }
+  closeCtxMenu()
   if (floatWindow) {
     floatWindow.close()
     floatWindow = null
@@ -488,10 +496,7 @@ ipcMain.handle('show-ctx-menu', (_, options: {
   alwaysOnTop: boolean
 }) => {
   // 关闭已有菜单
-  if (ctxMenuWindow && !ctxMenuWindow.isDestroyed()) {
-    ctxMenuWindow.close()
-    ctxMenuWindow = null
-  }
+  closeCtxMenu()
 
   const win = createCtxMenuWindow()
   if (!win) return false
@@ -521,23 +526,16 @@ ipcMain.handle('show-ctx-menu', (_, options: {
 })
 
 ipcMain.handle('hide-ctx-menu', () => {
-  if (ctxMenuWindow && !ctxMenuWindow.isDestroyed()) {
-    ctxMenuWindow.close()
-    ctxMenuWindow = null
-  }
+  closeCtxMenu()
   return true
 })
 
 ipcMain.handle('ctx-menu-action', (_, action: string) => {
-  // 转发动作到浮窗执行
+  // 转发动作到浮窗执行（在关闭菜单之前，确保动作被处理）
   if (floatWindow && !floatWindow.isDestroyed()) {
     floatWindow.webContents.send('execute-ctx-menu-action', action)
   }
-  // 关闭菜单
-  if (ctxMenuWindow && !ctxMenuWindow.isDestroyed()) {
-    ctxMenuWindow.close()
-    ctxMenuWindow = null
-  }
+  closeCtxMenu()
   return true
 })
 

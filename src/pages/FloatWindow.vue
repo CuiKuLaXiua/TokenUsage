@@ -254,12 +254,13 @@ let unsubCfg: (() => void) | null = null;
 let unsubDetailHover: (() => void) | null = null;
 let unsubCtxAction: (() => void) | null = null;
 let unsubNativeCtx: (() => void) | null = null;
+let unsubCtxClosed: (() => void) | null = null;
 
 // ── 详情窗口 hover 控制 ──
 let showDetailTimer: ReturnType<typeof setTimeout> | null = null
 let hideDetailTimer: ReturnType<typeof setTimeout> | null = null
 const isDetailHovered = ref(false)
-const SHOW_DELAY = 200   // 悬停 200ms 后弹出详情
+const SHOW_DELAY = 350   // 悬停 350ms 后弹出详情
 const HIDE_DELAY = 300   // 离开 300ms 后关闭详情
 
 async function showDetailWindow() {
@@ -420,6 +421,10 @@ async function showMenu(e: MouseEvent) {
 }
 
 function handleCtxMenuAction(action: string) {
+  // 重置菜单状态，确保下次右键能正常弹出
+  ctxMenuOpen.value = false
+  if (ctxMenuTimer) { clearTimeout(ctxMenuTimer); ctxMenuTimer = null }
+
   switch (action) {
     case 'fetch-model':
       if (ctxModel.value) fetchModel(ctxModel.value)
@@ -553,33 +558,19 @@ function onWindowDragStart(e: MouseEvent) {
 
 function onDocMouseMove(e: MouseEvent) {
   if (!isDragging.value) return;
-  
+
   const dx = e.screenX - windowDragStartX;
   const dy = e.screenY - windowDragStartY;
   const absDx = Math.abs(dx);
   const absDy = Math.abs(dy);
-  
-  // 判断拖拽方向（只判断一次）
+
+  // 超过方向阈值后确定拖拽方向（只判断一次）
   if (dragDirection === 'unknown' && (absDx > DIRECTION_THRESHOLD || absDy > DIRECTION_THRESHOLD)) {
-    if (layoutMode.value === 'carousel') {
-      // 轮播模式：水平移动更多 = 切换 slide，垂直移动更多 = 拖拽窗口
-      dragDirection = absDx > absDy ? 'horizontal' : 'vertical';
-    } else {
-      // 列表模式：任意方向都是窗口拖拽
-      dragDirection = 'vertical';
-    }
-    
-    // 确定是窗口拖拽后，启动 IPC 拖拽
-    if (dragDirection === 'vertical') {
-      window.electronAPI.startWindowDrag({ mouseX: windowDragStartX, mouseY: windowDragStartY });
-    }
+    dragDirection = absDx > absDy ? 'horizontal' : 'vertical';
+    // 启动 IPC 拖拽
+    window.electronAPI.startWindowDrag({ mouseX: windowDragStartX, mouseY: windowDragStartY });
   }
-  
-  // 轮播模式下的水平拖拽由 carousel 自己处理，不移动窗口
-  if (layoutMode.value === 'carousel' && dragDirection === 'horizontal') {
-    return;
-  }
-  
+
   // 超过阈值后开始移动窗口
   if (absDx > DRAG_THRESHOLD || absDy > DRAG_THRESHOLD) {
     if (!hasMoved.value) {
@@ -597,8 +588,7 @@ function onDocMouseUp() {
   cleanupDragListeners();
   if (!isDragging.value) return;
   isDragging.value = false;
-  // 只有实际启动了窗口拖拽才需要停止
-  if (dragDirection === 'vertical') {
+  if (dragDirection !== 'unknown') {
     window.electronAPI.stopWindowDrag();
   }
   dragDirection = 'unknown';
@@ -613,7 +603,7 @@ function onWindowDragEnd() {
   cleanupDragListeners();
   if (!isDragging.value) return;
   isDragging.value = false;
-  if (dragDirection === 'vertical') {
+  if (dragDirection !== 'unknown') {
     window.electronAPI.stopWindowDrag();
   }
   dragDirection = 'unknown';
@@ -680,6 +670,11 @@ onMounted(async () => {
       alwaysOnTop: alwaysOnTop.value
     })
   })
+  // 监听右键菜单关闭，重置状态
+  unsubCtxClosed = window.electronAPI.onCtxMenuClosed(() => {
+    ctxMenuOpen.value = false
+    if (ctxMenuTimer) { clearTimeout(ctxMenuTimer); ctxMenuTimer = null }
+  })
 });
 onUnmounted(() => {
   // 关闭详情窗口
@@ -689,6 +684,7 @@ onUnmounted(() => {
   unsubDetailHover?.();
   unsubCtxAction?.();
   unsubNativeCtx?.();
+  unsubCtxClosed?.();
   cleanupDragListeners();
   if (ctxMenuTimer) { clearTimeout(ctxMenuTimer); ctxMenuTimer = null }
 });
@@ -765,15 +761,6 @@ watch(
 .compact-card {
   width: 100%;
   padding: 6px 0;
-  border-radius: 10px;
-  transition:
-    transform 0.25s var(--ease-spring),
-    box-shadow 0.25s,
-    background 0.25s;
-}
-.compact-card:hover {
-  background: var(--glass-bg);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
 }
 .ov-row {
   display: flex;
