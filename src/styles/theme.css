@@ -1,0 +1,251 @@
+/* ═══════════════════════════════════════════════════════════
+   Forest Theme — 两层变量系统
+   [data-theme]  → 暗/亮基底
+   [data-accent] → 色调（forest / moss / matcha）
+   ═══════════════════════════════════════════════════════════ */
+
+/* ──────────────────────────────────
+   1. 暗色基底
+   ────────────────────────────────── */
+:root,
+[data-theme="dark"] {
+  --bg-primary:    #0f1610;
+  --bg-secondary:  #141e16;
+  --bg-tertiary:   #1a261c;
+  --card-bg:       rgba(20, 30, 22, 0.85);
+  --sidebar-bg:    rgba(15, 22, 16, 0.9);
+  --header-bg:     rgba(15, 22, 16, 0.85);
+
+  --glass-bg:          rgba(20, 30, 22, 0.6);
+  --glass-bg-strong:   rgba(25, 40, 28, 0.8);
+  --glass-border:      rgba(74, 124, 89, 0.15);
+  --glass-shadow:      0 8px 32px rgba(0, 0, 0, 0.35);
+  --glass-shadow-hover:0 16px 48px rgba(74, 124, 89, 0.12);
+  --glass-blur:        20px;
+
+  --text-primary:      #e4e0d8;
+  --text-secondary:    #9ca394;
+  --text-placeholder:  #5a6358;
+
+  --border-color:  rgba(74, 124, 89, 0.12);
+  --border-light:  rgba(74, 124, 89, 0.06);
+}
+
+/* ──────────────────────────────────
+   2. 亮色基底
+   ────────────────────────────────── */
+[data-theme="light"] {
+  --bg-primary:    #f5f0e8;
+  --bg-secondary:  #ede7dc;
+  --bg-tertiary:   #e5ded4;
+  --card-bg:       rgba(255, 252, 245, 0.85);
+  --sidebar-bg:    rgba(255, 252, 245, 0.8);
+  --header-bg:     rgba(255, 252, 245, 0.85);
+
+  --glass-bg:          rgba(255, 252, 245, 0.65);
+  --glass-bg-strong:   rgba(255, 252, 245, 0.9);
+  --glass-border:      rgba(74, 124, 89, 0.15);
+  --glass-shadow:      0 8px 32px rgba(60, 80, 50, 0.08);
+  --glass-shadow-hover:0 16px 48px rgba(60, 80, 50, 0.12);
+  --glass-blur:        20px;
+
+  --text-primary:      #2c3028;
+  --text-secondary:    #5a6358;
+  --text-placeholder:  #8a9186;
+
+  --border-color:  rgba(74, 124, 89, 0.12);
+  --border-light:  rgba(74, 124, 89, 0.06);
+}
+
+/* ──────────────────────────────────
+   3. 森林绿 + 暖棕（默认 accent）
+   ────────────────────────────────── */
+:root,
+[data-accent="forest"] {
+  --accent:        #6b9e7a;
+  --accent-light:  #8fbc8f;
+  --accent-gradient: linear-gradient(135deg, #6b9e7a 0%, #c4a882 100%);
+  --accent-glow:   rgba(107, 158, 122, 0.2);
+
+  --neon-green:  #7cc48a;
+  --neon-amber:  #d4a855;
+  --neon-red:    #d4776a;
+  --neon-blue:   #6b9e7a;
+  --neon-purple: #b8a088;
+  --neon-pink:   #c4a882;
+
+  --success: #7cc48a;
+  --warning: #d4a855;
+  --danger:  #d4776a;
+
+  --glow-green:  0 0 20px rgba(124, 196, 138, 0.25);
+  --glow-amber:  0 0 20px rgba(212, 168, 85, 0.25);
+  --glow-red:    0 0 20px rgba(212, 119, 106, 0.25);
+  --glow-blue:   0 0 20px rgba(107, 158, 122, 0.25);
+}
+
+/* ──────────────────────────────────
+   4. 苔藓绿 + 琥珀
+   ────────────────────────────────── */
+[data-accent="moss"] {
+  --accent:        #8fa870;
+  --accent-light:  #a8c48a;
+  --accent-gradient: linear-gradient(135deg, #8fa870 0%, #d4a855 100%);
+  --accent-glow:   rgba(143, 168, 112, 0.2);
+
+  --neon-green:  #a8c48a;
+  --neon-amber:  #d4a855;
+  --neon-red:    #c47a5a;
+  --neon-blue:   #8fa870;
+  --neon-purple: #c4a855;
+  --neon-pink:   #d4a855;
+
+  --success: #a8c48a;
+  --warning: #d4a855;
+  --danger:  #c47a5a;
+
+  --glow-green:  0 0 20px rgba(168, 196, 138, 0.25);
+  --glow-amber:  0 0 20px rgba(212, 168, 85, 0.25);
+  --glow-red:    0 0 20px rgba(196, 122, 90, 0.25);
+  --glow-blue:   0 0 20px rgba(143, 168, 112, 0.25);
+}
+
+/* ──────────────────────────────────
+   5. 抹茶绿 + 樱花
+   ────────────────────────────────── */
+[data-accent="matcha"] {
+  --accent:        #82a888;
+  --accent-light:  #a8c8a8;
+  --accent-gradient: linear-gradient(135deg, #82a888 0%, #e8a0b4 100%);
+  --accent-glow:   rgba(130, 168, 136, 0.2);
+
+  --neon-green:  #a8c8a8;
+  --neon-amber:  #e8c088;
+  --neon-red:    #d4888a;
+  --neon-blue:   #82a888;
+  --neon-purple: #c8a0b8;
+  --neon-pink:   #e8a0b4;
+
+  --success: #a8c8a8;
+  --warning: #e8c088;
+  --danger:  #d4888a;
+
+  --glow-green:  0 0 20px rgba(168, 200, 168, 0.25);
+  --glow-amber:  0 0 20px rgba(232, 192, 136, 0.25);
+  --glow-red:    0 0 20px rgba(212, 136, 138, 0.25);
+  --glow-blue:   0 0 20px rgba(130, 168, 136, 0.25);
+}
+
+/* ──────────────────────────────────
+   6. Provider 色调（跟随 accent 变化）
+   ────────────────────────────────── */
+:root,
+[data-accent="forest"] {
+  --provider-openai:    #6b9e7a;
+  --provider-claude:    #c4a882;
+  --provider-deepseek:  #7cc48a;
+  --provider-kimi:      #b8a088;
+  --provider-mimo:      #d4a855;
+}
+[data-accent="moss"] {
+  --provider-openai:    #8fa870;
+  --provider-claude:    #d4a855;
+  --provider-deepseek:  #a8c48a;
+  --provider-kimi:      #c4a855;
+  --provider-mimo:      #c47a5a;
+}
+[data-accent="matcha"] {
+  --provider-openai:    #82a888;
+  --provider-claude:    #e8a0b4;
+  --provider-deepseek:  #a8c8a8;
+  --provider-kimi:      #c8a0b8;
+  --provider-mimo:      #e8c088;
+}
+
+/* ──────────────────────────────────
+   7. 过渡 & 动画
+   ────────────────────────────────── */
+:root {
+  --ease-spring:  cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-smooth:  cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-fast:   0.15s;
+  --duration-normal: 0.3s;
+  --duration-slow:   0.5s;
+}
+
+@keyframes leafPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.75; }
+}
+
+@keyframes glowBreathe {
+  0%, 100% { box-shadow: var(--glow-blue); }
+  50%      { box-shadow: 0 0 30px var(--accent-glow); }
+}
+
+@keyframes leafFloat {
+  0%   { transform: translateY(0)   translateX(0)    rotate(0deg); }
+  25%  { transform: translateY(-8px)  translateX(4px)   rotate(3deg); }
+  50%  { transform: translateY(-4px)  translateX(-3px)  rotate(-2deg); }
+  75%  { transform: translateY(-12px) translateX(2px)   rotate(1deg); }
+  100% { transform: translateY(0)   translateX(0)    rotate(0deg); }
+}
+
+@keyframes sunrayGlow {
+  0%, 100% { opacity: 0.6; }
+  50%      { opacity: 1; }
+}
+
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
+
+/* ──────────────────────────────────
+   8. 工具类
+   ────────────────────────────────── */
+
+/* 强调色渐变文字 */
+.accent-text {
+  background: var(--accent-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* 强调色边框 */
+.accent-border {
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 0 20px var(--accent-glow);
+}
+
+/* 强调色光晕 */
+.accent-glow {
+  box-shadow: var(--glow-blue);
+}
+
+/* 玻璃态 */
+.glass-surface {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  transition: box-shadow var(--duration-normal) var(--ease-smooth),
+              transform var(--duration-normal) var(--ease-spring),
+              background var(--duration-normal) var(--ease-smooth);
+}
+
+.glass-surface:hover {
+  box-shadow: var(--glass-shadow-hover);
+}
+
+/* 向后兼容旧类名 */
+.neon-text   { /* 兼容 */ }
+.neon-border { /* 兼容 */ }
+.neon-glow   { /* 兼容 */ }

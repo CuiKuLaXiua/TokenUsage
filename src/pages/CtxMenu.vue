@@ -2,6 +2,7 @@
   <div
     class="ctx-menu-page"
     :data-theme="theme"
+    :data-accent="accent"
     @mouseleave="onMouseLeave"
   >
     <div class="ctx-menu">
@@ -47,6 +48,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { Refresh, Close, Grid, List, Top, Check } from '@element-plus/icons-vue'
 
 const theme = ref('dark')
+const accent = ref(localStorage.getItem('accent') || 'forest')
 const modelId = ref<string | null>(null)
 const modelName = ref<string | null>(null)
 const layoutMode = ref('list')
@@ -54,7 +56,19 @@ const alwaysOnTop = ref(true)
 
 let unsubCfg: (() => void) | null = null
 
-onMounted(() => {
+onMounted(async () => {
+  // 主动拉取配置（避免页面加载与 IPC 推送的竞态问题）
+  try {
+    const config = await window.electronAPI.getCtxMenuConfig()
+    if (config) {
+      theme.value = config.theme
+      modelId.value = config.modelId
+      modelName.value = config.modelName
+      layoutMode.value = config.layoutMode
+      alwaysOnTop.value = config.alwaysOnTop
+    }
+  } catch {}
+  // 保留推送监听，用于窗口已存在时的后续更新
   unsubCfg = window.electronAPI.onCtxMenuConfig((config) => {
     theme.value = config.theme
     modelId.value = config.modelId
@@ -109,10 +123,8 @@ html, body {
   border: 1px solid var(--glass-border);
   border-radius: 12px;
   padding: 5px;
-  margin: 6px;
-  box-shadow:
-    0 16px 48px rgba(0, 0, 0, 0.4),
-    0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+  margin: 4px;
+  box-shadow: var(--glass-shadow);
   animation: menuPop 0.22s cubic-bezier(0.34, 1.56, 0.64, 1) both;
   transform-origin: top left;
 }
@@ -169,11 +181,11 @@ html, body {
 }
 
 .ctx-item.danger {
-  color: #f87171;
+  color: var(--danger);
 }
 
 .ctx-item.danger:hover {
-  background: rgba(248, 113, 113, 0.1);
+  background: rgba(212, 119, 106, 0.1);
 }
 
 .ctx-sep {

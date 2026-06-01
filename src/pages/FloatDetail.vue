@@ -3,6 +3,7 @@
     ref="detailRef"
     class="float-detail"
     :data-theme="theme"
+    :data-accent="accent"
     @mouseenter="onDetailEnter"
     @mouseleave="onDetailLeave"
   >
@@ -35,6 +36,7 @@ import FloatModelCard from '@/components/FloatModelCard.vue'
 
 const store = useAppStore()
 const theme = ref('light')
+const accent = ref(localStorage.getItem('accent') || 'forest')
 const detailRef = ref<HTMLElement | null>(null)
 let unsubCfg: (() => void) | null = null
 
@@ -61,7 +63,9 @@ function fitHeight() {
   nextTick(() => {
     const el = detailRef.value
     if (!el) return
-    el.style.height = 'auto'
+    // 将 height 设为 0 后测量 scrollHeight，获取真实内容高度
+    // （height: auto 时 scrollHeight 等于 clientHeight，测量不准）
+    el.style.height = '0'
     el.offsetHeight
     const contentH = el.scrollHeight
     el.style.height = ''

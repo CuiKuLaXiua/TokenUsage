@@ -84,6 +84,13 @@ export interface ElectronAPI {
   }) => Promise<boolean>
   hideCtxMenu: () => Promise<boolean>
   sendCtxMenuAction: (action: string) => Promise<boolean>
+  getCtxMenuConfig: () => Promise<{
+    modelId: string | null
+    modelName: string | null
+    theme: string
+    layoutMode: string
+    alwaysOnTop: boolean
+  } | null>
   onCtxMenuConfig: (callback: (config: {
     modelId: string | null
     modelName: string | null
@@ -93,6 +100,7 @@ export interface ElectronAPI {
   }) => void) => () => void
   onNativeContextMenu: (callback: (pos: { x: number; y: number }) => void) => () => void
   onExecuteCtxMenuAction: (callback: (action: string) => void) => () => void
+  onCtxMenuClosed: (callback: () => void) => () => void
 }
 
 declare global {

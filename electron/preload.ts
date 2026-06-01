@@ -62,6 +62,13 @@ export interface ElectronAPI {
   }) => Promise<boolean>
   hideCtxMenu: () => Promise<boolean>
   sendCtxMenuAction: (action: string) => Promise<boolean>
+  getCtxMenuConfig: () => Promise<{
+    modelId: string | null
+    modelName: string | null
+    theme: string
+    layoutMode: string
+    alwaysOnTop: boolean
+  } | null>
   onCtxMenuConfig: (callback: (config: {
     modelId: string | null
     modelName: string | null
@@ -145,6 +152,7 @@ const electronAPI: ElectronAPI = {
   showCtxMenu: (options) => ipcRenderer.invoke('show-ctx-menu', options),
   hideCtxMenu: () => ipcRenderer.invoke('hide-ctx-menu'),
   sendCtxMenuAction: (action) => ipcRenderer.invoke('ctx-menu-action', action),
+  getCtxMenuConfig: () => ipcRenderer.invoke('get-ctx-menu-config'),
   onCtxMenuConfig: (callback) => {
     const wrapper = (_: any, config: any) => callback(config)
     ipcRenderer.on('ctx-menu-config', wrapper)

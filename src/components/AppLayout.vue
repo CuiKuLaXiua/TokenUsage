@@ -107,6 +107,18 @@
               <el-icon v-else :size="18" key="moon"><Moon /></el-icon>
             </Transition>
           </button>
+          <!-- 色调切换 -->
+          <div class="accent-group">
+            <button
+              v-for="a in accents"
+              :key="a.name"
+              class="accent-dot"
+              :class="{ active: themeStore.accent === a.name }"
+              :style="{ background: a.color }"
+              :title="a.label"
+              @click="themeStore.setAccent(a.name)"
+            ></button>
+          </div>
         </div>
       </header>
 
@@ -132,12 +144,19 @@ import {
   Monitor,
 } from "@element-plus/icons-vue";
 import { useThemeStore } from "@/stores/theme";
+import type { AccentName } from "@/stores/theme";
 import type { Component } from "vue";
 import ParticleBg from "./ParticleBg.vue";
 
 const route = useRoute();
 const themeStore = useThemeStore();
 const isCollapsed = ref(false);
+
+const accents: { name: AccentName; color: string; label: string }[] = [
+  { name: 'forest', color: '#6b9e7a', label: '森林绿' },
+  { name: 'moss',   color: '#8fa870', label: '苔藓绿' },
+  { name: 'matcha', color: '#82a888', label: '抹茶绿' },
+];
 
 // 检测是否为 macOS
 const isMac = computed(() => {
@@ -508,6 +527,31 @@ function close() {
 .theme-icon-leave-to {
   opacity: 0;
   transform: rotate(90deg) scale(0.5);
+}
+
+/* ── Accent selector ── */
+.accent-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 2px;
+}
+.accent-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s var(--ease-smooth);
+  outline: none;
+  padding: 0;
+}
+.accent-dot:hover {
+  transform: scale(1.2);
+}
+.accent-dot.active {
+  border-color: var(--text-primary);
+  box-shadow: 0 0 8px var(--accent-glow);
 }
 
 /* ── Content ── */

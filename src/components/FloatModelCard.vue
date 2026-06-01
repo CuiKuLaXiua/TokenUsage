@@ -147,11 +147,11 @@ const usage = computed(() => store.modelUsageMap[props.model.id])
   border: 1px solid var(--border-light);
 }
 
-.provider-badge.openai { background: rgba(16, 163, 127, 0.12); color: #10a37f; border-color: rgba(16, 163, 127, 0.2); }
-.provider-badge.claude { background: rgba(204, 132, 63, 0.12); color: #cc843f; border-color: rgba(204, 132, 63, 0.2); }
-.provider-badge.deepseek { background: rgba(59, 130, 246, 0.12); color: #3b82f6; border-color: rgba(59, 130, 246, 0.2); }
-.provider-badge.kimi { background: rgba(139, 92, 246, 0.12); color: #8b5cf6; border-color: rgba(139, 92, 246, 0.2); }
-.provider-badge.mimo { background: rgba(255, 107, 0, 0.12); color: #ff6b00; border-color: rgba(255, 107, 0, 0.2); }
+.provider-badge.openai { background: rgba(107, 158, 122, 0.12); color: var(--provider-openai); border-color: rgba(107, 158, 122, 0.2); }
+.provider-badge.claude { background: rgba(196, 168, 130, 0.12); color: var(--provider-claude); border-color: rgba(196, 168, 130, 0.2); }
+.provider-badge.deepseek { background: rgba(124, 196, 138, 0.12); color: var(--provider-deepseek); border-color: rgba(124, 196, 138, 0.2); }
+.provider-badge.kimi { background: rgba(184, 160, 136, 0.12); color: var(--provider-kimi); border-color: rgba(184, 160, 136, 0.2); }
+.provider-badge.mimo { background: rgba(212, 168, 85, 0.12); color: var(--provider-mimo); border-color: rgba(212, 168, 85, 0.2); }
 
 .refresh-timer {
   display: inline-flex;

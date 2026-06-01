@@ -3,6 +3,7 @@
     ref="floatRef"
     class="float-window"
     :data-theme="theme"
+    :data-accent="accent"
     @contextmenu.prevent="showMenu($event)"
     @mouseenter="onFloatEnter"
     @mouseleave="onFloatLeave"
@@ -11,7 +12,7 @@
     <!-- Empty -->
     <div v-if="store.models.length === 0" class="float-empty">
       <div class="empty-icon-wrap">
-        <el-icon :size="28" class="empty-float"><DataAnalysis /></el-icon>
+        <el-icon :size="20" class="empty-float"><DataAnalysis /></el-icon>
       </div>
       <span>右键菜单添加模型</span>
     </div>
@@ -21,7 +22,7 @@
       <div class="compact-wrap">
         <div class="compact-card" :data-model-id="'__overview__'">
           <div class="ov-row">
-            <div class="ov-ring" :style="ringCSS(agg.mainRing.value.percent)">
+            <div class="ov-ring" :style="ringCSS(agg.mainRing.value.percent, 40)">
               <div class="ov-ring-inner">
                 <span class="ov-pct">{{ agg.mainRing.value.source !== 'none' ? agg.mainRing.value.percent.toFixed(0) : '—' }}</span>
                 <span class="ov-pct-u">{{ agg.mainRing.value.source !== 'none' ? '%' : '' }}</span>
@@ -66,7 +67,7 @@
           <!-- Overview slide -->
           <div class="cslide" :data-model-id="'__overview__'">
             <div class="cslide-body ov-slide">
-              <div class="ov-ring-lg" :style="ringCSS(agg.mainRing.value.percent, 80)">
+              <div class="ov-ring-lg" :style="ringCSS(agg.mainRing.value.percent, 58)">
                 <div class="ov-ring-lg-in">
                   <span class="ov-pct-lg">{{ agg.mainRing.value.source !== 'none' ? agg.mainRing.value.percent.toFixed(1) : '—' }}</span>
                   <span class="ov-pct-u-lg">{{ agg.mainRing.value.source !== 'none' ? '%' : '' }}</span>
@@ -117,7 +118,7 @@
                   <template v-if="u(model.id).usageType === 'token'">
                     <div
                       class="ms-ring"
-                      :style="ringCSS(u(model.id).percent || 0, 64)"
+                      :style="ringCSS(u(model.id).percent || 0, 44)"
                     >
                       <div class="ms-ring-in">
                         <span class="ms-rv">{{
@@ -243,6 +244,7 @@ type LayoutMode = "list" | "carousel";
 const store = useAppStore();
 const agg = useUsageAggregation();
 const theme = ref("light");
+const accent = ref(localStorage.getItem("accent") || "forest");
 const layoutMode = ref<LayoutMode>(
   (localStorage.getItem("floatLayout") as LayoutMode) || "list",
 );
@@ -317,7 +319,6 @@ function onFloatLeave() {
 
 // Context menu state
 const ctxMenuOpen = ref(false)
-let ctxMenuTimer: ReturnType<typeof setTimeout> | null = null
 const ctxModel = ref<ModelConfig | null>(null);
 
 // Computed
@@ -355,9 +356,9 @@ function ringCSS(pct: number, size = 80) {
 }
 
 // Resize — now only used for carousel mode
-const FLOAT_WIDTH = 280;
-const FLOAT_LIST_HEIGHT = 128;
-const FLOAT_CAROUSEL_HEIGHT = 280;
+const FLOAT_WIDTH = 240;
+const FLOAT_LIST_HEIGHT = 88;
+const FLOAT_CAROUSEL_HEIGHT = 220;
 
 let resizeTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -403,12 +404,10 @@ async function showMenu(e: MouseEvent) {
     el = el.parentElement
   }
 
-  // 标记菜单已打开，阻止原生 context-menu 事件重复触发
+  // 标记菜单已打开（由 ctx-menu-closed 事件重置）
   ctxMenuOpen.value = true
-  if (ctxMenuTimer) { clearTimeout(ctxMenuTimer); ctxMenuTimer = null }
-  ctxMenuTimer = setTimeout(() => { ctxMenuOpen.value = false }, 300)
 
-  // 通过 IPC 在主进程创建独立菜单弹出窗口
+  // 主进程统一管理菜单生命周期（复用窗口，show/hide）
   window.electronAPI.showCtxMenu({
     screenX: e.screenX,
     screenY: e.screenY,
@@ -423,7 +422,6 @@ async function showMenu(e: MouseEvent) {
 function handleCtxMenuAction(action: string) {
   // 重置菜单状态，确保下次右键能正常弹出
   ctxMenuOpen.value = false
-  if (ctxMenuTimer) { clearTimeout(ctxMenuTimer); ctxMenuTimer = null }
 
   switch (action) {
     case 'fetch-model':
@@ -655,11 +653,9 @@ onMounted(async () => {
     if (showDetailTimer) { clearTimeout(showDetailTimer); showDetailTimer = null }
     if (hideDetailTimer) { clearTimeout(hideDetailTimer); hideDetailTimer = null }
     hideDetailWindow()
-    // 如果 DOM 事件已经处理了，跳过
+    // DOM 事件已处理过则跳过
     if (ctxMenuOpen.value) return
     ctxMenuOpen.value = true
-    if (ctxMenuTimer) { clearTimeout(ctxMenuTimer) }
-    ctxMenuTimer = setTimeout(() => { ctxMenuOpen.value = false }, 300)
     window.electronAPI.showCtxMenu({
       screenX: pos.x,
       screenY: pos.y,
@@ -673,7 +669,6 @@ onMounted(async () => {
   // 监听右键菜单关闭，重置状态
   unsubCtxClosed = window.electronAPI.onCtxMenuClosed(() => {
     ctxMenuOpen.value = false
-    if (ctxMenuTimer) { clearTimeout(ctxMenuTimer); ctxMenuTimer = null }
   })
 });
 onUnmounted(() => {
@@ -686,7 +681,6 @@ onUnmounted(() => {
   unsubNativeCtx?.();
   unsubCtxClosed?.();
   cleanupDragListeners();
-  if (ctxMenuTimer) { clearTimeout(ctxMenuTimer); ctxMenuTimer = null }
 });
 
 // Re-resize when layout mode or model count changes
@@ -708,14 +702,14 @@ watch(
 .float-window {
   height: 100vh;
   background:
-    linear-gradient(180deg, rgba(0, 212, 255, 0.03) 0%, transparent 30%),
+    linear-gradient(180deg, rgba(107, 158, 122, 0.04) 0%, transparent 30%),
     var(--bg-primary);
   overflow: hidden;
   user-select: none;
   display: flex;
   flex-direction: column;
   /* 顶部边缘微光 */
-  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.04);
 }
 
 .float-empty {
@@ -724,15 +718,15 @@ watch(
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  font-size: 12px;
+  gap: 6px;
+  font-size: 11px;
   color: var(--text-placeholder);
 }
 
 .empty-icon-wrap {
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
   background: var(--glass-bg);
   display: flex;
   align-items: center;
@@ -756,16 +750,16 @@ watch(
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 10px;
+  padding: 0 8px;
 }
 .compact-card {
   width: 100%;
-  padding: 6px 0;
+  padding: 3px 0;
 }
 .ov-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 .ov-ring {
   flex-shrink: 0;
@@ -775,8 +769,8 @@ watch(
   justify-content: center;
 }
 .ov-ring-inner {
-  width: 60px;
-  height: 60px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   background: var(--bg-primary);
   display: flex;
@@ -785,13 +779,13 @@ watch(
   justify-content: center;
 }
 .ov-pct {
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--text-primary);
   line-height: 1;
 }
 .ov-pct-u {
-  font-size: 10px;
+  font-size: 9px;
   color: var(--text-secondary);
   font-weight: 600;
 }
@@ -807,10 +801,10 @@ watch(
 .ms-ring::after {
   content: "";
   position: absolute;
-  inset: -4px;
+  inset: -3px;
   border-radius: 50%;
   background: var(--accent);
-  filter: blur(12px);
+  filter: blur(8px);
   opacity: 0.15;
   animation: ringBreath 3s ease-in-out infinite;
   z-index: -1;
@@ -830,17 +824,17 @@ watch(
 .ov-nums {
   flex: 1;
   display: flex;
-  gap: 10px;
+  gap: 6px;
 }
 .ov-n {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 1px;
   flex: 1;
 }
 .ov-nv {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
@@ -852,7 +846,7 @@ watch(
   color: var(--success);
 }
 .ov-nl {
-  font-size: 10px;
+  font-size: 9px;
   color: var(--text-secondary);
 }
 
@@ -860,22 +854,22 @@ watch(
 .ov-types {
   display: flex;
   justify-content: center;
-  gap: 10px;
-  margin-top: 6px;
-  padding-top: 6px;
+  gap: 6px;
+  margin-top: 4px;
+  padding-top: 4px;
   border-top: 1px solid var(--border-light);
 }
 
 .ov-type-tag {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
-  padding: 1px 6px;
-  border-radius: 4px;
+  padding: 1px 5px;
+  border-radius: 3px;
 }
 
-.ov-type-tag.t { color: var(--neon-amber); background: rgba(251, 191, 36, 0.12); }
-.ov-type-tag.p { color: var(--neon-red); background: rgba(248, 113, 113, 0.12); }
-.ov-type-tag.b { color: var(--neon-green); background: rgba(34, 211, 238, 0.12); }
+.ov-type-tag.t { color: var(--neon-amber); background: rgba(212, 168, 85, 0.12); }
+.ov-type-tag.p { color: var(--neon-red); background: rgba(212, 119, 106, 0.12); }
+.ov-type-tag.b { color: var(--neon-green); background: rgba(124, 196, 138, 0.12); }
 
 .ov-type-sep {
   width: 1px;
@@ -927,7 +921,7 @@ watch(
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 10px 12px 28px;
+  padding: 8px 10px 24px;
   box-sizing: border-box;
   animation: slideEnter 0.45s var(--ease-spring) both;
 }
@@ -946,7 +940,7 @@ watch(
 .ov-slide {
   align-items: center;
   justify-content: center;
-  gap: 14px;
+  gap: 8px;
 }
 .ov-ring-lg {
   border-radius: 50%;
@@ -956,8 +950,8 @@ watch(
   flex-shrink: 0;
 }
 .ov-ring-lg-in {
-  width: 80px;
-  height: 80px;
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
   background: var(--bg-primary);
   display: flex;
@@ -966,19 +960,19 @@ watch(
   justify-content: center;
 }
 .ov-pct-lg {
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 700;
   color: var(--text-primary);
   line-height: 1;
 }
 .ov-pct-u-lg {
-  font-size: 12px;
+  font-size: 10px;
   color: var(--text-secondary);
   font-weight: 600;
 }
 .ov-stats {
   display: flex;
-  gap: 14px;
+  gap: 10px;
 }
 .ov-st {
   display: flex;
@@ -987,7 +981,7 @@ watch(
   gap: 2px;
 }
 .ov-stv {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
@@ -1008,7 +1002,7 @@ watch(
   gap: 3px;
 }
 .ov-cnt {
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 700;
   color: var(--accent);
 }
@@ -1019,16 +1013,16 @@ watch(
 
 /* model slide */
 .model-slide {
-  gap: 8px;
+  gap: 6px;
 }
 .ms-hd {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
 }
 .ms-name {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--text-primary);
   overflow: hidden;
@@ -1047,24 +1041,24 @@ watch(
   color: var(--text-secondary);
 }
 .ms-badge.openai {
-  background: rgba(16, 163, 127, 0.12);
-  color: #10a37f;
+  background: rgba(107, 158, 122, 0.12);
+  color: var(--provider-openai);
 }
 .ms-badge.claude {
-  background: rgba(204, 132, 63, 0.12);
-  color: #cc843f;
+  background: rgba(196, 168, 130, 0.12);
+  color: var(--provider-claude);
 }
 .ms-badge.deepseek {
-  background: rgba(59, 130, 246, 0.12);
-  color: #3b82f6;
+  background: rgba(124, 196, 138, 0.12);
+  color: var(--provider-deepseek);
 }
 .ms-badge.kimi {
-  background: rgba(139, 92, 246, 0.12);
-  color: #8b5cf6;
+  background: rgba(184, 160, 136, 0.12);
+  color: var(--provider-kimi);
 }
 .ms-badge.mimo {
-  background: rgba(255, 107, 0, 0.12);
-  color: #ff6b00;
+  background: rgba(212, 168, 85, 0.12);
+  color: var(--provider-mimo);
 }
 
 .ms-bd {
@@ -1082,8 +1076,8 @@ watch(
   justify-content: center;
 }
 .ms-ring-in {
-  width: 48px;
-  height: 48px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   background: var(--bg-primary);
   display: flex;
@@ -1092,7 +1086,7 @@ watch(
   justify-content: center;
 }
 .ms-rv {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--text-primary);
   line-height: 1;
@@ -1184,12 +1178,12 @@ watch(
   gap: 4px;
 }
 .ms-bal-c {
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 300;
   color: var(--text-secondary);
 }
 .ms-bal-v {
-  font-size: 30px;
+  font-size: 22px;
   font-weight: 700;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
@@ -1197,12 +1191,12 @@ watch(
 
 .ms-btn {
   align-self: center;
-  padding: 7px 20px;
-  border-radius: 8px;
+  padding: 5px 16px;
+  border-radius: 6px;
   border: 1px solid var(--glass-border);
   background: var(--glass-bg);
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
@@ -1219,7 +1213,7 @@ watch(
 /* dots — fixed at bottom of carousel */
 .dots {
   position: absolute;
-  bottom: 6px;
+  bottom: 4px;
   left: 0;
   right: 0;
   display: flex;

@@ -161,13 +161,13 @@
               </select>
             </div>
             <div class="form-field">
-              <label class="form-label">API 密钥 <span class="required">*</span></label>
+              <label class="form-label">API 密钥 <span v-if="form.provider !== 'mimo'" class="required">*</span></label>
               <div class="input-with-suffix">
                 <input
                   v-model="form.apiKey"
                   class="form-input"
                   :type="showApiKey ? 'text' : 'password'"
-                  :placeholder="form.provider === 'mimo' ? 'Bearer Token（MiMo 同时需要 Cookie）' : 'Bearer Token'"
+                  :placeholder="form.provider === 'mimo' ? '可选，留空则仅用 Cookie 认证' : 'Bearer Token'"
                 />
                 <button
                   type="button"
@@ -327,13 +327,21 @@ function editModel(model: ModelConfig) {
 }
 
 async function saveModel() {
-  if (!form.name || !form.apiKey) {
-    ElMessage.warning({ message: '请填写必填字段', duration: 2000 })
+  if (!form.name) {
+    ElMessage.warning({ message: '请填写模型名称', duration: 2000 })
     return
   }
-  if (form.provider === 'mimo' && !form.cookies) {
-    ElMessage.warning({ message: 'MiMo 需要填写 Cookie', duration: 2000 })
-    return
+  // MIMO 仅需 Cookie，其他提供商需要 API 密钥
+  if (form.provider === 'mimo') {
+    if (!form.cookies) {
+      ElMessage.warning({ message: 'MiMo 需要填写 Cookie', duration: 2000 })
+      return
+    }
+  } else {
+    if (!form.apiKey) {
+      ElMessage.warning({ message: '请填写 API 密钥', duration: 2000 })
+      return
+    }
   }
 
   try {
@@ -655,9 +663,9 @@ async function fetchUsage(model: ModelConfig) {
 }
 
 .action-btn.danger:hover {
-  background: rgba(248, 113, 113, 0.12);
-  border-color: rgba(248, 113, 113, 0.3);
-  color: #f87171;
+  background: rgba(212, 119, 106, 0.12);
+  border-color: rgba(212, 119, 106, 0.3);
+  color: var(--danger);
 }
 
 /* ── Table row transitions ── */
@@ -779,7 +787,7 @@ async function fetchUsage(model: ModelConfig) {
 }
 
 .required {
-  color: #f87171;
+  color: var(--danger);
 }
 
 .form-input {

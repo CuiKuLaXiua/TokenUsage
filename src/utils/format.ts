@@ -24,9 +24,9 @@ export function getProgressColor(percent: number | undefined | null): string {
 }
 
 export function getProgressColorHex(percent: number): string {
-  if (percent >= 90) return '#f87171'
-  if (percent >= 70) return '#fbbf24'
-  return '#22d3ee'
+  if (percent >= 90) return '#d4776a'
+  if (percent >= 70) return '#d4a855'
+  return '#7cc48a'
 }
 
 export function formatResetTime(timeStr: string): string {

@@ -34,7 +34,7 @@
               <div class="hero-divider"></div>
               <div class="hero-stat-item">
                 <span class="hero-stat-label">总配额</span>
-                <span class="hero-stat-value neon-text">{{ formatLargeNumber(agg.tokenAgg.value.total) }}</span>
+                <span class="hero-stat-value accent-text">{{ formatLargeNumber(agg.tokenAgg.value.total) }}</span>
               </div>
               <div class="hero-stat-item">
                 <span class="hero-stat-label">已使用</span>
@@ -51,7 +51,7 @@
               <div class="hero-divider"></div>
               <div class="hero-stat-item">
                 <span class="hero-stat-label">账户余额</span>
-                <span class="hero-stat-value neon-text">
+                <span class="hero-stat-value accent-text">
                   {{ agg.balanceAgg.value.currency === 'CNY' ? '¥' : agg.balanceAgg.value.currency }}
                   {{ agg.balanceAgg.value.totalBalance.toFixed(2) }}
                 </span>
@@ -165,7 +165,7 @@
     <div class="models-section">
       <div class="section-header">
         <div class="section-title-wrap">
-          <h3 class="section-title neon-text">模型额度</h3>
+          <h3 class="section-title accent-text">模型额度</h3>
           <span class="section-subtitle">实时监控各平台 Token 使用情况</span>
         </div>
         <div class="section-actions">
@@ -355,7 +355,7 @@ onMounted(async () => {
    Hero Section
    ═══════════════════════════════════════════════════════════ */
 .hero-section {
-  animation: fadeSlideUp var(--duration-slow) var(--ease-spring) both;
+  animation: fadeSlideUp var(--duration-slow) var(--ease-smooth) both;
 }
 
 .hero-grid {
@@ -517,7 +517,7 @@ onMounted(async () => {
   gap: 12px;
   padding: 12px;
   border-radius: 12px;
-  animation: fadeSlideUp var(--duration-slow) var(--ease-spring) both;
+  animation: fadeSlideUp var(--duration-slow) var(--ease-smooth) both;
   transition: transform var(--duration-normal) var(--ease-spring);
 }
 
@@ -580,7 +580,7 @@ onMounted(async () => {
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 10px;
   margin-top: 14px;
-  animation: fadeSlideUp var(--duration-slow) var(--ease-spring) both;
+  animation: fadeSlideUp var(--duration-slow) var(--ease-smooth) both;
   animation-delay: 100ms;
 }
 
@@ -667,7 +667,7 @@ onMounted(async () => {
    Models Section
    ═══════════════════════════════════════════════════════════ */
 .models-section {
-  animation: fadeSlideUp var(--duration-slow) var(--ease-spring) both;
+  animation: fadeSlideUp var(--duration-slow) var(--ease-smooth) both;
   animation-delay: 200ms;
 }
 
@@ -796,7 +796,7 @@ onMounted(async () => {
 .model-card {
   border-radius: 16px;
   overflow: hidden;
-  animation: fadeSlideUp var(--duration-slow) var(--ease-spring) both;
+  animation: fadeSlideUp var(--duration-slow) var(--ease-smooth) both;
   transition: transform var(--duration-normal) var(--ease-spring),
               box-shadow var(--duration-normal) var(--ease-smooth);
 }
@@ -836,11 +836,11 @@ onMounted(async () => {
   letter-spacing: 0.5px;
 }
 
-.provider-badge.mimo { background: rgba(255, 107, 0, 0.12); color: #ff6b00; }
-.provider-badge.openai { background: rgba(16, 163, 127, 0.12); color: #10a37f; }
-.provider-badge.claude { background: rgba(204, 132, 63, 0.12); color: #cc843f; }
-.provider-badge.deepseek { background: rgba(59, 130, 246, 0.12); color: #3b82f6; }
-.provider-badge.kimi { background: rgba(139, 92, 246, 0.12); color: #8b5cf6; }
+.provider-badge.mimo { background: rgba(212, 168, 85, 0.12); color: var(--provider-mimo); }
+.provider-badge.openai { background: rgba(107, 158, 122, 0.12); color: var(--provider-openai); }
+.provider-badge.claude { background: rgba(196, 168, 130, 0.12); color: var(--provider-claude); }
+.provider-badge.deepseek { background: rgba(124, 196, 138, 0.12); color: var(--provider-deepseek); }
+.provider-badge.kimi { background: rgba(184, 160, 136, 0.12); color: var(--provider-kimi); }
 
 .card-refresh {
   width: 32px;

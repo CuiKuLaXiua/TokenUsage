@@ -7,7 +7,7 @@ export interface ModelConfig {
   id: string
   name: string
   provider: string
-  apiKey: string
+  apiKey?: string
   baseUrl: string
   cookies: string
   loginUrl?: string

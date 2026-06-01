@@ -7,7 +7,7 @@ interface ModelConfig {
   id: string
   name: string
   provider: string
-  apiKey: string
+  apiKey?: string
   baseUrl: string
   cookies: string
   refreshInterval?: number
@@ -225,7 +225,10 @@ export class UsageRefresher {
     this.stopAll()
 
     for (const model of this.models) {
-      if (!model.enabled || !model.apiKey) continue
+      if (!model.enabled) continue
+      // MIMO 仅需 Cookie，其他提供商需要 apiKey
+      const hasAuth = model.provider === 'mimo' ? !!model.cookies : !!model.apiKey
+      if (!hasAuth) continue
 
       // 首次立即拉取
       this.fetchModel(model).catch(() => {})
@@ -300,7 +303,8 @@ export class UsageRefresher {
   async refreshAll(): Promise<void> {
     console.log('[Refresher] 开始刷新所有模型')
     for (const model of this.models) {
-      if (model.enabled && model.apiKey) {
+      const hasAuth = model.provider === 'mimo' ? !!model.cookies : !!model.apiKey
+      if (model.enabled && hasAuth) {
         try {
           await this.fetchModel(model)
         } catch {
@@ -359,7 +363,7 @@ export class UsageRefresher {
     } else {
       return {
         url: model.baseUrl || MIMO_DEFAULT_BASE_URL,
-        apiKey: model.apiKey,
+        apiKey: model.apiKey || '',
         cookies: model.cookies || ''
       }
     }
@@ -370,8 +374,11 @@ export class UsageRefresher {
       const { url, apiKey, cookies, method = 'GET', headers = {}, body } = options
 
       const requestHeaders: Record<string, string> = {
-        'Authorization': `Bearer ${apiKey}`,
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36'
+      }
+
+      if (apiKey) {
+        requestHeaders['Authorization'] = `Bearer ${apiKey}`
       }
 
       for (const [key, value] of Object.entries(headers)) {

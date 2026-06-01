@@ -39,14 +39,14 @@ const displayAmount = computed(() => {
   gap: 16px;
   padding: 20px;
   border-radius: 16px;
-  animation: fadeSlideUp var(--duration-slow) var(--ease-spring) both;
+  animation: fadeSlideUp var(--duration-slow) var(--ease-smooth) both;
 }
 
 .balance-icon {
   width: 52px;
   height: 52px;
   border-radius: 14px;
-  background: linear-gradient(135deg, var(--neon-amber) 0%, #f59e0b 100%);
+  background: linear-gradient(135deg, var(--neon-amber) 0%, var(--accent) 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -58,7 +58,7 @@ const displayAmount = computed(() => {
   position: absolute;
   inset: -3px;
   border-radius: 17px;
-  background: linear-gradient(135deg, var(--neon-amber) 0%, #f59e0b 100%);
+  background: linear-gradient(135deg, var(--neon-amber) 0%, var(--accent) 100%);
   opacity: 0.3;
   filter: blur(12px);
 }

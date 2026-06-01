@@ -97,13 +97,22 @@ function createWindow() {
   })
 }
 
-const FLOAT_WIDTH = 280
-const FLOAT_HEIGHT = 104
+const FLOAT_WIDTH = 240
+const FLOAT_HEIGHT = 88
 const DETAIL_WIDTH = 320
 const DETAIL_HEIGHT = 420
 const DETAIL_GAP = 8
 const CTX_MENU_WIDTH = 200
 const CTX_MENU_HEIGHT = 290
+
+// 缓存最近一次右键菜单配置，供渲染进程拉取
+let lastCtxMenuConfig: {
+  modelId: string | null
+  modelName: string | null
+  theme: string
+  layoutMode: string
+  alwaysOnTop: boolean
+} | null = null
 
 function createFloatWindow() {
   floatWindow = new BrowserWindow({
@@ -142,7 +151,7 @@ function createFloatWindow() {
     if (detailWindow && !detailWindow.isDestroyed()) {
       detailWindow.close()
     }
-    closeCtxMenu()
+    destroyCtxMenu()
     floatWindow = null
   })
 }
@@ -191,7 +200,7 @@ function createDetailWindow() {
   return detailWindow
 }
 
-function createCtxMenuWindow() {
+function ensureCtxMenuWindow() {
   if (ctxMenuWindow && !ctxMenuWindow.isDestroyed()) {
     return ctxMenuWindow
   }
@@ -204,6 +213,7 @@ function createCtxMenuWindow() {
     skipTaskbar: true,
     frame: false,
     transparent: true,
+    hasShadow: false,
     show: false,
     webPreferences: {
       preload: join(__dirname, 'preload.js'),
@@ -222,31 +232,96 @@ function createCtxMenuWindow() {
     })
   }
 
-  // Auto-close when clicking outside
+  // 点击外部关闭 — 使用 generation 计数器防止旧 blur 回调干扰新 show
+  let blurTimer: ReturnType<typeof setTimeout> | null = null
+  const genAtBind = ctxMenuGen  // 捕获绑定时的 generation
+
   ctxMenuWindow.on('blur', () => {
-    closeCtxMenu()
+    if (ctxMenuClosing) return     // hideCtxMenu 触发的 blur，忽略
+    if (blurTimer) clearTimeout(blurTimer)
+    blurTimer = setTimeout(() => {
+      blurTimer = null
+      // generation 不匹配 → 菜单已被新的 show 操作接管，不关闭
+      if (ctxMenuClosing || ctxMenuGen !== genAtBind) return
+      hideCtxMenuWindow()
+    }, 120)
   })
 
   ctxMenuWindow.on('closed', () => {
-    // 确保窗口关闭时也发送通知（兜底）
+    if (blurTimer) { clearTimeout(blurTimer); blurTimer = null }
     ctxMenuWindow = null
-    if (floatWindow && !floatWindow.isDestroyed()) {
-      floatWindow.webContents.send('ctx-menu-closed')
-    }
   })
 
   return ctxMenuWindow
 }
 
-// 关闭右键菜单窗口并通知浮窗
-function closeCtxMenu() {
-  if (ctxMenuWindow && !ctxMenuWindow.isDestroyed()) {
-    ctxMenuWindow.close()
-    ctxMenuWindow = null
+// 右键菜单生命周期管理 — 复用同一窗口，仅 show/hide
+let ctxMenuGen = 0         // 每次 show 递增，blur 回调通过 generation 判断是否过期
+let ctxMenuClosing = false // hideCtxMenu 主动关闭时为 true，抑制 blur
+let ctxMenuFocusTimer: ReturnType<typeof setTimeout> | null = null
+
+/**
+ * 显示右键菜单（复用同一窗口，position + config + show）
+ */
+function showCtxMenuWindow(options: {
+  screenX: number; screenY: number
+  modelId: string | null; modelName: string | null
+  theme: string; layoutMode: string; alwaysOnTop: boolean
+}) {
+  const win = ensureCtxMenuWindow()
+  if (!win) return false
+
+  ctxMenuGen++
+
+  const { x, y } = computeCtxMenuPosition(options.screenX, options.screenY)
+  win.setPosition(x, y)
+
+  const config = {
+    modelId: options.modelId,
+    modelName: options.modelName,
+    theme: options.theme,
+    layoutMode: options.layoutMode,
+    alwaysOnTop: options.alwaysOnTop
   }
-  // 通知浮窗右键菜单已关闭，重置状态
+  lastCtxMenuConfig = config
+  win.webContents.send('ctx-menu-config', config)
+
+  win.showInactive()
+  if (ctxMenuFocusTimer) { clearTimeout(ctxMenuFocusTimer); ctxMenuFocusTimer = null }
+  ctxMenuFocusTimer = setTimeout(() => {
+    ctxMenuFocusTimer = null
+    if (ctxMenuWindow && !ctxMenuWindow.isDestroyed()) {
+      ctxMenuWindow.focus()
+    }
+  }, 80)
+
+  return true
+}
+
+/**
+ * 隐藏右键菜单（仅 hide，不销毁窗口，供下次复用）
+ */
+function hideCtxMenuWindow() {
+  if (ctxMenuFocusTimer) { clearTimeout(ctxMenuFocusTimer); ctxMenuFocusTimer = null }
+  ctxMenuClosing = true
+  if (ctxMenuWindow && !ctxMenuWindow.isDestroyed()) {
+    ctxMenuWindow.hide()
+    ctxMenuWindow.blur()
+  }
+  ctxMenuClosing = false
   if (floatWindow && !floatWindow.isDestroyed()) {
     floatWindow.webContents.send('ctx-menu-closed')
+  }
+}
+
+/**
+ * 彻底销毁右键菜单窗口（浮窗关闭时调用）
+ */
+function destroyCtxMenu() {
+  if (ctxMenuFocusTimer) { clearTimeout(ctxMenuFocusTimer); ctxMenuFocusTimer = null }
+  if (ctxMenuWindow && !ctxMenuWindow.isDestroyed()) {
+    ctxMenuWindow.destroy()
+    ctxMenuWindow = null
   }
 }
 
@@ -417,7 +492,7 @@ ipcMain.handle('close-float-window', () => {
     detailWindow.close()
     detailWindow = null
   }
-  closeCtxMenu()
+  destroyCtxMenu()
   if (floatWindow) {
     floatWindow.close()
     floatWindow = null
@@ -470,7 +545,7 @@ ipcMain.handle('hide-float-detail', () => {
 ipcMain.handle('resize-detail-window', (_, width: number, height: number) => {
   if (detailWindow && !detailWindow.isDestroyed()) {
     const MIN_H = 120
-    const MAX_H = 520
+    const MAX_H = 620
     const clamped = Math.round(Math.min(MAX_H, Math.max(MIN_H, height)))
     detailWindow.setSize(Math.round(width), clamped)
   }
@@ -495,47 +570,24 @@ ipcMain.handle('show-ctx-menu', (_, options: {
   layoutMode: string
   alwaysOnTop: boolean
 }) => {
-  // 关闭已有菜单
-  closeCtxMenu()
-
-  const win = createCtxMenuWindow()
-  if (!win) return false
-
-  const { x, y } = computeCtxMenuPosition(options.screenX, options.screenY)
-  win.setPosition(x, y)
-
-  // 发送菜单配置到弹出窗口渲染进程
-  win.webContents.send('ctx-menu-config', {
-    modelId: options.modelId,
-    modelName: options.modelName,
-    theme: options.theme,
-    layoutMode: options.layoutMode,
-    alwaysOnTop: options.alwaysOnTop
-  })
-
-  // 不抢焦点地显示
-  win.showInactive()
-  // 短暂延迟后聚焦，使 blur 事件能够正常触发（点击外部关闭）
-  setTimeout(() => {
-    if (ctxMenuWindow && !ctxMenuWindow.isDestroyed()) {
-      ctxMenuWindow.focus()
-    }
-  }, 80)
-
-  return true
+  return showCtxMenuWindow(options)
 })
 
 ipcMain.handle('hide-ctx-menu', () => {
-  closeCtxMenu()
+  hideCtxMenuWindow()
   return true
 })
 
+ipcMain.handle('get-ctx-menu-config', () => {
+  return lastCtxMenuConfig
+})
+
 ipcMain.handle('ctx-menu-action', (_, action: string) => {
-  // 转发动作到浮窗执行（在关闭菜单之前，确保动作被处理）
+  // 转发动作到浮窗执行（在隐藏菜单之前，确保动作被处理）
   if (floatWindow && !floatWindow.isDestroyed()) {
     floatWindow.webContents.send('execute-ctx-menu-action', action)
   }
-  closeCtxMenu()
+  hideCtxMenuWindow()
   return true
 })
 
@@ -674,13 +726,16 @@ ipcMain.handle('open-mimo-login', async () => {
         // 如果已有 cookie，先验证是否有效
         if (mimoModel?.cookies) {
           // 尝试用已有 cookie 做一次 API 请求验证
+          const testHeaders: Record<string, string> = {
+            'Cookie': mimoModel.cookies
+          }
+          if (mimoModel.apiKey) {
+            testHeaders['Authorization'] = `Bearer ${mimoModel.apiKey}`
+          }
           const testRequest = net.request({
             method: 'GET',
             url: mimoModel.baseUrl || 'https://platform.xiaomimimo.com/api/v1/tokenPlan/usage',
-            headers: {
-              'Authorization': `Bearer ${mimoModel.apiKey}`,
-              'Cookie': mimoModel.cookies
-            }
+            headers: testHeaders
           })
 
           let testData = ''
@@ -798,8 +853,11 @@ ipcMain.handle('fetch-mimo-usage', async (_, options) => {
     }
 
     const requestHeaders: Record<string, string> = {
-      'Authorization': `Bearer ${apiKey}`,
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36'
+    }
+
+    if (apiKey) {
+      requestHeaders['Authorization'] = `Bearer ${apiKey}`
     }
 
     // 合并自定义 headers
