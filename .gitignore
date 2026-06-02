@@ -28,9 +28,22 @@ release
 *.node
 dist-electron/
 
-# Environment
+# Environment & Secrets
 .env
 .env.local
+.env.*.local
+*.pem
+*.key
+*.p12
+*.pfx
+secrets.json
+credentials.json
+
+# API Keys & Tokens (prevent accidental commits)
+*.secret
+*.token
+api-keys.json
+tokens.json
 
 # TypeScript build cache
 tsconfig.node.tsbuildinfo

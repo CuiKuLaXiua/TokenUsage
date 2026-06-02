@@ -8,6 +8,7 @@
     @mouseenter="onFloatEnter"
     @mouseleave="onFloatLeave"
     @mousedown="onWindowDragStart"
+    @dblclick="onDoubleClick"
   >
     <!-- Empty -->
     <div v-if="store.models.length === 0" class="float-empty">
@@ -531,6 +532,10 @@ const DRAG_THRESHOLD = 5;
 // 轮播模式下的拖拽方向判断
 let dragDirection: 'unknown' | 'horizontal' | 'vertical' = 'unknown';
 const DIRECTION_THRESHOLD = 10; // 判断方向的最小移动距离
+// 拖拽节流
+let dragRAF: number | null = null;
+let lastDragX = 0;
+let lastDragY = 0;
 
 function onWindowDragStart(e: MouseEvent) {
   // 忽略右键（右键菜单单独处理）
@@ -542,13 +547,13 @@ function onWindowDragStart(e: MouseEvent) {
     window.electronAPI.hideCtxMenu()
     return
   }
-  
+
   windowDragStartX = e.screenX;
   windowDragStartY = e.screenY;
   isDragging.value = true;
   hasMoved.value = false;
   dragDirection = 'unknown';
-  
+
   // 使用 document 级别事件，防止快速拖拽时鼠标移出窗口导致中断
   document.addEventListener('mousemove', onDocMouseMove, true);
   document.addEventListener('mouseup', onDocMouseUp, true);
@@ -578,7 +583,17 @@ function onDocMouseMove(e: MouseEvent) {
     hasMoved.value = true;
   }
   if (hasMoved.value) {
-    window.electronAPI.windowDragMove({ mouseX: e.screenX, mouseY: e.screenY });
+    // 使用 requestAnimationFrame 节流，避免过多 IPC 调用
+    lastDragX = e.screenX;
+    lastDragY = e.screenY;
+    if (dragRAF === null) {
+      dragRAF = requestAnimationFrame(() => {
+        dragRAF = null;
+        if (isDragging.value) {
+          window.electronAPI.windowDragMove({ mouseX: lastDragX, mouseY: lastDragY });
+        }
+      });
+    }
   }
 }
 
@@ -595,6 +610,11 @@ function onDocMouseUp() {
 function cleanupDragListeners() {
   document.removeEventListener('mousemove', onDocMouseMove, true);
   document.removeEventListener('mouseup', onDocMouseUp, true);
+  // 清理 requestAnimationFrame
+  if (dragRAF !== null) {
+    cancelAnimationFrame(dragRAF);
+    dragRAF = null;
+  }
 }
 
 function onWindowDragEnd() {
@@ -605,6 +625,14 @@ function onWindowDragEnd() {
     window.electronAPI.stopWindowDrag();
   }
   dragDirection = 'unknown';
+}
+
+function onDoubleClick(e: MouseEvent) {
+  // 只响应左键双击，且不是拖拽状态
+  if (e.button !== 0 || hasMoved.value) return
+
+  console.log('[FloatWindow] 双击打开主窗口')
+  window.electronAPI.showMainWindow()
 }
 
 // Fetch

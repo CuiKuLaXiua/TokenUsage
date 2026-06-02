@@ -74,6 +74,7 @@ export const useAppStore = defineStore('app', () => {
   let unsubUsage: (() => void) | null = null
   let unsubFetching: (() => void) | null = null
   let unsubLogin: (() => void) | null = null
+  let unsubApiKeyInvalid: (() => void) | null = null
 
   async function loadConfig() {
     try {
@@ -114,8 +115,34 @@ export const useAppStore = defineStore('app', () => {
 
     // 监听 login-needed
     unsubLogin = window.electronAPI.onLoginNeeded(() => {
-      loginState.value = 'idle'
+      console.log('[Store] 收到 login-needed 事件，当前 loginState:', loginState.value)
       loginError.value = null
+
+      // 如果已经在登录中，跳过
+      if (loginState.value === 'logging-in') {
+        console.log('[Store] 已经在登录中，跳过重复调用')
+        return
+      }
+
+      console.log('[Store] 准备调用 startMimoLogin()')
+      // 自动触发登录流程
+      startMimoLogin()
+    })
+
+    // 监听 API key 失效
+    unsubApiKeyInvalid = window.electronAPI.onApiKeyInvalid(({ modelId, modelName, provider }) => {
+      console.log(`[Store] 收到 api-key-invalid 事件: ${modelName} (${provider})`)
+      // 设置错误状态，让 UI 可以显示提示
+      if (modelUsageMap[modelId]) {
+        modelUsageMap[modelId].error = `API key 已失效，请重新配置`
+      } else {
+        modelUsageMap[modelId] = {
+          usageType: 'error',
+          planName: modelName,
+          lastUpdated: Date.now(),
+          error: `API key 已失效，请重新配置`
+        } as any
+      }
     })
   }
 
@@ -123,6 +150,7 @@ export const useAppStore = defineStore('app', () => {
     if (unsubUsage) { unsubUsage(); unsubUsage = null }
     if (unsubFetching) { unsubFetching(); unsubFetching = null }
     if (unsubLogin) { unsubLogin(); unsubLogin = null }
+    if (unsubApiKeyInvalid) { unsubApiKeyInvalid(); unsubApiKeyInvalid = null }
   }
 
   async function saveConfig() {
@@ -227,12 +255,14 @@ export const useAppStore = defineStore('app', () => {
       return
     }
 
-    console.log('[Login] 开始登录流程')
+    console.log('[Login] 开始登录流程，准备调用 openMimoLogin()')
     loginState.value = 'logging-in'
     loginError.value = null
 
     try {
+      console.log('[Login] 调用 window.electronAPI.openMimoLogin()')
       const cookies = await window.electronAPI.openMimoLogin()
+      console.log('[Login] openMimoLogin 返回:', cookies ? 'cookies 已获取' : 'cookies 为空')
 
       if (cookies) {
         // 更新所有 MiMo 模型的 cookies

@@ -38,6 +38,8 @@ export interface ElectronAPI {
   onConfigUpdated: (callback: () => void) => () => void
   openMimoLogin: () => Promise<string | null>
   onLoginNeeded: (callback: () => void) => () => void
+  onApiKeyInvalid: (callback: (data: { modelId: string, modelName: string, provider: string }) => void) => () => void
+  showMainWindow: () => Promise<boolean>
   windowMinimize: () => Promise<void>
   windowMaximize: () => Promise<void>
   windowClose: () => Promise<void>
@@ -119,6 +121,14 @@ const electronAPI: ElectronAPI = {
       ipcRenderer.removeListener('login-needed', wrapper)
     }
   },
+  onApiKeyInvalid: (callback) => {
+    const wrapper = (_: any, data: { modelId: string, modelName: string, provider: string }) => callback(data)
+    ipcRenderer.on('api-key-invalid', wrapper)
+    return () => {
+      ipcRenderer.removeListener('api-key-invalid', wrapper)
+    }
+  },
+  showMainWindow: () => ipcRenderer.invoke('show-main-window'),
   windowMinimize: () => ipcRenderer.invoke('window-minimize'),
   windowMaximize: () => ipcRenderer.invoke('window-maximize'),
   windowClose: () => ipcRenderer.invoke('window-close'),

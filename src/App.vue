@@ -2,6 +2,7 @@
   <AppLayout v-if="!isFloatRoute">
     <router-view />
     <LoginNotification />
+    <ApiKeyNotification />
   </AppLayout>
   <router-view v-else />
 </template>
@@ -9,6 +10,7 @@
 <script setup lang="ts">
 import AppLayout from '@/components/AppLayout.vue'
 import LoginNotification from '@/components/LoginNotification.vue'
+import ApiKeyNotification from '@/components/ApiKeyNotification.vue'
 import { useThemeStore } from '@/stores/theme'
 import { useAppStore } from '@/stores/app'
 import { useRoute } from 'vue-router'

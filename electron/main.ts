@@ -95,6 +95,11 @@ function createWindow() {
   mainWindow.webContents.on('did-fail-load', (_, errorCode, errorDescription) => {
     console.error('页面加载失败:', errorCode, errorDescription)
   })
+
+  // 添加窗口关闭清理
+  mainWindow.on('closed', () => {
+    mainWindow = null
+  })
 }
 
 const FLOAT_WIDTH = 240
@@ -825,6 +830,19 @@ ipcMain.handle('window-maximize', () => {
 
 ipcMain.handle('window-close', () => {
   mainWindow?.close()
+})
+
+ipcMain.handle('show-main-window', () => {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow()
+  } else {
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore()
+    }
+    mainWindow.show()
+    mainWindow.focus()
+  }
+  return true
 })
 
 // 统一刷新相关

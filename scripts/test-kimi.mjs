@@ -1,7 +1,16 @@
 // Test script for Kimi Coding Plan API
-// Usage: node scripts/test-kimi.mjs
+// Usage:
+//   node scripts/test-kimi.mjs <your-kimi-api-key>
+//   KIMI_API_KEY=sk-xxx node scripts/test-kimi.mjs
 
-const API_KEY = 'sk-kimi-Veq9Tu437F9FjwFFIfLSIAyTfwKcLZ3BNwo0qMgJzWJky8bGK8sxY0mvkdZhjlPo'
+const API_KEY = process.argv[2] || process.env.KIMI_API_KEY
+
+if (!API_KEY) {
+  console.error('请提供 Kimi API Key:')
+  console.error('  node scripts/test-kimi.mjs <your-kimi-api-key>')
+  console.error('  或设置环境变量: KIMI_API_KEY=sk-xxx node scripts/test-kimi.mjs')
+  process.exit(1)
+}
 
 async function testKimi() {
   console.log('Testing Kimi Coding Plan API...')

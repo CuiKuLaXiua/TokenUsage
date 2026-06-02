@@ -276,11 +276,18 @@ export class UsageRefresher {
     } catch (error) {
       console.error(`[Refresher] ${model.name} 拉取失败:`, error)
 
-      // 检测 cookie 过期
+      // 检测 cookie 过期（MiMo）
       if (model.provider === 'mimo' && this.isCookieExpired(error)) {
         console.log('[Refresher] 检测到 Cookie 过期，广播 login-needed')
         this.broadcastLoginNeeded()
       }
+
+      // 检测 API key 失效（Kimi、DeepSeek 等）
+      if (this.isApiKeyInvalid(error, model.provider)) {
+        console.log(`[Refresher] 检测到 ${model.provider} API key 可能失效`)
+        this.broadcastApiKeyInvalid(model)
+      }
+
       throw error
     } finally {
       this.fetchInProgress.delete(model.id)
@@ -415,6 +422,15 @@ export class UsageRefresher {
               }
             }
 
+            // 检测 Kimi/DeepSeek 等 API key 失效（401/403 状态码）
+            if (!url.includes('platform.xiaomimimo.com')) {
+              if (response.statusCode === 401 || response.statusCode === 403) {
+                const error = new Error(`API request failed with status ${response.statusCode}: unauthorized`)
+                reject(error)
+                return
+              }
+            }
+
             resolve(data)
           } catch {
             reject(new Error('JSON解析失败'))
@@ -430,11 +446,6 @@ export class UsageRefresher {
 
       request.end()
     })
-  }
-
-  private isCookieExpired(error: any): boolean {
-    return error?.code === 'COOKIE_EXPIRED' ||
-           (error instanceof Error && error.message.includes('Cookie expired'))
   }
 
   private broadcast(modelId: string, data: ModelUsageStatus): void {
@@ -460,6 +471,40 @@ export class UsageRefresher {
     for (const win of windows) {
       if (!win.isDestroyed()) {
         win.webContents.send('login-needed')
+      }
+    }
+  }
+
+  private isCookieExpired(error: any): boolean {
+    return error?.code === 'COOKIE_EXPIRED' ||
+           (error instanceof Error && error.message.includes('Cookie expired'))
+  }
+
+  private isApiKeyInvalid(error: any, provider: string): boolean {
+    // 检测 API key 相关的错误（用于 Kimi、DeepSeek 等使用 API key 的提供商）
+    if (provider === 'mimo') return false // MiMo 使用 cookie，不检测 API key
+
+    if (error instanceof Error) {
+      const message = error.message.toLowerCase()
+      return message.includes('unauthorized') ||
+             message.includes('invalid api key') ||
+             message.includes('api key') ||
+             message.includes('authentication') ||
+             message.includes('401') ||
+             message.includes('403')
+    }
+    return false
+  }
+
+  private broadcastApiKeyInvalid(model: ModelConfig): void {
+    const windows = BrowserWindow.getAllWindows()
+    for (const win of windows) {
+      if (!win.isDestroyed()) {
+        win.webContents.send('api-key-invalid', {
+          modelId: model.id,
+          modelName: model.name,
+          provider: model.provider
+        })
       }
     }
   }

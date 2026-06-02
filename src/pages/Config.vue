@@ -394,8 +394,29 @@ async function fetchUsage(model: ModelConfig) {
   try {
     await store.requestRefresh(model.id)
     ElMessage.success({ message: `${model.name} 额度获取成功`, duration: 2000 })
-  } catch {
-    ElMessage.error({ message: '数据解析失败', duration: 2500 })
+  } catch (error: any) {
+    console.error(`[Config] ${model.name} 获取额度失败:`, error)
+
+    // 检查是否是 Cookie 过期错误（MiMo）
+    if (error?.code === 'COOKIE_EXPIRED' || error?.message?.includes('Cookie expired')) {
+      ElMessage.warning({ message: 'Cookie 已过期，请重新登录', duration: 3000 })
+      // 不需要手动触发登录，store 的 login-needed 监听器会自动处理
+    }
+    // 检查是否是 API key 失效（Kimi、DeepSeek 等）
+    else if (error?.message?.includes('unauthorized') ||
+             error?.message?.includes('401') ||
+             error?.message?.includes('403') ||
+             error?.message?.includes('API request failed')) {
+      ElMessage.error({
+        message: `${model.name} API key 已失效，请重新配置`,
+        duration: 5000,
+        showClose: true
+      })
+    }
+    // 其他错误
+    else {
+      ElMessage.error({ message: `${model.name} 数据解析失败`, duration: 2500 })
+    }
   }
 }
 </script>

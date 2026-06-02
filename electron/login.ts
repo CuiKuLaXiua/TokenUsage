@@ -122,10 +122,13 @@ export class LoginWindowManager {
           console.log('[LoginWindow] 检测到 xiaomimimo.com 的 cookies，立即提取')
           const cookieString = cookies.map(c => `${c.name}=${c.value}`).join('; ')
           console.log('[LoginWindow] 最终 cookie 字符串:', cookieString)
+          console.log('[LoginWindow] 准备关闭登录窗口...')
           this.triggerCallback(cookieString)
           // 关闭窗口
           if (this.loginWindow && !this.loginWindow.isDestroyed()) {
+            console.log('[LoginWindow] 执行关闭窗口操作')
             this.loginWindow.close()
+            console.log('[LoginWindow] 窗口关闭命令已发送')
           }
         } else {
           console.log('[LoginWindow] 未检测到 xiaomimimo.com 的 cookies，等待用户登录')
