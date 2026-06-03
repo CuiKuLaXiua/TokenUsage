@@ -1,6 +1,10 @@
 <template>
   <AppLayout v-if="!isFloatRoute">
-    <router-view />
+    <router-view v-slot="{ Component }">
+      <keep-alive>
+        <component :is="Component" />
+      </keep-alive>
+    </router-view>
     <LoginNotification />
     <ApiKeyNotification />
   </AppLayout>
@@ -260,5 +264,48 @@ body {
   border: 1px solid var(--glass-border) !important;
   border-radius: 12px !important;
   box-shadow: var(--glass-shadow-hover) !important;
+}
+
+/* ── Title bar menu popover ── */
+.title-menu-popover {
+  background: var(--glass-bg-strong) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border: 1px solid var(--glass-border) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25) !important;
+  padding: 8px !important;
+  transform-origin: 0 0 !important;
+}
+
+/* 菜单弹出动画 */
+.menu-pop-enter-active {
+  animation: menuPopIn 0.22s cubic-bezier(0.34, 1.56, 0.64, 1) both !important;
+}
+
+.menu-pop-leave-active {
+  animation: menuPopOut 0.15s ease-in both !important;
+}
+
+@keyframes menuPopIn {
+  from {
+    opacity: 0;
+    transform: scale(0.85) translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes menuPopOut {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.9) translateY(-4px);
+  }
 }
 </style>

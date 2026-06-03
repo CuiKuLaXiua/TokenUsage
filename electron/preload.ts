@@ -16,6 +16,8 @@ export interface ElectronAPI {
   }) => Promise<any>
   openFloatWindow: () => Promise<boolean>
   closeFloatWindow: () => Promise<boolean>
+  getFloatWindowState: () => Promise<{ active: boolean }>
+  onFloatWindowClosed: (callback: () => void) => () => void
   focusFloatWindow: () => Promise<boolean>
   setFloatAlwaysOnTop: (value: boolean) => Promise<boolean>
   resizeFloatWindow: (width: number, height: number) => Promise<boolean>
@@ -23,7 +25,6 @@ export interface ElectronAPI {
   debugLog: (msg: string) => Promise<boolean>
   startWindowDrag: (options: { mouseX: number; mouseY: number }) => Promise<void>
   stopWindowDrag: () => Promise<void>
-  dragHeartbeat: (options: { mouseX: number; mouseY: number }) => Promise<void>
   setFloatWindowPosition: (x: number, y: number) => Promise<boolean>
   // 详情悬浮窗
   showFloatDetail: (options: {
@@ -87,6 +88,15 @@ export interface ElectronAPI {
   undockFloatWindow: () => Promise<boolean>
   getEdgeDockState: () => Promise<{ isDocked: boolean; edge: 'left' | 'right' | 'top' | null; originalX: number; originalY: number } | null>
   onEdgeDockChanged: (callback: (state: { isDocked: boolean; edge: 'left' | 'right' | 'top' | null }) => void) => () => void
+  stripMousedown: () => Promise<void>
+  // 主题同步
+  notifyThemeChanged: (theme: { mode: string; accent: string }) => Promise<boolean>
+  onThemeChanged: (callback: (theme: { mode: string; accent: string }) => void) => () => void
+  // 关闭行为
+  getCloseAction: () => Promise<string | null>
+  setCloseAction: (action: string | null) => Promise<boolean>
+  closeActionChosen: (action: string, remember: boolean) => Promise<void>
+  onShowCloseDialog: (callback: () => void) => () => void
 }
 
 const electronAPI: ElectronAPI = {
@@ -98,6 +108,12 @@ const electronAPI: ElectronAPI = {
   fetchMimoUsage: (options) => ipcRenderer.invoke('fetch-mimo-usage', options),
   openFloatWindow: () => ipcRenderer.invoke('open-float-window'),
   closeFloatWindow: () => ipcRenderer.invoke('close-float-window'),
+  getFloatWindowState: () => ipcRenderer.invoke('get-float-window-state'),
+  onFloatWindowClosed: (callback: () => void) => {
+    const handler = () => callback()
+    ipcRenderer.on('float-window-closed', handler)
+    return () => { ipcRenderer.removeListener('float-window-closed', handler) }
+  },
   focusFloatWindow: () => ipcRenderer.invoke('focus-float-window'),
   setFloatAlwaysOnTop: (value) => ipcRenderer.invoke('set-float-always-on-top', value),
   resizeFloatWindow: (width, height) => ipcRenderer.invoke('resize-float-window', width, height),
@@ -105,7 +121,6 @@ const electronAPI: ElectronAPI = {
   debugLog: (msg: string) => ipcRenderer.invoke('debug-log', msg),
   startWindowDrag: (options) => ipcRenderer.invoke('start-window-drag', options),
   stopWindowDrag: () => ipcRenderer.invoke('stop-window-drag'),
-  dragHeartbeat: (options) => ipcRenderer.invoke('drag-heartbeat', options),
   setFloatWindowPosition: (x, y) => ipcRenderer.invoke('set-float-window-position', x, y),
   // 详情悬浮窗
   showFloatDetail: (options) => ipcRenderer.invoke('show-float-detail', options),
@@ -198,6 +213,23 @@ const electronAPI: ElectronAPI = {
     const wrapper = (_: any, state: any) => callback(state)
     ipcRenderer.on('edge-dock-changed', wrapper)
     return () => { ipcRenderer.removeListener('edge-dock-changed', wrapper) }
+  },
+  stripMousedown: () => ipcRenderer.invoke('strip-mousedown'),
+  // 主题同步
+  notifyThemeChanged: (theme) => ipcRenderer.invoke('notify-theme-changed', theme),
+  onThemeChanged: (callback) => {
+    const wrapper = (_: any, theme: { mode: string; accent: string }) => callback(theme)
+    ipcRenderer.on('theme-changed', wrapper)
+    return () => { ipcRenderer.removeListener('theme-changed', wrapper) }
+  },
+  // 关闭行为
+  getCloseAction: () => ipcRenderer.invoke('get-close-action'),
+  setCloseAction: (action) => ipcRenderer.invoke('set-close-action', action),
+  closeActionChosen: (action, remember) => ipcRenderer.invoke('close-action-chosen', action, remember),
+  onShowCloseDialog: (callback) => {
+    const wrapper = () => callback()
+    ipcRenderer.on('show-close-dialog', wrapper)
+    return () => { ipcRenderer.removeListener('show-close-dialog', wrapper) }
   }
 }
 

@@ -28,8 +28,9 @@
               <div
                 class="tier-fill"
                 :style="{
-                  width: tier.percent + '%',
-                  background: getProgressColor(tier.percent)
+                  width: '100%',
+                  background: 'var(--progress-gradient)',
+                  clipPath: `inset(0 calc(100% - ${tier.percent}%) 0 0)`
                 }"
               ></div>
             </div>
@@ -55,8 +56,9 @@
             <div
               class="token-fill"
               :style="{
-                width: (usage.percent || 0) + '%',
-                background: getProgressColor(usage.percent)
+                width: '100%',
+                background: 'var(--progress-gradient)',
+                clipPath: `inset(0 calc(100% - ${(usage.percent || 0)}%) 0 0)`
               }"
             ></div>
           </div>
@@ -82,7 +84,7 @@ import { computed } from 'vue'
 import { Timer, Clock } from '@element-plus/icons-vue'
 import { useAppStore } from '@/stores/app'
 import type { ModelConfig } from '@/stores/app'
-import { formatTokens, formatPercent, getProgressColor, formatResetTime } from '@/utils/format'
+import { formatTokens, formatPercent, formatResetTime } from '@/utils/format'
 
 const props = defineProps<{
   model: ModelConfig
@@ -102,11 +104,6 @@ const usage = computed(() => store.modelUsageMap[props.model.id])
   padding: 2px;
   border-radius: 10px;
   transition: transform 0.25s var(--ease-spring), box-shadow 0.25s, background 0.25s;
-}
-.float-model-card:hover {
-  transform: translateY(-1px);
-  background: var(--glass-bg);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.1);
 }
 
 .card-header {
@@ -183,7 +180,7 @@ const usage = computed(() => store.modelUsageMap[props.model.id])
 .token-fill {
   height: 100%;
   border-radius: 2px;
-  transition: width 0.8s var(--ease-spring);
+  transition: clip-path 0.8s var(--ease-spring);
   position: relative;
 }
 .token-fill::after {
@@ -287,7 +284,7 @@ const usage = computed(() => store.modelUsageMap[props.model.id])
 .tier-fill {
   height: 100%;
   border-radius: 2px;
-  transition: width 0.8s var(--ease-spring);
+  transition: clip-path 0.8s var(--ease-spring);
   position: relative;
 }
 .tier-fill::after {

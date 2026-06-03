@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, net, screen } from "electron";
+import { app, BrowserWindow, ipcMain, net, screen, Tray, Menu, nativeImage } from "electron";
 import { join } from "path";
 
 const isDev = !app.isPackaged;
@@ -31,14 +31,18 @@ process.on("unhandledRejection", (reason) => {
 
 let mainWindow: BrowserWindow | null = null;
 let floatWindow: BrowserWindow | null = null;
+let floatStripWindow: BrowserWindow | null = null;
 let detailWindow: BrowserWindow | null = null;
 let ctxMenuWindow: BrowserWindow | null = null;
+let tray: Tray | null = null;
 const loginManager = new LoginWindowManager();
 const openCodeLoginManager = new OpenCodeLoginWindowManager();
 
 const dataDir = join(homedir(), ".token-usage");
 const configPath = join(dataDir, "config.json");
 const usagePath = join(dataDir, "usage");
+const windowStatePath = join(dataDir, "window-state.json");
+const floatWindowStatePath = join(dataDir, "float-window-state.json");
 const refresher = new UsageRefresher(configPath);
 
 function ensureDataDir() {
@@ -69,12 +73,145 @@ function ensureDataDir() {
   }
 }
 
+interface WindowState {
+  width: number;
+  height: number;
+  x?: number;
+  y?: number;
+  isMaximized?: boolean;
+}
+
+function loadWindowState(): WindowState | null {
+  try {
+    if (!existsSync(windowStatePath)) return null;
+    const raw = JSON.parse(readFileSync(windowStatePath, "utf-8"));
+    if (!raw || typeof raw.width !== "number" || typeof raw.height !== "number") return null;
+    // 验证位置是否在可见屏幕内
+    if (raw.x !== undefined && raw.y !== undefined) {
+      const displays = screen.getAllDisplays();
+      const visible = displays.some(d => {
+        const { x, y, width, height } = d.bounds;
+        return raw.x >= x - 50 && raw.x < x + width - 50
+            && raw.y >= y - 50 && raw.y < y + height - 50;
+      });
+      if (!visible) { raw.x = undefined; raw.y = undefined; }
+    }
+    return raw;
+  } catch {
+    return null;
+  }
+}
+
+function saveWindowState(win: BrowserWindow) {
+  try {
+    const isMaximized = win.isMaximized();
+    const bounds = isMaximized ? win.getNormalBounds() : win.getBounds();
+    const state: WindowState = { width: bounds.width, height: bounds.height, x: bounds.x, y: bounds.y, isMaximized };
+    writeFileSync(windowStatePath, JSON.stringify(state));
+  } catch { /* ignore */ }
+}
+
+// ── 悬浮窗位置记忆 ──
+function loadFloatPosition(): { x: number; y: number } | null {
+  try {
+    if (!existsSync(floatWindowStatePath)) return null;
+    const raw = JSON.parse(readFileSync(floatWindowStatePath, "utf-8"));
+    if (typeof raw.x !== "number" || typeof raw.y !== "number") return null;
+    // 验证位置是否在可见屏幕内
+    const displays = screen.getAllDisplays();
+    const visible = displays.some(d => {
+      const { x, y, width, height } = d.workArea;
+      return raw.x >= x - 50 && raw.x < x + width - 50
+          && raw.y >= y - 50 && raw.y < y + height - 50;
+    });
+    return visible ? raw : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveFloatPosition() {
+  try {
+    if (!floatWindow || floatWindow.isDestroyed()) return;
+    const [x, y] = floatWindow.getPosition();
+    writeFileSync(floatWindowStatePath, JSON.stringify({ x, y }));
+  } catch { /* ignore */ }
+}
+
+// ── 关闭行为管理 ──
+type CloseAction = 'minimize-to-tray' | 'quit'
+
+function getCloseActionFromConfig(): CloseAction | null {
+  try {
+    if (existsSync(configPath)) {
+      const config = JSON.parse(readFileSync(configPath, "utf-8"));
+      return config.closeAction ?? null;
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
+function saveCloseActionToConfig(action: CloseAction | null) {
+  try {
+    if (existsSync(configPath)) {
+      const config = JSON.parse(readFileSync(configPath, "utf-8"));
+      config.closeAction = action;
+      writeFileSync(configPath, JSON.stringify(config, null, 2));
+    }
+  } catch { /* ignore */ }
+}
+
+// ── 系统托盘 ──
+function createTray() {
+  const iconPath = join(__dirname, "../public/logo.png");
+  const icon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
+
+  tray = new Tray(icon);
+  tray.setToolTip("Token Usage");
+
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: "显示主窗口",
+      click: () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          if (mainWindow.isMinimized()) mainWindow.restore();
+          mainWindow.show();
+          mainWindow.focus();
+        } else {
+          createWindow();
+        }
+      },
+    },
+    { type: "separator" },
+    {
+      label: "退出",
+      click: () => {
+        app.quit();
+      },
+    },
+  ]);
+
+  tray.setContextMenu(contextMenu);
+
+  tray.on("double-click", () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    } else {
+      createWindow();
+    }
+  });
+}
+
 function createWindow() {
+  const saved = loadWindowState();
+  const defaultOpts = { width: 1200, height: 800, minWidth: 1000, minHeight: 700 };
+
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    minWidth: 1000,
-    minHeight: 700,
+    ...defaultOpts,
+    ...(saved ? { width: saved.width, height: saved.height } : {}),
+    ...(saved?.x !== undefined ? { x: saved.x, y: saved.y } : {}),
     webPreferences: {
       preload: join(__dirname, "preload.js"),
       nodeIntegration: false,
@@ -86,6 +223,40 @@ function createWindow() {
       ? { trafficLightPosition: { x: 12, y: 16 } }
       : {}),
     icon: join(__dirname, "../public/logo.png"),
+  });
+
+  if (saved?.isMaximized) {
+    mainWindow.maximize();
+  }
+
+  // 窗口尺寸记忆：防抖保存
+  let saveTimer: ReturnType<typeof setTimeout> | null = null;
+  const debouncedSave = () => {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      if (mainWindow && !mainWindow.isDestroyed()) saveWindowState(mainWindow);
+    }, 300);
+  };
+  mainWindow.on("resize", debouncedSave);
+  mainWindow.on("move", debouncedSave);
+  mainWindow.on("close", (event) => {
+    if (mainWindow && !mainWindow.isDestroyed()) saveWindowState(mainWindow);
+
+    // 关闭行为逻辑
+    const closeAction = getCloseActionFromConfig();
+    if (closeAction === 'minimize-to-tray') {
+      event.preventDefault();
+      mainWindow?.hide();
+      return;
+    }
+    if (closeAction === 'quit') {
+      // 允许关闭，退出应用
+      setTimeout(() => app.quit(), 0);
+      return;
+    }
+    // 未设置：弹窗询问
+    event.preventDefault();
+    mainWindow?.webContents.send("show-close-dialog");
   });
 
   if (isDev) {
@@ -134,14 +305,87 @@ let lastCtxMenuConfig: {
   alwaysOnTop: boolean;
 } | null = null;
 
-function createFloatWindow() {
-  floatWindow = new BrowserWindow({
-    width: FLOAT_WIDTH,
+function positionStripWindow(edge: "left" | "right" | "top" | null, dockY: number) {
+  if (!edge) return;
+  if (!floatStripWindow || floatStripWindow.isDestroyed() || !floatWindow)
+    return;
+  const display = screen.getDisplayMatching(floatWindow!.getBounds());
+  const { x: workX, y: workY, width: workW } = display.workArea;
+  let sx: number;
+  switch (edge) {
+    case "left":
+      sx = workX + EDGE_MARGIN;
+      break;
+    case "right":
+      sx = workX + workW - DOCK_VISIBLE_WIDTH - EDGE_MARGIN;
+      break;
+    case "top":
+      sx = workX + EDGE_MARGIN;
+      break;
+    default:
+      return;
+  }
+  floatStripWindow.setPosition(Math.round(sx), Math.round(dockY));
+  if (!floatStripWindow.isVisible()) {
+    floatStripWindow.show();
+  }
+  // 置于 floatWindow 上方
+  if (floatWindow) floatStripWindow.moveTop();
+}
+
+function createFloatStripWindow() {
+  if (!floatWindow || floatWindow.isDestroyed()) return;
+  floatStripWindow = new BrowserWindow({
+    width: DOCK_VISIBLE_WIDTH,
     height: FLOAT_HEIGHT,
     resizable: false,
     alwaysOnTop: true,
     skipTaskbar: true,
     frame: false,
+    show: false,
+    backgroundColor: "#000",
+    transparent: true,
+    hasShadow: false,
+    webPreferences: {
+      preload: join(__dirname, "preload.js"),
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  });
+  if (isDev) {
+    floatStripWindow.loadURL(rendererUrl + "/#/float-strip");
+  } else {
+    floatStripWindow.loadFile(join(__dirname, "../dist/index.html"), {
+      hash: "/float-strip",
+    });
+  }
+  // 置于 floatWindow 之上
+  floatStripWindow.on("closed", () => {
+    floatStripWindow = null;
+  });
+}
+
+function springOvershoot(p: number): number {
+  if (p === 0 || p === 1) return p;
+  if (p < 0.5) return 1 - Math.pow(1 - p / 0.5, 3) * 0.85;
+  const pp = (p - 0.5) / 0.5;
+  return 1 + 0.15 * Math.pow(1 - pp, 2) - 0.15 * Math.pow(1 - pp, 4);
+}
+
+function createFloatWindow() {
+  // 恢复上次保存的位置
+  const savedPos = loadFloatPosition();
+  const posOpts = savedPos ? { x: savedPos.x, y: savedPos.y } : {};
+
+  floatWindow = new BrowserWindow({
+    width: FLOAT_WIDTH,
+    height: FLOAT_HEIGHT,
+    ...posOpts,
+    resizable: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    frame: false,
+    hasShadow: false,
     webPreferences: {
       preload: join(__dirname, "preload.js"),
       nodeIntegration: false,
@@ -167,6 +411,11 @@ function createFloatWindow() {
   });
 
   floatWindow.on("closed", () => {
+    // 保存悬浮窗位置（非贴边状态时）
+    if (!edgeDockState.get(floatWindow?.id || -1)?.isDocked) {
+      saveFloatPosition();
+    }
+
     // 清理拖拽状态和定时器
     const dragState = dragStateMap.get(floatWindow?.id || -1);
     if (dragState?.intervalId) {
@@ -174,14 +423,21 @@ function createFloatWindow() {
     }
     dragStateMap.delete(floatWindow?.id || -1);
 
-    // 主窗口关闭时同步关闭详情窗口
+    // 主窗口关闭时同步关闭详情窗口和贴边条
     if (detailWindow && !detailWindow.isDestroyed()) {
       detailWindow.close();
+    }
+    if (floatStripWindow && !floatStripWindow.isDestroyed()) {
+      floatStripWindow.close();
     }
     destroyCtxMenu();
     stopHoverPolling();
     edgeDockState.delete(floatWindow?.id || -1);
     floatWindow = null;
+    // 通知主窗口悬浮窗已关闭
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("float-window-closed");
+    }
   });
 }
 
@@ -202,6 +458,7 @@ function createDetailWindow() {
     skipTaskbar: true,
     frame: false,
     show: false,
+    hasShadow: false,
     parent: floatWindow,
     webPreferences: {
       preload: join(__dirname, "preload.js"),
@@ -430,6 +687,7 @@ function computeCtxMenuPosition(
 
 app.whenReady().then(() => {
   ensureDataDir();
+  createTray();
   createWindow();
   refresher.start(); // 启动统一刷新
 
@@ -441,10 +699,8 @@ app.whenReady().then(() => {
 });
 
 app.on("window-all-closed", () => {
-  // 开发模式下不自动退出，方便调试
-  if (!isDev && process.platform !== "darwin") {
-    app.quit();
-  }
+  // 有托盘时不自动退出（macOS 也不退出）
+  // 应用退出由托盘菜单或 close-action-chosen 的 quit 路径控制
 });
 
 // IPC handlers for data storage
@@ -466,7 +722,15 @@ ipcMain.handle("save-config", (_, config) => {
       console.error("Invalid config structure");
       return false;
     }
-    writeFileSync(configPath, JSON.stringify(config, null, 2));
+    // 保留 closeAction 等非 models 字段
+    let fullConfig = config;
+    try {
+      if (existsSync(configPath)) {
+        const existing = JSON.parse(readFileSync(configPath, "utf-8"));
+        fullConfig = { ...existing, ...config };
+      }
+    } catch { /* ignore */ }
+    writeFileSync(configPath, JSON.stringify(fullConfig, null, 2));
 
     // 广播配置更新给所有窗口
     BrowserWindow.getAllWindows().forEach((win) => {
@@ -526,10 +790,27 @@ ipcMain.handle("get-data-path", () => {
 ipcMain.handle("open-float-window", () => {
   if (!floatWindow) {
     createFloatWindow();
+  } else if (floatWindow.isVisible()) {
+    floatWindow.close();
+    return false;
   } else {
+    // 边缘吸附等隐藏状态：视为已开启，再次点击则关闭
+    if (edgeDockState.get(floatWindow.id)?.isDocked) {
+      floatWindow.close();
+      return false;
+    }
+    floatWindow.show();
     floatWindow.focus();
   }
   return true;
+});
+
+ipcMain.handle("get-float-window-state", () => {
+  if (!floatWindow || floatWindow.isDestroyed()) {
+    return { active: false };
+  }
+  // 存在即 active，无论可见还是边缘吸附
+  return { active: true };
 });
 
 ipcMain.handle("close-float-window", () => {
@@ -539,10 +820,16 @@ ipcMain.handle("close-float-window", () => {
   }
   destroyCtxMenu();
   stopHoverPolling();
+  edgeDockState.delete(floatWindow?.id || -1);
+  if (floatStripWindow && !floatStripWindow.isDestroyed()) {
+    floatStripWindow.close();
+  }
   if (floatWindow) {
-    edgeDockState.delete(floatWindow.id);
     floatWindow.close();
     floatWindow = null;
+  }
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("float-window-closed");
   }
   return true;
 });
@@ -664,6 +951,20 @@ ipcMain.handle("set-float-always-on-top", (_, value: boolean) => {
   return true;
 });
 
+// ── 主题同步：广播给所有悬浮窗口 ──
+ipcMain.handle(
+  "notify-theme-changed",
+  (_, theme: { mode: string; accent: string }) => {
+    const targets = [floatWindow, detailWindow, ctxMenuWindow];
+    for (const win of targets) {
+      if (win && !win.isDestroyed()) {
+        win.webContents.send("theme-changed", theme);
+      }
+    }
+    return true;
+  },
+);
+
 const _logFile = join(app.getPath("temp"), "tokenusage-debug.log");
 function _dbg(msg: string) {
   const line = `[${new Date().toLocaleTimeString()}] ${msg}\n`;
@@ -716,6 +1017,7 @@ interface EdgeDockState {
 const edgeDockState = new Map<number, EdgeDockState>();
 const EDGE_THRESHOLD = 20; // 距离边缘 20px 内触发靠边隐藏
 const DOCK_VISIBLE_WIDTH = 8; // 吸附后露出边缘的宽度
+const EDGE_MARGIN = 2; // 贴边条与屏幕边缘的间距
 
 // 更稳定的拖拽方案：主进程控制
 interface DragState {
@@ -725,12 +1027,13 @@ interface DragState {
   startPosX: number;
   startPosY: number;
   intervalId: ReturnType<typeof setInterval> | null;
-  heartbeatTimer: ReturnType<typeof setTimeout> | null;
-  lastHeartbeat: number;
+  lastCursorX: number;
+  lastCursorY: number;
+  idleCount: number; // 鼠标静止计数
 }
 
 const dragStateMap = new Map<number, DragState>();
-const DRAG_HEARTBEAT_TIMEOUT = 500; // 500ms 没收到心跳，自动停止拖拽
+const DRAG_IDLE_THRESHOLD = 15; // 鼠标静止超过 15 帧（约 240ms）自动停止拖拽
 
 ipcMain.handle(
   "start-window-drag",
@@ -749,8 +1052,6 @@ ipcMain.handle(
     const existingState = dragStateMap.get(win.id);
     if (existingState) {
       if (existingState.intervalId) clearInterval(existingState.intervalId);
-      if (existingState.heartbeatTimer)
-        clearTimeout(existingState.heartbeatTimer);
     }
 
     const state: DragState = {
@@ -760,31 +1061,10 @@ ipcMain.handle(
       startPosX: posX,
       startPosY: posY,
       intervalId: null,
-      heartbeatTimer: null,
-      lastHeartbeat: Date.now(),
+      lastCursorX: options.mouseX,
+      lastCursorY: options.mouseY,
+      idleCount: 0,
     };
-
-    // 启动心跳超时检测
-    const checkHeartbeat = () => {
-      if (!state.isDragging || win.isDestroyed()) {
-        return;
-      }
-
-      const elapsed = Date.now() - state.lastHeartbeat;
-      if (elapsed > DRAG_HEARTBEAT_TIMEOUT) {
-        console.log(
-          `[Main] Drag heartbeat timeout (${elapsed}ms), stopping drag for window ${win.id}`,
-        );
-        // 超时，自动停止拖拽
-        stopDragForWindow(win.id);
-        return;
-      }
-
-      // 继续检测
-      state.heartbeatTimer = setTimeout(checkHeartbeat, 100);
-    };
-
-    state.heartbeatTimer = setTimeout(checkHeartbeat, 100);
 
     // 使用定时器持续更新位置（比渲染进程发 IPC 更稳定）
     state.intervalId = setInterval(() => {
@@ -798,6 +1078,21 @@ ipcMain.handle(
 
       // 获取当前鼠标位置（全局）
       const cursor = screen.getCursorScreenPoint();
+
+      // 检测鼠标是否静止（可能已释放按钮）
+      if (Math.abs(cursor.x - state.lastCursorX) <= 1 && Math.abs(cursor.y - state.lastCursorY) <= 1) {
+        state.idleCount++;
+        if (state.idleCount > DRAG_IDLE_THRESHOLD) {
+          // 鼠标长时间静止，自动停止拖拽
+          console.log(`[Main] Drag auto-stopped: mouse idle for ${state.idleCount} frames`);
+          stopDragForWindow(win.id);
+          return;
+        }
+      } else {
+        state.idleCount = 0;
+        state.lastCursorX = cursor.x;
+        state.lastCursorY = cursor.y;
+      }
 
       // 计算新位置
       const dx = cursor.x - state.startMouseX;
@@ -832,20 +1127,6 @@ ipcMain.handle(
   },
 );
 
-// 心跳处理：渲染进程定期发送，主进程更新时间戳
-ipcMain.handle(
-  "drag-heartbeat",
-  (event, _options: { mouseX: number; mouseY: number }) => {
-    const win = BrowserWindow.fromWebContents(event.sender);
-    if (!win || win.isDestroyed()) return;
-
-    const state = dragStateMap.get(win.id);
-    if (state && state.isDragging) {
-      state.lastHeartbeat = Date.now();
-    }
-  },
-);
-
 // 停止指定窗口的拖拽
 function stopDragForWindow(windowId: number) {
   const state = dragStateMap.get(windowId);
@@ -858,10 +1139,6 @@ function stopDragForWindow(windowId: number) {
     clearInterval(state.intervalId);
     state.intervalId = null;
   }
-  if (state.heartbeatTimer) {
-    clearTimeout(state.heartbeatTimer);
-    state.heartbeatTimer = null;
-  }
   dragStateMap.delete(windowId);
 
   // 基于窗口当前位置重新检测边缘吸附
@@ -869,26 +1146,47 @@ function stopDragForWindow(windowId: number) {
   if (win && !win.isDestroyed()) {
     const dockState = checkEdgeDocking(win);
     if (dockState) {
-      // 窗口在边缘附近 → 吸附（更新/覆盖旧的 dock state）
-      edgeDockState.set(windowId, dockState);
-      animateWindowPosition(win, dockState.dockX, dockState.dockY, 200).then(
-        () => {
-          startHoverPolling();
-          win.webContents.send("edge-dock-changed", {
-            isDocked: true,
-            edge: dockState.edge,
-          });
-        },
-      );
+      // 吸附：创建/定位 strip，float 滑入边缘后完全隐藏
+      if (!floatStripWindow || floatStripWindow.isDestroyed()) {
+        createFloatStripWindow();
+      }
+      positionStripWindow(dockState.edge, dockState.dockY);
+      animateWindowPosition(win, dockState.dockX, dockState.dockY, 200, (p) =>
+        1 - Math.pow(1 - p, 3),
+      ).then(() => {
+        if (win && !win.isDestroyed()) {
+          win.hide();
+          // 稍停顿让 floatWindow 消失后再蹦出 strip（吸入-弹出视觉节奏）
+          setTimeout(() => {
+            edgeDockState.set(windowId, dockState);
+            startHoverPolling();
+            win?.webContents.send("edge-dock-changed", {
+              isDocked: true,
+              edge: dockState.edge,
+            });
+            floatStripWindow?.webContents.send("edge-dock-changed", {
+              isDocked: true,
+              edge: dockState.edge,
+            });
+          }, 150);
+        }
+      });
     } else {
-      // 窗口不在任何边缘 → 清除吸附状态
+      // 离开边缘 → 清除吸附状态，销毁 strip 窗口
       if (edgeDockState.has(windowId)) {
         edgeDockState.delete(windowId);
+        if (!win.isVisible()) win.show();
         win.webContents.send("edge-dock-changed", {
           isDocked: false,
           edge: null,
         });
+        if (floatStripWindow && !floatStripWindow.isDestroyed()) {
+          floatStripWindow.close();
+          floatStripWindow = null;
+        }
       }
+      // 非贴边状态，保存悬浮窗位置
+      saveFloatPosition();
     }
   }
 }
@@ -905,13 +1203,14 @@ ipcMain.handle("stop-window-drag", async (event) => {
 
 /**
  * 窗口位置动画函数
- * 使用 ease-out cubic 缓动实现流畅的窗口移动
+ * 使用自定义缓动（默认 springOvershoot）实现 Q弹效果
  */
 async function animateWindowPosition(
   win: BrowserWindow,
   targetX: number,
   targetY: number,
-  duration: number = 300,
+  duration: number = 400,
+  easing: (p: number) => number = springOvershoot,
 ): Promise<void> {
   return new Promise((resolve) => {
     const [startX, startY] = win.getPosition();
@@ -925,8 +1224,7 @@ async function animateWindowPosition(
 
       const elapsed = Date.now() - startTime;
       const progress = Math.min(elapsed / duration, 1);
-      // ease-out cubic
-      const t = 1 - Math.pow(1 - progress, 3);
+      const t = easing(progress);
 
       const x = Math.round(startX + (targetX - startX) * t);
       const y = Math.round(startY + (targetY - startY) * t);
@@ -995,13 +1293,112 @@ function checkEdgeDocking(win: BrowserWindow): EdgeDockState | null {
 let hoverPollTimer: ReturnType<typeof setInterval> | null = null;
 const EDGE_REVEAL_ZONE = 5; // 鼠标距离边缘 5px 内触发弹出
 const EDGE_HIDE_ZONE = 50; // 鼠标距离窗口 50px 外触发收起
+const HOVER_REVEAL_DELAY = 300; // 鼠标在检测区停留 300ms 才触发弹出（防划过误触）
+let revealAnimating = false;
+let hideAnimating = false;
+let hoverEnterTime = 0; // 鼠标进入 strip 区域的时间戳
 
 /**
- * 启动鼠标轮询检测（靠边隐藏后自动调用）
- * 同时处理：移入弹出 和 移出收起
+ * 弹出贴边窗口
+ * ① strip CSS 吸入动画（200ms）
+ * ② floatWindow 弹簧弹出（400ms）
+ */
+function revealFloatWindow() {
+  if (!floatWindow || floatWindow.isDestroyed()) return;
+  const state = edgeDockState.get(floatWindow.id);
+  if (!state || !state.isDocked) return;
+  if (revealAnimating) return;
+  revealAnimating = true;
+
+  // 1. strip 吸入动画（CSS），同时屏蔽鼠标事件防止动画期间误触
+  if (floatStripWindow && !floatStripWindow.isDestroyed()) {
+    floatStripWindow.setIgnoreMouseEvents(true, { forward: true });
+    floatStripWindow.webContents.send("edge-dock-changed", {
+      isDocked: false,
+      edge: state.edge,
+    });
+  }
+
+  // 2. 等待 strip 吸入动画完成（220ms CSS + 130ms 视觉停顿）
+  setTimeout(() => {
+    // OS 级隐藏 strip
+    if (floatStripWindow && !floatStripWindow.isDestroyed()) {
+      floatStripWindow.hide();
+      floatStripWindow.setIgnoreMouseEvents(false);
+    }
+
+    // 3. 立即更新状态让 floatWindow 内容可见
+    edgeDockState.set(floatWindow!.id, { ...state, isDocked: false });
+    floatWindow!.webContents.send("edge-dock-changed", {
+      isDocked: false,
+      edge: state.edge,
+    });
+
+    // 4. 显示并弹簧弹出
+    floatWindow!.setPosition(state.dockX, state.dockY);
+    floatWindow!.show();
+    floatWindow!.moveTop();
+
+    animateWindowPosition(
+      floatWindow!,
+      state.originalX,
+      state.originalY,
+      400,
+      springOvershoot,
+    ).then(() => {
+      revealAnimating = false;
+    });
+  }, 350);
+}
+
+/**
+ * 收起贴边窗口
+ * ① floatWindow 弹簧收回（内容全程可见）
+ * ② 到位后隐藏 floatWindow → 显示 strip
+ */
+function hideFloatWindow() {
+  if (!floatWindow || floatWindow.isDestroyed()) return;
+  const state = edgeDockState.get(floatWindow.id);
+  if (!state || state.isDocked) return;
+  if (hideAnimating) return;
+  hideAnimating = true;
+
+  // 1. 平滑收回（ease-out cubic，无弹跳，与 strip 切入不冲突）
+  animateWindowPosition(
+    floatWindow,
+    state.dockX,
+    state.dockY,
+    300,
+    (p) => 1 - Math.pow(1 - p, 3),
+  ).then(() => {
+    if (floatWindow && !floatWindow.isDestroyed()) {
+      floatWindow.hide();
+      // 立即切入 strip
+      if (floatStripWindow && !floatStripWindow.isDestroyed()) {
+        positionStripWindow(state.edge, state.dockY);
+        floatStripWindow.webContents.send("edge-dock-changed", {
+          isDocked: true,
+          edge: state.edge,
+        });
+      }
+      if (floatWindow && !floatWindow.isDestroyed()) {
+        edgeDockState.set(floatWindow.id, { ...state, isDocked: true });
+        floatWindow.webContents.send("edge-dock-changed", {
+          isDocked: true,
+          edge: state.edge,
+        });
+      }
+    }
+    hideAnimating = false;
+  });
+}
+
+/**
+ * 启动鼠标轮询检测（贴边后调用）
+ * 贴边时用 strip 窗口边界检测鼠标靠近
  */
 function startHoverPolling() {
-  if (hoverPollTimer) return; // 已经启动
+  if (hoverPollTimer) return;
 
   hoverPollTimer = setInterval(() => {
     if (!floatWindow || floatWindow.isDestroyed()) {
@@ -1013,74 +1410,65 @@ function startHoverPolling() {
     if (!state) return;
 
     const cursor = screen.getCursorScreenPoint();
-    const {
-      x: winX,
-      y: winY,
-      width: winW,
-      height: winH,
-    } = floatWindow.getBounds();
 
-    // 情况1：窗口处于靠边隐藏状态，检测是否应该弹出
+    // 贴边时用 strip 窗口的边界检测
+    const bounds = floatStripWindow?.isDestroyed()
+      ? null
+      : floatStripWindow?.getBounds();
+    const hasStrip = bounds && floatStripWindow?.isVisible();
+
     if (state.isDocked) {
+      // 检测是否应该弹出
       let shouldReveal = false;
-      switch (state.edge) {
-        case "left":
-          shouldReveal =
-            cursor.x <= winX + winW + EDGE_REVEAL_ZONE &&
-            cursor.y >= winY &&
-            cursor.y <= winY + winH;
-          break;
-        case "right":
-          shouldReveal =
-            cursor.x >= winX - EDGE_REVEAL_ZONE &&
-            cursor.y >= winY &&
-            cursor.y <= winY + winH;
-          break;
-        case "top":
-          shouldReveal =
-            cursor.y <= winY + winH + EDGE_REVEAL_ZONE &&
-            cursor.x >= winX &&
-            cursor.x <= winX + winW;
-          break;
+      if (hasStrip) {
+        switch (state.edge) {
+          case "left":
+            shouldReveal =
+              cursor.x <= bounds!.x + bounds!.width + EDGE_REVEAL_ZONE &&
+              cursor.y >= bounds!.y &&
+              cursor.y <= bounds!.y + bounds!.height;
+            break;
+          case "right":
+            shouldReveal =
+              cursor.x >= bounds!.x - EDGE_REVEAL_ZONE &&
+              cursor.y >= bounds!.y &&
+              cursor.y <= bounds!.y + bounds!.height;
+            break;
+          case "top":
+            shouldReveal =
+              cursor.y <= bounds!.y + bounds!.height + EDGE_REVEAL_ZONE &&
+              cursor.x >= bounds!.x &&
+              cursor.x <= bounds!.x + bounds!.width;
+            break;
+        }
       }
-
       if (shouldReveal) {
-        // 使用动画弹出窗口
-        animateWindowPosition(
-          floatWindow,
-          state.originalX,
-          state.originalY,
-          200,
-        ).then(() => {
-          if (floatWindow && !floatWindow.isDestroyed()) {
-            edgeDockState.set(floatWindow.id, { ...state, isDocked: false });
-            floatWindow.webContents.send("edge-dock-changed", {
-              isDocked: false,
-              edge: state.edge,
-            });
-          }
-        });
+        // 悬停延时：鼠标必须在检测区内停留足够时间才触发（防划过）
+        if (hoverEnterTime === 0) {
+          hoverEnterTime = Date.now();
+        } else if (Date.now() - hoverEnterTime >= HOVER_REVEAL_DELAY) {
+          hoverEnterTime = 0;
+          revealFloatWindow();
+        }
+      } else {
+        hoverEnterTime = 0;
       }
-    }
-    // 情况2：窗口处于弹出状态（但仍然属于靠边模式），检测是否应该收起
-    else {
+    } else {
+      // 检测是否应该收起
+      const { x: winX, y: winY, width: winW, height: winH } =
+        floatWindow.getBounds();
       let shouldHide = false;
       switch (state.edge) {
         case "left":
-          // 鼠标在窗口右侧一定距离外
           shouldHide = cursor.x > winX + winW + EDGE_HIDE_ZONE;
           break;
         case "right":
-          // 鼠标在窗口左侧一定距离外
           shouldHide = cursor.x < winX - EDGE_HIDE_ZONE;
           break;
         case "top":
-          // 鼠标在窗口下方一定距离外
           shouldHide = cursor.y > winY + winH + EDGE_HIDE_ZONE;
           break;
       }
-
-      // 额外检查：如果鼠标完全不在窗口区域外
       const isMouseOutsideWindow =
         cursor.x < winX - EDGE_HIDE_ZONE ||
         cursor.x > winX + winW + EDGE_HIDE_ZONE ||
@@ -1088,21 +1476,10 @@ function startHoverPolling() {
         cursor.y > winY + winH + EDGE_HIDE_ZONE;
 
       if (shouldHide || isMouseOutsideWindow) {
-        // 使用动画收起窗口
-        animateWindowPosition(floatWindow, state.dockX, state.dockY, 200).then(
-          () => {
-            if (floatWindow && !floatWindow.isDestroyed()) {
-              edgeDockState.set(floatWindow.id, { ...state, isDocked: true });
-              floatWindow.webContents.send("edge-dock-changed", {
-                isDocked: true,
-                edge: state.edge,
-              });
-            }
-          },
-        );
+        hideFloatWindow();
       }
     }
-  }, 200); // 200ms 轮询间隔
+  }, 200);
 }
 
 /**
@@ -1162,10 +1539,21 @@ ipcMain.handle(
       originalY: y,
     };
 
+    if (!floatStripWindow || floatStripWindow.isDestroyed()) {
+      createFloatStripWindow();
+    }
+    positionStripWindow(edge, dockY);
+    await animateWindowPosition(floatWindow, dockX, dockY, 200, (p) =>
+      1 - Math.pow(1 - p, 3),
+    );
     edgeDockState.set(floatWindow.id, dockState);
-    await animateWindowPosition(floatWindow, dockX, dockY, 200);
+    floatWindow.hide();
     startHoverPolling();
     floatWindow.webContents.send("edge-dock-changed", {
+      isDocked: true,
+      edge,
+    });
+    floatStripWindow?.webContents.send("edge-dock-changed", {
       isDocked: true,
       edge,
     });
@@ -1180,15 +1568,20 @@ ipcMain.handle("undock-float-window", async () => {
   const state = edgeDockState.get(floatWindow.id);
   if (!state?.isDocked) return false;
 
-  // 使用动画恢复原位
+  floatWindow.show();
   await animateWindowPosition(
     floatWindow,
     state.originalX,
     state.originalY,
     200,
+    (p) => 1 - Math.pow(1 - p, 3),
   );
   edgeDockState.delete(floatWindow.id);
   stopHoverPolling();
+  if (floatStripWindow && !floatStripWindow.isDestroyed()) {
+    floatStripWindow.close();
+    floatStripWindow = null;
+  }
   floatWindow.webContents.send("edge-dock-changed", {
     isDocked: false,
     edge: null,
@@ -1200,6 +1593,15 @@ ipcMain.handle("undock-float-window", async () => {
 ipcMain.handle("get-edge-dock-state", () => {
   if (!floatWindow || floatWindow.isDestroyed()) return null;
   return edgeDockState.get(floatWindow.id) || null;
+});
+
+// 点击贴边条时触发弹出
+ipcMain.handle("strip-mousedown", () => {
+  if (!floatWindow || floatWindow.isDestroyed()) return;
+  const state = edgeDockState.get(floatWindow.id);
+  if (state?.isDocked) {
+    revealFloatWindow();
+  }
 });
 
 ipcMain.handle(
@@ -1218,10 +1620,15 @@ ipcMain.handle(
       const progress = Math.min(elapsed / duration, 1);
       // ease-out cubic
       const t = 1 - Math.pow(1 - progress, 3);
+      const curH = Math.round(startH + (targetH - startH) * t);
       floatWindow!.setSize(
         Math.round(startW + (targetW - startW) * t),
-        Math.round(startH + (targetH - startH) * t),
+        curH,
       );
+      // 同步 strip 窗口高度
+      if (floatStripWindow && !floatStripWindow.isDestroyed()) {
+        floatStripWindow.setSize(DOCK_VISIBLE_WIDTH, curH);
+      }
       if (progress < 1) {
         setTimeout(step, 16);
       }
@@ -1374,6 +1781,29 @@ ipcMain.handle("window-maximize", () => {
 
 ipcMain.handle("window-close", () => {
   mainWindow?.close();
+});
+
+// 关闭行为 IPC
+ipcMain.handle("get-close-action", () => {
+  return getCloseActionFromConfig();
+});
+
+ipcMain.handle("set-close-action", (_, action: CloseAction | null) => {
+  saveCloseActionToConfig(action);
+  return true;
+});
+
+ipcMain.handle("close-action-chosen", (_, action: CloseAction, remember: boolean) => {
+  if (remember) {
+    saveCloseActionToConfig(action);
+  }
+  if (action === 'minimize-to-tray') {
+    mainWindow?.hide();
+  } else {
+    // quit：保存窗口状态后直接退出
+    if (mainWindow && !mainWindow.isDestroyed()) saveWindowState(mainWindow);
+    app.quit();
+  }
 });
 
 ipcMain.handle("show-main-window", () => {

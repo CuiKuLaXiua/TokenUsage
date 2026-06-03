@@ -10,20 +10,6 @@
     @mousedown="onWindowDragStart"
     @dblclick="onDoubleClick"
   >
-    <!-- 贴边迷你视图：20 层堆叠矩形，底部绿→顶红渐变 -->
-    <div
-      v-if="isDocked && !isDragging"
-      class="docked-strip"
-      :class="`edge-${dockEdge}`"
-    >
-      <div
-        v-for="(seg, i) in dockSegments"
-        :key="i"
-        class="dsg"
-        :style="seg.filled ? { background: seg.color } : {}"
-      />
-    </div>
-
     <!-- 正常内容（贴边时隐藏，拖拽时显示） -->
     <template v-if="!isDocked || isDragging">
       <!-- Empty -->
@@ -39,19 +25,16 @@
       <div class="compact-wrap">
         <div class="compact-card" :data-model-id="'__overview__'">
           <div class="ov-row">
-            <div
-              class="ov-ring"
-              :style="ringCSS(agg.mainRing.value.percent, 40)"
-            >
+            <div class="ov-ring" style="width:40px;height:40px">
+              <svg class="ring-svg" viewBox="0 0 40 40">
+                <circle class="ring-track" cx="20" cy="20" :r="ringData(agg.mainRing.value.percent,40).r" fill="none" :stroke-width="ringData(agg.mainRing.value.percent,40).sw" />
+                <circle class="ring-fill" cx="20" cy="20" :r="ringData(agg.mainRing.value.percent,40).r" fill="none" :stroke-width="ringData(agg.mainRing.value.percent,40).sw" :stroke-dasharray="ringData(agg.mainRing.value.percent,40).circ" :stroke-dashoffset="ringData(agg.mainRing.value.percent,40).offset" :stroke="ringData(agg.mainRing.value.percent,40).color" />
+                <circle class="ring-glow" cx="20" cy="20" :r="ringData(agg.mainRing.value.percent,40).r" fill="none" :stroke-width="ringData(agg.mainRing.value.percent,40).sw * 2" :stroke-dasharray="ringData(agg.mainRing.value.percent,40).circ" :stroke-dashoffset="ringData(agg.mainRing.value.percent,40).offset" :stroke="ringData(agg.mainRing.value.percent,40).color" opacity="0.2" filter="url(#ringGlow)" />
+                <defs><filter id="ringGlow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+              </svg>
               <div class="ov-ring-inner">
-                <span class="ov-pct">{{
-                  agg.mainRing.value.source !== "none"
-                    ? agg.mainRing.value.percent.toFixed(0)
-                    : "—"
-                }}</span>
-                <span class="ov-pct-u">{{
-                  agg.mainRing.value.source !== "none" ? "%" : ""
-                }}</span>
+                <span class="ov-pct">{{ agg.mainRing.value.source !== "none" ? agg.mainRing.value.percent.toFixed(0) : "—" }}</span>
+                <span class="ov-pct-u">{{ agg.mainRing.value.source !== "none" ? "%" : "" }}</span>
               </div>
             </div>
             <div class="ov-nums">
@@ -114,19 +97,16 @@
           <!-- Overview slide -->
           <div class="cslide" :data-model-id="'__overview__'">
             <div class="cslide-body ov-slide">
-              <div
-                class="ov-ring-lg"
-                :style="ringCSS(agg.mainRing.value.percent, 58)"
-              >
+              <div class="ov-ring-lg" style="width:58px;height:58px">
+                <svg class="ring-svg" viewBox="0 0 58 58">
+                  <circle class="ring-track" cx="29" cy="29" :r="ringData(agg.mainRing.value.percent,58).r" fill="none" :stroke-width="ringData(agg.mainRing.value.percent,58).sw" />
+                  <circle class="ring-fill" cx="29" cy="29" :r="ringData(agg.mainRing.value.percent,58).r" fill="none" :stroke-width="ringData(agg.mainRing.value.percent,58).sw" :stroke-dasharray="ringData(agg.mainRing.value.percent,58).circ" :stroke-dashoffset="ringData(agg.mainRing.value.percent,58).offset" :stroke="ringData(agg.mainRing.value.percent,58).color" />
+                  <circle class="ring-glow" cx="29" cy="29" :r="ringData(agg.mainRing.value.percent,58).r" fill="none" :stroke-width="ringData(agg.mainRing.value.percent,58).sw * 2" :stroke-dasharray="ringData(agg.mainRing.value.percent,58).circ" :stroke-dashoffset="ringData(agg.mainRing.value.percent,58).offset" :stroke="ringData(agg.mainRing.value.percent,58).color" opacity="0.2" filter="url(#ringGlow)" />
+                  <defs><filter id="ringGlow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+                </svg>
                 <div class="ov-ring-lg-in">
-                  <span class="ov-pct-lg">{{
-                    agg.mainRing.value.source !== "none"
-                      ? agg.mainRing.value.percent.toFixed(1)
-                      : "—"
-                  }}</span>
-                  <span class="ov-pct-u-lg">{{
-                    agg.mainRing.value.source !== "none" ? "%" : ""
-                  }}</span>
+                  <span class="ov-pct-lg">{{ agg.mainRing.value.source !== "none" ? agg.mainRing.value.percent.toFixed(1) : "—" }}</span>
+                  <span class="ov-pct-u-lg">{{ agg.mainRing.value.source !== "none" ? "%" : "" }}</span>
                 </div>
               </div>
               <div class="ov-stats">
@@ -190,14 +170,15 @@
                 <template v-if="u(model.id)">
                   <!-- token -->
                   <template v-if="u(model.id).usageType === 'token'">
-                    <div
-                      class="ms-ring"
-                      :style="ringCSS(u(model.id).percent || 0, 44)"
-                    >
+                    <div class="ms-ring" style="width:44px;height:44px">
+                      <svg class="ring-svg" viewBox="0 0 44 44">
+                        <circle class="ring-track" cx="22" cy="22" :r="ringData(u(model.id).percent||0,44).r" fill="none" :stroke-width="ringData(u(model.id).percent||0,44).sw" />
+                        <circle class="ring-fill" cx="22" cy="22" :r="ringData(u(model.id).percent||0,44).r" fill="none" :stroke-width="ringData(u(model.id).percent||0,44).sw" :stroke-dasharray="ringData(u(model.id).percent||0,44).circ" :stroke-dashoffset="ringData(u(model.id).percent||0,44).offset" :stroke="ringData(u(model.id).percent||0,44).color" />
+                        <circle class="ring-glow" cx="22" cy="22" :r="ringData(u(model.id).percent||0,44).r" fill="none" :stroke-width="ringData(u(model.id).percent||0,44).sw * 2" :stroke-dasharray="ringData(u(model.id).percent||0,44).circ" :stroke-dashoffset="ringData(u(model.id).percent||0,44).offset" :stroke="ringData(u(model.id).percent||0,44).color" opacity="0.2" filter="url(#ringGlow)" />
+                        <defs><filter id="ringGlow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+                      </svg>
                       <div class="ms-ring-in">
-                        <span class="ms-rv">{{
-                          (u(model.id).percent || 0).toFixed(0)
-                        }}</span>
+                        <span class="ms-rv">{{ (u(model.id).percent || 0).toFixed(0) }}</span>
                         <span class="ms-ru">%</span>
                       </div>
                     </div>
@@ -244,8 +225,9 @@
                           <div
                             class="ms-bar-f"
                             :style="{
-                              width: tier.percent + '%',
-                              background: getColor(tier.percent),
+                              width: '100%',
+                              background: 'var(--progress-gradient)',
+                              clipPath: `inset(0 calc(100% - ${tier.percent}%) 0 0)`,
                             }"
                           ></div>
                         </div>
@@ -309,6 +291,7 @@ import {
   formatTokens,
   formatPercent,
   getProgressColor,
+  getProgressColorSmooth,
   formatResetTime,
 } from "@/utils/format";
 import { useUsageAggregation } from "@/composables/useUsageAggregation";
@@ -332,28 +315,10 @@ let unsubCtxAction: (() => void) | null = null;
 let unsubNativeCtx: (() => void) | null = null;
 let unsubCtxClosed: (() => void) | null = null;
 let unsubEdgeDock: (() => void) | null = null;
+let unsubThemeChanged: (() => void) | null = null;
 
 // ── 贴边状态 ──
 const isDocked = ref(false);
-const dockEdge = ref<"left" | "right" | "top" | null>(null);
-
-// 贴边条带：20 层堆叠矩形，绿色→红色渐变色
-const DOCK_SEGMENTS = 20;
-const dockPct = computed(() => agg.mainRing.value.percent);
-
-const dockSegments = computed(() => {
-  const pct = Math.min(100, Math.max(0, dockPct.value));
-  const filled = Math.round((pct / 100) * DOCK_SEGMENTS);
-  const segs: { color: string; filled: boolean }[] = [];
-  for (let i = 0; i < DOCK_SEGMENTS; i++) {
-    const t = i / (DOCK_SEGMENTS - 1);
-    const h = 120 - t * 115; // 120° 绿 → 5° 红
-    const s = 65 + t * 18; // 饱和度缓慢上升
-    const l = 48 - t * 12; // 明度缓慢下降
-    segs.push({ color: `hsl(${h}, ${s}%, ${l}%)`, filled: i < filled });
-  }
-  return segs;
-});
 
 // ── 详情窗口 hover 控制 ──
 let showDetailTimer: ReturnType<typeof setTimeout> | null = null;
@@ -380,15 +345,14 @@ async function hideDetailWindow() {
 }
 
 function onFloatEnter() {
+  // 拖拽进行中时，不触发任何详情窗口逻辑
+  if (isDragging.value) return;
+
   // 贴边状态：hover 弹出时立即取消贴边条显示
   if (isDocked.value) {
     isDocked.value = false;
   }
   // 重置拖拽状态，避免残留状态影响右键菜单
-  if (isDragging.value) {
-    isDragging.value = false;
-    cleanupDragListeners();
-  }
   hasMoved.value = false;
   // 关闭可能打开的右键菜单（详情窗口与右键菜单互斥）
   if (ctxMenuOpen.value) {
@@ -455,12 +419,13 @@ function fmtLg(n: number) {
   if (n >= 1e3) return (n / 1e3).toFixed(2) + "K";
   return n.toFixed(2);
 }
-function ringCSS(pct: number, size = 80) {
-  return {
-    width: size + "px",
-    height: size + "px",
-    background: `conic-gradient(${getColor(pct)} ${pct}%, var(--border-light) 0)`,
-  };
+function ringData(pct: number, size: number) {
+  const sw = Math.max(3, Math.round(size * 0.08));
+  const r = (size - sw) / 2;
+  const circ = 2 * Math.PI * r;
+  const p = Math.min(100, Math.max(0, pct));
+  const offset = circ * (1 - p / 100);
+  return { size, sw, cx: size / 2, r, circ, offset, color: getProgressColorSmooth(pct) };
 }
 
 // Resize — now only used for carousel mode
@@ -655,9 +620,6 @@ const hasMoved = ref(false);
 let windowDragStartX = 0;
 let windowDragStartY = 0;
 const DRAG_THRESHOLD = 3;
-// 心跳机制：定期发送位置给主进程
-let dragHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
-const HEARTBEAT_INTERVAL = 100; // 每 100ms 发送一次心跳
 
 function onWindowDragStart(e: MouseEvent) {
   // 贴边拖拽开始时立即取消贴边条
@@ -687,58 +649,33 @@ function onWindowDragStart(e: MouseEvent) {
   document.addEventListener("mouseup", onDocMouseUp, true);
   // 额外添加 window 级别事件，作为兜底
   window.addEventListener("mouseup", onWindowMouseUp, true);
-
-  // 启动心跳定时器
-  startDragHeartbeat();
-}
-
-function startDragHeartbeat() {
-  if (dragHeartbeatTimer) {
-    clearInterval(dragHeartbeatTimer);
-  }
-
-  dragHeartbeatTimer = setInterval(() => {
-    if (!isDragging.value || !hasMoved.value) {
-      stopDragHeartbeat();
-      return;
-    }
-
-    // 发送当前位置作为心跳
-    // 主进程会根据这个判断拖拽是否仍在进行
-    window.electronAPI.dragHeartbeat({
-      mouseX: windowDragStartX,
-      mouseY: windowDragStartY,
-    });
-  }, HEARTBEAT_INTERVAL);
-}
-
-function stopDragHeartbeat() {
-  if (dragHeartbeatTimer) {
-    clearInterval(dragHeartbeatTimer);
-    dragHeartbeatTimer = null;
-  }
 }
 
 function onDocMouseMove(e: MouseEvent) {
   if (!isDragging.value) return;
+
+  // 检测鼠标左键是否释放（buttons bit 0 为 0 表示左键已释放）
+  if ((e.buttons & 1) === 0) {
+    console.log("[FloatWindow] Left button released detected in mousemove");
+    stopDrag();
+    return;
+  }
 
   const dx = e.screenX - windowDragStartX;
   const dy = e.screenY - windowDragStartY;
   const absDx = Math.abs(dx);
   const absDy = Math.abs(dy);
 
-  // 超过阈值后启动拖拽
-  if (absDx > DRAG_THRESHOLD || absDy > DRAG_THRESHOLD) {
-    if (!hasMoved.value) {
-      hasMoved.value = true;
-      // 拖拽开始时关闭详情窗口
-      hideDetailWindow();
-      // 启动主进程拖拽（只需调用一次，主进程会持续跟踪鼠标）
-      window.electronAPI.startWindowDrag({
-        mouseX: windowDragStartX,
-        mouseY: windowDragStartY,
-      });
-    }
+  // 超过阈值后启动拖拽（只调用一次，主进程会持续跟踪鼠标）
+  if (!hasMoved.value && (absDx > DRAG_THRESHOLD || absDy > DRAG_THRESHOLD)) {
+    hasMoved.value = true;
+    // 拖拽开始时关闭详情窗口
+    hideDetailWindow();
+    // 启动主进程拖拽（只需调用一次，主进程会持续跟踪鼠标）
+    window.electronAPI.startWindowDrag({
+      mouseX: windowDragStartX,
+      mouseY: windowDragStartY,
+    });
   }
 }
 
@@ -781,8 +718,6 @@ function cleanupDragListeners() {
   document.removeEventListener("mousemove", onDocMouseMove, true);
   document.removeEventListener("mouseup", onDocMouseUp, true);
   window.removeEventListener("mouseup", onWindowMouseUp, true);
-  // 停止心跳
-  stopDragHeartbeat();
   // 隐藏遮罩
   hideDragOverlay();
 }
@@ -899,11 +834,14 @@ onMounted(async () => {
   const s2 = await window.electronAPI.getEdgeDockState();
   if (s2) {
     isDocked.value = s2.isDocked;
-    dockEdge.value = s2.edge;
   }
   unsubEdgeDock = window.electronAPI.onEdgeDockChanged((s) => {
     isDocked.value = s.isDocked;
-    dockEdge.value = s.edge;
+  });
+  // 监听主题变化（主窗口切换主题时实时同步）
+  unsubThemeChanged = window.electronAPI.onThemeChanged((t) => {
+    theme.value = t.mode;
+    accent.value = t.accent;
   });
 });
 onUnmounted(() => {
@@ -916,6 +854,7 @@ onUnmounted(() => {
   unsubNativeCtx?.();
   unsubCtxClosed?.();
   unsubEdgeDock?.();
+  unsubThemeChanged?.();
   cleanupDragListeners();
 });
 
@@ -944,8 +883,11 @@ watch(
   user-select: none;
   display: flex;
   flex-direction: column;
-  /* 顶部边缘微光 */
-  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.04);
+  /* 顶部边缘微光 + 外阴影 */
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.04),
+    0 6px 20px rgba(0, 0, 0, 0.12),
+    0 2px 6px rgba(0, 0, 0, 0.06);
   position: relative;
 }
 
@@ -1018,20 +960,21 @@ watch(
 }
 .ov-ring {
   flex-shrink: 0;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  position: relative;
 }
 .ov-ring-inner {
-  width: 38px;
-  height: 38px;
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   background: var(--bg-primary);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  pointer-events: none;
 }
 .ov-pct {
   font-size: 14px;
@@ -1045,35 +988,29 @@ watch(
   font-weight: 600;
 }
 
-/* ── 进度环呼吸光晕 ── */
+/* ── SVG 进度环 ── */
 .ov-ring,
 .ov-ring-lg,
 .ms-ring {
   position: relative;
 }
-.ov-ring::after,
-.ov-ring-lg::after,
-.ms-ring::after {
-  content: "";
-  position: absolute;
-  inset: -3px;
-  border-radius: 50%;
-  background: var(--accent);
-  filter: blur(8px);
-  opacity: 0.15;
-  animation: ringBreath 3s ease-in-out infinite;
-  z-index: -1;
+.ring-svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+  display: block;
 }
-@keyframes ringBreath {
-  0%,
-  100% {
-    opacity: 0.1;
-    transform: scale(0.9);
-  }
-  50% {
-    opacity: 0.25;
-    transform: scale(1.06);
-  }
+.ring-track {
+  stroke: var(--border-light);
+}
+.ring-fill {
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1.2s var(--ease-spring),
+              stroke 0.3s var(--ease-smooth);
+}
+.ring-glow {
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1.2s var(--ease-spring);
 }
 
 .ov-nums {
@@ -1207,21 +1144,22 @@ watch(
   gap: 8px;
 }
 .ov-ring-lg {
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   flex-shrink: 0;
+  position: relative;
 }
 .ov-ring-lg-in {
-  width: 64px;
-  height: 64px;
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   background: var(--bg-primary);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  pointer-events: none;
 }
 .ov-pct-lg {
   font-size: 18px;
@@ -1338,20 +1276,21 @@ watch(
 }
 .ms-ring {
   align-self: center;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  position: relative;
 }
 .ms-ring-in {
-  width: 38px;
-  height: 38px;
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   background: var(--bg-primary);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  pointer-events: none;
 }
 .ms-rv {
   font-size: 13px;
@@ -1427,7 +1366,7 @@ watch(
 .ms-bar-f {
   height: 100%;
   border-radius: 2px;
-  transition: width 0.8s var(--ease-spring);
+  transition: clip-path 0.8s var(--ease-spring);
 }
 .ms-tier-pc {
   font-size: 12px;
@@ -1514,42 +1453,4 @@ watch(
   opacity: 1;
 }
 
-/* ── 贴边迷你视图 ── */
-.docked-strip {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 8px;
-  background: #000;
-  display: flex;
-  flex-direction: column-reverse;
-  gap: 1px;
-  overflow: hidden;
-  z-index: 999;
-  border-radius: 0;
-}
-.docked-strip.edge-left {
-  right: 0;
-}
-.docked-strip.edge-right {
-  left: 0;
-}
-.docked-strip.edge-top {
-  top: auto;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  width: auto;
-  height: 8px;
-  flex-direction: row;
-}
-
-/* 单个堆叠矩形：等分空间，填色渐变 */
-.dsg {
-  flex: 1;
-  border-radius: 0;
-  transition: background 0.5s ease;
-  min-width: 0;
-  min-height: 0;
-}
 </style>

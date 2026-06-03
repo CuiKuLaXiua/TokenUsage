@@ -10,7 +10,7 @@
     <!-- Model List -->
     <div class="detail-models">
       <div
-        v-for="(model, i) in store.models"
+        v-for="(model, i) in enabledModels"
         :key="model.id"
         class="detail-card"
         :style="{ animationDelay: i * 40 + 'ms' }"
@@ -19,8 +19,11 @@
       </div>
     </div>
 
+    <!-- 滚动提示：sticky 固定在可见区域底部，内容溢出时自然浮现 -->
+    <div class="scroll-fade"></div>
+
     <!-- Empty -->
-    <div v-if="store.models.length === 0" class="detail-empty">
+    <div v-if="enabledModels.length === 0" class="detail-empty">
       <el-icon :size="20" class="empty-icon"><DataAnalysis /></el-icon>
       <span>右键主窗口菜单添加模型</span>
     </div>
@@ -28,7 +31,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, nextTick } from 'vue'
+import { onMounted, onUnmounted, ref, computed, watch, nextTick } from 'vue'
 import { DataAnalysis } from '@element-plus/icons-vue'
 import { useAppStore } from '@/stores/app'
 import type { ModelConfig } from '@/stores/app'
@@ -38,7 +41,9 @@ const store = useAppStore()
 const theme = ref('light')
 const accent = ref(localStorage.getItem('accent') || 'forest')
 const detailRef = ref<HTMLElement | null>(null)
+const enabledModels = computed(() => store.models.filter(m => m.enabled))
 let unsubCfg: (() => void) | null = null
+let unsubThemeChanged: (() => void) | null = null
 
 // ── Hover bridge ──
 // 通过 IPC 通知主进程，主进程再广播给主悬浮窗
@@ -59,17 +64,18 @@ async function fetchModel(m: ModelConfig) {
   await store.requestRefresh(m.id)
 }
 
+const DETAIL_MAX_HEIGHT = 420
+
 function fitHeight() {
   nextTick(() => {
     const el = detailRef.value
     if (!el) return
-    // 将 height 设为 0 后测量 scrollHeight，获取真实内容高度
-    // （height: auto 时 scrollHeight 等于 clientHeight，测量不准）
     el.style.height = '0'
     el.offsetHeight
     const contentH = el.scrollHeight
     el.style.height = ''
-    window.electronAPI.resizeDetailWindow(window.innerWidth, contentH + 4)
+    const targetH = Math.min(contentH + 4, DETAIL_MAX_HEIGHT)
+    window.electronAPI.resizeDetailWindow(window.innerWidth, targetH)
   })
 }
 
@@ -84,11 +90,22 @@ onMounted(async () => {
   unsubCfg = window.electronAPI.onConfigUpdated(() => {
     store.loadConfig().then(() => fitHeight()).catch(() => {})
   })
+  // 监听主题变化（主窗口切换主题时实时同步）
+  unsubThemeChanged = window.electronAPI.onThemeChanged((t) => {
+    theme.value = t.mode
+    accent.value = t.accent
+  })
 })
 
 onUnmounted(() => {
   store.stopSubscription()
   unsubCfg?.()
+  unsubThemeChanged?.()
+})
+
+// 模型列表变化时自动调整窗口高度
+watch(() => enabledModels.value.length, () => {
+  fitHeight()
 })
 </script>
 
@@ -106,8 +123,8 @@ onUnmounted(() => {
   border-radius: 14px;
   border: 1px solid var(--glass-border);
   box-shadow:
-    0 20px 60px rgba(0, 0, 0, 0.3),
-    0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+    0 8px 24px rgba(0, 0, 0, 0.15),
+    0 2px 8px rgba(0, 0, 0, 0.08);
   /* 入场动画 */
   animation: detailEnter 0.25s var(--ease-spring) both;
 }
@@ -123,13 +140,23 @@ onUnmounted(() => {
   }
 }
 
-/* 滚动条 */
+/* 滚动条：默认隐藏，hover 时显现 */
 .float-detail::-webkit-scrollbar {
-  width: 3px;
+  width: 4px;
+}
+.float-detail::-webkit-scrollbar-track {
+  background: transparent;
 }
 .float-detail::-webkit-scrollbar-thumb {
-  background: var(--border-light);
-  border-radius: 2px;
+  background: transparent;
+  border-radius: 4px;
+  transition: background 0.3s;
+}
+.float-detail:hover::-webkit-scrollbar-thumb {
+  background: var(--text-placeholder);
+}
+.float-detail:hover::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
 }
 
 /* ── Cards ── */
@@ -167,6 +194,21 @@ onUnmounted(() => {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
+}
+
+/* ── 滚动提示遮罩 ── */
+.scroll-fade {
+  position: sticky;
+  bottom: 0;
+  flex-shrink: 0;
+  height: 28px;
+  background: linear-gradient(transparent, var(--bg-primary));
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+/* hover 时隐藏遮罩，由滚动条接管 */
+.float-detail:hover .scroll-fade {
+  opacity: 0;
 }
 
 /* ── Empty ── */

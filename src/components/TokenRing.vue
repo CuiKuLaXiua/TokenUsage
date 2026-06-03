@@ -57,6 +57,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { getProgressColorSmooth } from '@/utils/format'
 
 const props = withDefaults(defineProps<{
   percent: number
@@ -79,9 +80,7 @@ const dashOffset = computed(() => {
 
 const progressColor = computed(() => {
   if (props.color) return props.color
-  if (props.percent >= 90) return 'var(--neon-red)'
-  if (props.percent >= 70) return 'var(--neon-amber)'
-  return 'var(--neon-green)'
+  return getProgressColorSmooth(props.percent)
 })
 
 const displayValue = computed(() => props.percent.toFixed(1))

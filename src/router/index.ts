@@ -38,6 +38,11 @@ const router = createRouter({
       component: () => import('@/pages/FloatDetail.vue')
     },
     {
+      path: '/float-strip',
+      name: 'FloatStrip',
+      component: () => import('@/pages/FloatStrip.vue')
+    },
+    {
       path: '/ctx-menu',
       name: 'CtxMenu',
       component: () => import('@/pages/CtxMenu.vue')

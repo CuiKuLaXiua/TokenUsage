@@ -17,8 +17,9 @@
           <div
             class="tier-fill"
             :style="{
-              width: tier.percent + '%',
-              background: `linear-gradient(90deg, ${getColor(tier.percent)}, ${getColor(tier.percent)}88)`
+              width: '100%',
+              background: 'var(--progress-gradient)',
+              clipPath: `inset(0 calc(100% - ${tier.percent}%) 0 0)`
             }"
           >
             <div class="tier-glow" :style="{ background: getColor(tier.percent) }"></div>
@@ -159,8 +160,7 @@ function formatResetTime(timeStr: string): string {
   height: 100%;
   border-radius: 5px;
   position: relative;
-  transition: width 1.2s var(--ease-spring);
-  animation: barFill 1.5s var(--ease-spring) both;
+  transition: clip-path 1.2s var(--ease-spring);
 }
 
 .tier-glow {
@@ -187,10 +187,6 @@ function formatResetTime(timeStr: string): string {
   gap: 3px;
   font-size: 11px;
   color: var(--text-placeholder);
-}
-
-@keyframes barFill {
-  from { width: 0; }
 }
 
 @keyframes shine {

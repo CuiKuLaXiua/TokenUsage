@@ -68,15 +68,15 @@ export function useUsageAggregation() {
   const store = useAppStore()
 
   const tokenModels = computed(() =>
-    store.models.filter(m => store.modelUsageMap[m.id]?.usageType === 'token')
+    store.models.filter(m => m.enabled && store.modelUsageMap[m.id]?.usageType === 'token')
   )
 
   const percentModels = computed(() =>
-    store.models.filter(m => store.modelUsageMap[m.id]?.usageType === 'percent')
+    store.models.filter(m => m.enabled && store.modelUsageMap[m.id]?.usageType === 'percent')
   )
 
   const balanceModels = computed(() =>
-    store.models.filter(m => store.modelUsageMap[m.id]?.usageType === 'balance')
+    store.models.filter(m => m.enabled && store.modelUsageMap[m.id]?.usageType === 'balance')
   )
 
   const tokenAgg = computed<TokenAggregation | null>(() => {

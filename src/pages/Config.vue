@@ -39,7 +39,9 @@
             tag="tbody"
             ghost-class="row-ghost"
             drag-class="row-drag"
-            animation="200"
+            :force-fallback="true"
+            :animation="0"
+            handle=".drag-handle"
             @end="onDragEnd"
           >
             <template #item="{ element: model }">
@@ -71,8 +73,9 @@
                             <div
                               class="tier-bar-fill"
                               :style="{
-                                width: tier.percent + '%',
-                                background: getProgressColor(tier.percent)
+                                width: '100%',
+                                background: 'var(--progress-gradient)',
+                                clipPath: `inset(0 calc(100% - ${tier.percent}%) 0 0)`
                               }"
                             ></div>
                           </div>
@@ -95,8 +98,9 @@
                         <div
                           class="usage-bar-fill"
                           :style="{
-                            width: (store.modelUsageMap[model.id].percent || 0) + '%',
-                            background: getProgressColor(store.modelUsageMap[model.id].percent)
+                            width: '100%',
+                            background: 'var(--progress-gradient)',
+                            clipPath: `inset(0 calc(100% - ${(store.modelUsageMap[model.id].percent || 0)}%) 0 0)`
                           }"
                         ></div>
                       </div>
@@ -320,11 +324,31 @@
         </div>
       </div>
     </Transition>
+
+    <!-- 应用设置 -->
+    <div class="section-card glass-surface" style="animation-delay: 60ms">
+      <div class="section-header">
+        <h3 class="section-title">应用设置</h3>
+      </div>
+      <div class="app-settings">
+        <div class="setting-row">
+          <div class="setting-info">
+            <span class="setting-label">关闭窗口时</span>
+            <span class="setting-desc">选择点击关闭按钮后的行为</span>
+          </div>
+          <select v-model="closeActionModel" class="form-input form-select setting-select" @change="onCloseActionChange">
+            <option :value="null">每次询问</option>
+            <option value="minimize-to-tray">隐藏到托盘</option>
+            <option value="quit">直接退出</option>
+          </select>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Plus,
@@ -341,7 +365,8 @@ import {
 } from '@element-plus/icons-vue'
 import type { ModelConfig } from '@/stores/app'
 import { useAppStore } from '@/stores/app'
-import { formatTokens, getProgressColor, formatResetTime } from '@/utils/format'
+import type { CloseAction } from '@/types/electron'
+import { formatTokens, formatResetTime } from '@/utils/format'
 import draggable from 'vuedraggable'
 
 const store = useAppStore()
@@ -351,6 +376,20 @@ const isEditing = ref(false)
 const showPasteDialog = ref(false)
 const cookiesInput = ref('')
 const showApiKey = ref(false)
+
+// 关闭行为设置
+const closeActionModel = ref<CloseAction | null>(null)
+
+onMounted(async () => {
+  try {
+    closeActionModel.value = await window.electronAPI.getCloseAction()
+  } catch { /* ignore */ }
+})
+
+async function onCloseActionChange() {
+  await window.electronAPI.setCloseAction(closeActionModel.value)
+  ElMessage.success({ message: '关闭行为已更新', duration: 1500 })
+}
 
 // ── 配置页拖拽排序 ──
 // vuedraggable 直接修改 store.models，拖拽完成后自动保存
@@ -573,14 +612,30 @@ async function fetchUsage(model: ModelConfig) {
 }
 
 .row-ghost {
-  opacity: 0.4;
-  background: var(--glass-bg);
+  opacity: 0.6 !important;
+  background: var(--accent-glow) !important;
+}
+
+.row-ghost td {
+  border-top: 2px dashed var(--accent) !important;
+  border-bottom: 2px dashed var(--accent) !important;
 }
 
 .row-drag {
-  opacity: 0.9;
-  background: var(--glass-bg);
+  opacity: 1 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  transition: none !important;
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.4),
+    0 6px 16px rgba(0, 0, 0, 0.25),
+    0 0 0 2px var(--accent),
+    0 0 30px var(--accent-glow) !important;
+  z-index: 9999 !important;
   cursor: grabbing !important;
+  background: var(--glass-bg-strong) !important;
+  pointer-events: none !important;
+  will-change: transform;
 }
 
 .glass-table tbody tr:hover {
@@ -594,22 +649,31 @@ async function fetchUsage(model: ModelConfig) {
 }
 
 .drag-col {
-  width: 24px;
-  padding: 4px 8px !important;
+  width: 36px;
+  padding: 4px 4px !important;
   text-align: center;
 }
 
 .drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
   color: var(--text-placeholder);
-  font-size: 14px;
+  font-size: 16px;
   cursor: grab;
   user-select: none;
   opacity: 0.5;
-  transition: opacity var(--duration-fast);
+  transition:
+    opacity var(--duration-fast),
+    background var(--duration-fast);
 }
 
 .glass-table tbody tr:hover .drag-handle {
   opacity: 1;
+  background: var(--glass-bg);
 }
 
 .model-name {
@@ -633,7 +697,7 @@ async function fetchUsage(model: ModelConfig) {
 .usage-bar-fill {
   height: 100%;
   border-radius: 3px;
-  transition: width 1s var(--ease-spring);
+  transition: clip-path 1s var(--ease-spring);
 }
 
 .usage-meta {
@@ -704,7 +768,7 @@ async function fetchUsage(model: ModelConfig) {
 .tier-bar-fill {
   height: 100%;
   border-radius: 3px;
-  transition: width 1s var(--ease-spring);
+  transition: clip-path 1s var(--ease-spring);
 }
 
 .tier-percent {
@@ -1129,5 +1193,39 @@ async function fetchUsage(model: ModelConfig) {
 .provider-badge.opencode {
   background: rgba(139, 92, 246, 0.1);
   color: #8b5cf6;
+}
+
+/* ── App Settings ── */
+.app-settings {
+  padding: 4px 0;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+}
+
+.setting-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.setting-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.setting-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.setting-select {
+  width: 160px !important;
+  flex-shrink: 0;
 }
 </style>

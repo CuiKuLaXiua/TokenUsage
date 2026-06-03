@@ -29,6 +29,22 @@ export function getProgressColorHex(percent: number): string {
   return '#7cc48a'
 }
 
+export function getProgressColorSmooth(percent: number | undefined | null): string {
+  if (percent == null || isNaN(percent)) return 'var(--border-light)'
+  const t = Math.min(100, Math.max(0, percent)) / 100
+  // 0% → green(h140) → 50% → amber(h40) → 100% → red(h5)
+  const h = t < 0.5
+    ? 140 - (140 - 40) * (t / 0.5)
+    : 40 - (40 - 5) * ((t - 0.5) / 0.5)
+  const s = t < 0.5
+    ? 65 + (75 - 65) * (t / 0.5)
+    : 75 - (75 - 70) * ((t - 0.5) / 0.5)
+  const l = t < 0.5
+    ? 48 + (52 - 48) * (t / 0.5)
+    : 52 - (52 - 56) * ((t - 0.5) / 0.5)
+  return `hsl(${Math.round(h)},${Math.round(s)}%,${Math.round(l)}%)`
+}
+
 export function formatResetTime(timeStr: string): string {
   try {
     const date = new Date(timeStr)

@@ -1,5 +1,5 @@
 <template>
-  <div class="dashboard">
+  <div class="dashboard" :class="{ 'first-mount': firstMount }">
     <!-- Hero Stats -->
     <div class="hero-section">
       <div class="hero-grid">
@@ -134,7 +134,7 @@
       </div>
 
       <!-- Type Summary Cards -->
-      <div class="type-summary" v-if="agg.hasAnyData.value">
+      <div class="type-summary" v-show="agg.hasAnyData.value">
         <!-- Token 汇总卡 -->
         <div v-if="agg.tokenAgg.value" class="type-card glass-surface">
           <div class="tc-header">
@@ -147,8 +147,9 @@
             <div
               class="tc-bar-fill"
               :style="{
-                width: Math.min(100, agg.tokenAgg.value.percent) + '%',
-                background: getProgressColor(agg.tokenAgg.value.percent),
+                width: '100%',
+                background: 'var(--progress-gradient)',
+                clipPath: `inset(0 calc(100% - ${Math.min(100, agg.tokenAgg.value.percent)}%) 0 0)`,
               }"
             ></div>
           </div>
@@ -175,8 +176,9 @@
             <div
               class="tc-bar-fill"
               :style="{
-                width: Math.min(100, agg.percentAgg.value.worstPercent) + '%',
-                background: getProgressColor(agg.percentAgg.value.worstPercent),
+                width: '100%',
+                background: 'var(--progress-gradient)',
+                clipPath: `inset(0 calc(100% - ${Math.min(100, agg.percentAgg.value.worstPercent)}%) 0 0)`,
               }"
             ></div>
           </div>
@@ -254,7 +256,8 @@
         class="model-grid"
         ghost-class="card-ghost"
         drag-class="card-drag"
-        animation="200"
+        :force-fallback="true"
+        :animation="0"
         @end="onDragEnd"
       >
         <template #item="{ element: model }">
@@ -357,7 +360,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, onMounted } from "vue";
 import { ElMessage } from "element-plus";
 import {
   Coin,
@@ -369,7 +372,7 @@ import {
 } from "@element-plus/icons-vue";
 import type { ModelConfig } from "@/stores/app";
 import { useAppStore } from "@/stores/app";
-import { formatTokens, getProgressColor } from "@/utils/format";
+import { formatTokens } from "@/utils/format";
 import { useUsageAggregation } from "@/composables/useUsageAggregation";
 import draggable from "vuedraggable";
 import TokenRing from "@/components/TokenRing.vue";
@@ -379,6 +382,13 @@ import CountUp from "@/components/CountUp.vue";
 
 const store = useAppStore();
 const agg = useUsageAggregation();
+
+const firstMount = ref(true);
+onMounted(() => {
+  requestAnimationFrame(() => {
+    firstMount.value = false;
+  });
+});
 
 const activeModels = computed(() => {
   return Object.keys(store.modelUsageMap).length;
@@ -417,9 +427,8 @@ function formatFullNumber(num: number): string {
 }
 
 // ── 拖拽排序 ──
-// vuedraggable 直接修改 store.models，拖拽完成后自动保存
 function onDragEnd() {
-  store.saveConfig()
+  store.saveConfig();
 }
 
 async function fetchUsage(model: ModelConfig) {
@@ -452,6 +461,10 @@ async function refreshAll() {
    Hero Section
    ═══════════════════════════════════════════════════════════ */
 .hero-section {
+  opacity: 1;
+}
+
+.first-mount .hero-section {
   animation: fadeSlideUp var(--duration-slow) var(--ease-smooth) both;
 }
 
@@ -740,7 +753,7 @@ async function refreshAll() {
 .tc-bar-fill {
   height: 100%;
   border-radius: 3px;
-  transition: width 1.2s var(--ease-spring);
+  transition: clip-path 1.2s var(--ease-spring);
 }
 
 .tc-meta {
@@ -920,18 +933,50 @@ async function refreshAll() {
   cursor: grabbing;
 }
 
-.card-ghost {
-  opacity: 0.4;
-  transform: scale(0.98);
-  box-shadow: var(--glass-shadow);
+.model-grid:has(.card-drag) .model-card:not(.card-drag):hover {
+  transform: none !important;
+  box-shadow: none !important;
 }
 
+/* ── 占位槽（原位置空框，不放任何内容）── */
+.card-ghost {
+  background: transparent !important;
+  border: 2px dashed var(--accent) !important;
+  border-radius: 16px !important;
+  box-shadow: inset 0 0 24px var(--accent-glow) !important;
+  opacity: 1 !important;
+  overflow: hidden !important;
+}
+
+.card-ghost > * {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* ── 拖拽中的实体卡片（Sortable.js forceFallback 克隆元素）──
+   Sortable.js 用内联 style.transform:translate3d() 控制位置。
+   不用 scale（会导致文字模糊），不用 rotate（干扰碰撞检测），
+   不用 backdrop-filter（拖拽时性能差）。
+   通过多层阴影 + 发光边框营造"拎起来"的立体感。 */
 .card-drag {
-  opacity: 0.9;
-  transform: scale(1.05);
-  box-shadow: var(--glass-shadow-hover);
-  z-index: 10;
+  opacity: 1 !important;
+  /* 禁用 glass-surface 继承的 backdrop-filter，每帧 20px 高斯模糊是性能杀手 */
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  /* 禁用 model-card 的 spring transition，避免与 SortableJS 的 translate3d 位置控制冲突 */
+  transition: none !important;
+  /* 多层阴影营造深度：远距离下沉 + 近距离弥散 + 边框高亮 + 外层辉光 */
+  box-shadow:
+    0 30px 70px rgba(0, 0, 0, 0.45),
+    0 12px 24px rgba(0, 0, 0, 0.25),
+    0 0 0 2px var(--accent),
+    0 0 50px var(--accent-glow) !important;
+  z-index: 9999 !important;
   cursor: grabbing !important;
+  background: var(--glass-bg-strong) !important;
+  border-radius: 16px !important;
+  pointer-events: none !important;
+  will-change: transform;
 }
 
 .model-card:hover {

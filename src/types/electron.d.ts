@@ -1,7 +1,10 @@
 import type { ModelConfig, UsageRecord, ModelUsageStatus } from '@/stores/app'
 
+export type CloseAction = 'minimize-to-tray' | 'quit'
+
 export interface AppConfig {
   models: ModelConfig[]
+  closeAction?: CloseAction | null  // null/undefined = 未设置，首次询问
 }
 
 interface MimoResponseItem {
@@ -37,6 +40,8 @@ export interface ElectronAPI {
   }) => Promise<MimoApiResponse>
   openFloatWindow: () => Promise<boolean>
   closeFloatWindow: () => Promise<boolean>
+  getFloatWindowState: () => Promise<{ active: boolean }>
+  onFloatWindowClosed: (callback: () => void) => () => void
   focusFloatWindow: () => Promise<boolean>
   setFloatAlwaysOnTop: (value: boolean) => Promise<boolean>
   resizeFloatWindow: (width: number, height: number) => Promise<boolean>
@@ -45,7 +50,6 @@ export interface ElectronAPI {
   // 窗口拖拽
   startWindowDrag: (options: { mouseX: number; mouseY: number }) => Promise<void>
   stopWindowDrag: () => Promise<void>
-  dragHeartbeat: (options: { mouseX: number; mouseY: number }) => Promise<void>
   setFloatWindowPosition: (x: number, y: number) => Promise<boolean>
   // 详情悬浮窗
   showFloatDetail: (options: {
@@ -107,6 +111,15 @@ export interface ElectronAPI {
   undockFloatWindow: () => Promise<boolean>
   getEdgeDockState: () => Promise<{ isDocked: boolean; edge: 'left' | 'right' | 'top' | null; originalX: number; originalY: number } | null>
   onEdgeDockChanged: (callback: (state: { isDocked: boolean; edge: 'left' | 'right' | 'top' | null }) => void) => () => void
+  stripMousedown: () => Promise<void>
+  // 主题同步
+  notifyThemeChanged: (theme: { mode: string; accent: string }) => Promise<boolean>
+  onThemeChanged: (callback: (theme: { mode: string; accent: string }) => void) => () => void
+  // 关闭行为
+  getCloseAction: () => Promise<CloseAction | null>
+  setCloseAction: (action: CloseAction | null) => Promise<boolean>
+  closeActionChosen: (action: CloseAction, remember: boolean) => Promise<void>
+  onShowCloseDialog: (callback: () => void) => () => void
 }
 
 declare global {

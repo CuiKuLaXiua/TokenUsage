@@ -43,6 +43,13 @@ export const useThemeStore = defineStore('theme', () => {
     // 供悬浮窗等独立窗口读取
     localStorage.setItem('theme', isDark.value ? 'dark' : 'light')
     localStorage.setItem('accent', accent.value)
+    // 通知主进程广播给所有悬浮窗口
+    if (window.electronAPI?.notifyThemeChanged) {
+      window.electronAPI.notifyThemeChanged({
+        mode: isDark.value ? 'dark' : 'light',
+        accent: accent.value
+      })
+    }
   }
 
   return {

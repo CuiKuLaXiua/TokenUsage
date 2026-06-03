@@ -228,7 +228,7 @@ function parseOpenCodeResponse(response: any): ModelUsageStatus | null {
         const resetAt = resetSec ? new Date(Date.now() + resetSec * 1000).toISOString() : undefined
         tiers.push({
           name: 'monthly',
-          label: '月',
+          label: '30D',
           percent,
           resetAt
         })

@@ -71,6 +71,8 @@
   --neon-amber:  #d4a855;
   --neon-red:    #d4776a;
   --neon-blue:   #6b9e7a;
+
+  --progress-gradient: linear-gradient(90deg, var(--neon-green), var(--neon-amber) 60%, var(--neon-red) 85%);
   --neon-purple: #b8a088;
   --neon-pink:   #c4a882;
 
@@ -97,6 +99,8 @@
   --neon-amber:  #d4a855;
   --neon-red:    #c47a5a;
   --neon-blue:   #8fa870;
+
+  --progress-gradient: linear-gradient(90deg, var(--neon-green), var(--neon-amber) 60%, var(--neon-red) 85%);
   --neon-purple: #c4a855;
   --neon-pink:   #d4a855;
 
@@ -123,6 +127,8 @@
   --neon-amber:  #e8c088;
   --neon-red:    #d4888a;
   --neon-blue:   #82a888;
+
+  --progress-gradient: linear-gradient(90deg, var(--neon-green), var(--neon-amber) 60%, var(--neon-red) 85%);
   --neon-purple: #c8a0b8;
   --neon-pink:   #e8a0b4;
 
