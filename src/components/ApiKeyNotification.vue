@@ -346,6 +346,11 @@ onUnmounted(() => {
   color: #d97706;
 }
 
+.provider-badge.opencode {
+  background: rgba(139, 92, 246, 0.1);
+  color: #8b5cf6;
+}
+
 .edit-icon {
   margin-left: auto;
   color: var(--text-secondary, #666);

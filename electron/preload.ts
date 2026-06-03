@@ -22,8 +22,8 @@ export interface ElectronAPI {
   resizeFloatWindowAnimated: (width: number, height: number, duration: number) => Promise<boolean>
   debugLog: (msg: string) => Promise<boolean>
   startWindowDrag: (options: { mouseX: number; mouseY: number }) => Promise<void>
-  windowDragMove: (options: { mouseX: number; mouseY: number }) => Promise<void>
   stopWindowDrag: () => Promise<void>
+  dragHeartbeat: (options: { mouseX: number; mouseY: number }) => Promise<void>
   setFloatWindowPosition: (x: number, y: number) => Promise<boolean>
   // 详情悬浮窗
   showFloatDetail: (options: {
@@ -37,6 +37,7 @@ export interface ElectronAPI {
   getFloatWindowBounds: () => Promise<{ x: number; y: number; width: number; height: number } | null>
   onConfigUpdated: (callback: () => void) => () => void
   openMimoLogin: () => Promise<string | null>
+  openOpencodeLogin: () => Promise<{ cookies: string | null, baseUrl: string | null }>
   onLoginNeeded: (callback: () => void) => () => void
   onApiKeyInvalid: (callback: (data: { modelId: string, modelName: string, provider: string }) => void) => () => void
   showMainWindow: () => Promise<boolean>
@@ -81,6 +82,11 @@ export interface ElectronAPI {
   onNativeContextMenu: (callback: (pos: { x: number; y: number }) => void) => () => void
   onExecuteCtxMenuAction: (callback: (action: string) => void) => () => void
   onCtxMenuClosed: (callback: () => void) => () => void
+  // 靠边隐藏相关
+  dockFloatWindow: (edge: 'left' | 'right' | 'top') => Promise<boolean>
+  undockFloatWindow: () => Promise<boolean>
+  getEdgeDockState: () => Promise<{ isDocked: boolean; edge: 'left' | 'right' | 'top' | null; originalX: number; originalY: number } | null>
+  onEdgeDockChanged: (callback: (state: { isDocked: boolean; edge: 'left' | 'right' | 'top' | null }) => void) => () => void
 }
 
 const electronAPI: ElectronAPI = {
@@ -98,8 +104,8 @@ const electronAPI: ElectronAPI = {
   resizeFloatWindowAnimated: (width, height, duration) => ipcRenderer.invoke('resize-float-window-animated', width, height, duration),
   debugLog: (msg: string) => ipcRenderer.invoke('debug-log', msg),
   startWindowDrag: (options) => ipcRenderer.invoke('start-window-drag', options),
-  windowDragMove: (options) => ipcRenderer.invoke('window-drag-move', options),
   stopWindowDrag: () => ipcRenderer.invoke('stop-window-drag'),
+  dragHeartbeat: (options) => ipcRenderer.invoke('drag-heartbeat', options),
   setFloatWindowPosition: (x, y) => ipcRenderer.invoke('set-float-window-position', x, y),
   // 详情悬浮窗
   showFloatDetail: (options) => ipcRenderer.invoke('show-float-detail', options),
@@ -114,6 +120,7 @@ const electronAPI: ElectronAPI = {
     }
   },
   openMimoLogin: () => ipcRenderer.invoke('open-mimo-login'),
+  openOpencodeLogin: () => ipcRenderer.invoke('open-opencode-login'),
   onLoginNeeded: (callback) => {
     const wrapper = () => callback()
     ipcRenderer.on('login-needed', wrapper)
@@ -182,6 +189,15 @@ const electronAPI: ElectronAPI = {
     const wrapper = () => callback()
     ipcRenderer.on('ctx-menu-closed', wrapper)
     return () => { ipcRenderer.removeListener('ctx-menu-closed', wrapper) }
+  },
+  // 靠边隐藏相关
+  dockFloatWindow: (edge) => ipcRenderer.invoke('dock-float-window', edge),
+  undockFloatWindow: () => ipcRenderer.invoke('undock-float-window'),
+  getEdgeDockState: () => ipcRenderer.invoke('get-edge-dock-state'),
+  onEdgeDockChanged: (callback) => {
+    const wrapper = (_: any, state: any) => callback(state)
+    ipcRenderer.on('edge-dock-changed', wrapper)
+    return () => { ipcRenderer.removeListener('edge-dock-changed', wrapper) }
   }
 }
 

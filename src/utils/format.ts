@@ -37,14 +37,24 @@ export function formatResetTime(timeStr: string): string {
 
     if (diff <= 0) return '即将重置'
 
-    const hours = Math.floor(diff / (1000 * 60 * 60))
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
+    const totalMinutes = Math.floor(diff / (1000 * 60))
+    const hours = Math.floor(totalMinutes / 60)
+    const minutes = totalMinutes % 60
+    const days = Math.floor(hours / 24)
+    const remainHours = hours % 24
 
-    if (hours > 24) {
-      const days = Math.floor(hours / 24)
-      return `${days}天${hours % 24}时后`
+    if (days > 0) {
+      if (remainHours > 0) {
+        return `${days}天${remainHours}时后`
+      }
+      return `${days}天后`
     }
-    if (hours > 0) return `${hours}时${minutes}分后`
+    if (hours > 0) {
+      if (minutes > 0) {
+        return `${hours}时${minutes}分后`
+      }
+      return `${hours}时后`
+    }
     return `${minutes}分后`
   } catch {
     return timeStr

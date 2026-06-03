@@ -44,8 +44,8 @@ export interface ElectronAPI {
   debugLog: (msg: string) => Promise<boolean>
   // 窗口拖拽
   startWindowDrag: (options: { mouseX: number; mouseY: number }) => Promise<void>
-  windowDragMove: (options: { mouseX: number; mouseY: number }) => Promise<void>
   stopWindowDrag: () => Promise<void>
+  dragHeartbeat: (options: { mouseX: number; mouseY: number }) => Promise<void>
   setFloatWindowPosition: (x: number, y: number) => Promise<boolean>
   // 详情悬浮窗
   showFloatDetail: (options: {
@@ -58,6 +58,7 @@ export interface ElectronAPI {
   resizeDetailWindow: (width: number, height: number) => Promise<boolean>
   getFloatWindowBounds: () => Promise<{ x: number; y: number; width: number; height: number } | null>
   openMimoLogin: () => Promise<string | null>
+  openOpencodeLogin: () => Promise<{ cookies: string | null, baseUrl: string | null }>
   onLoginNeeded: (callback: () => void) => () => void
   onConfigUpdated: (callback: () => void) => () => void
   windowMinimize: () => Promise<void>
@@ -101,6 +102,11 @@ export interface ElectronAPI {
   onNativeContextMenu: (callback: (pos: { x: number; y: number }) => void) => () => void
   onExecuteCtxMenuAction: (callback: (action: string) => void) => () => void
   onCtxMenuClosed: (callback: () => void) => () => void
+  // 靠边隐藏相关
+  dockFloatWindow: (edge: 'left' | 'right' | 'top') => Promise<boolean>
+  undockFloatWindow: () => Promise<boolean>
+  getEdgeDockState: () => Promise<{ isDocked: boolean; edge: 'left' | 'right' | 'top' | null; originalX: number; originalY: number } | null>
+  onEdgeDockChanged: (callback: (state: { isDocked: boolean; edge: 'left' | 'right' | 'top' | null }) => void) => () => void
 }
 
 declare global {

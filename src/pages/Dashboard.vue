@@ -6,12 +6,22 @@
         <!-- Main Token Ring -->
         <div class="hero-main glass-surface">
           <div class="hero-ring-wrap">
-            <TokenRing :percent="agg.mainRing.value.percent" :size="120" :stroke="6">
+            <TokenRing
+              :percent="agg.mainRing.value.percent"
+              :size="120"
+              :stroke="6"
+            >
               <div class="hero-ring-inner">
                 <span class="hero-ring-value">
-                  {{ agg.mainRing.value.source !== 'none' ? agg.mainRing.value.percent.toFixed(1) : '—' }}
+                  {{
+                    agg.mainRing.value.source !== "none"
+                      ? agg.mainRing.value.percent.toFixed(1)
+                      : "—"
+                  }}
                 </span>
-                <span class="hero-ring-unit">{{ agg.mainRing.value.source !== 'none' ? '%' : '' }}</span>
+                <span class="hero-ring-unit">{{
+                  agg.mainRing.value.source !== "none" ? "%" : ""
+                }}</span>
               </div>
             </TokenRing>
           </div>
@@ -19,14 +29,22 @@
             <!-- 主环标注 -->
             <div class="hero-alert" v-if="agg.mainRing.value.source !== 'none'">
               <span class="hero-alert-dot unified"></span>
-              <span class="hero-alert-text">{{ agg.mainRing.value.label }}</span>
-              <span class="hero-alert-sub" v-if="agg.unifiedTokenPool.value.total > 0">
-                {{ formatLargeNumber(agg.unifiedTokenPool.value.used) }} / {{ formatLargeNumber(agg.unifiedTokenPool.value.total) }}
+              <span class="hero-alert-text">{{
+                agg.mainRing.value.label
+              }}</span>
+              <span
+                class="hero-alert-sub"
+                v-if="agg.unifiedTokenPool.value.total > 0"
+              >
+                {{ formatLargeNumber(agg.unifiedTokenPool.value.used) }} /
+                {{ formatLargeNumber(agg.unifiedTokenPool.value.total) }}
               </span>
             </div>
             <div class="hero-alert ok" v-else-if="agg.hasAnyData.value">
               <span class="hero-alert-dot ok"></span>
-              <span class="hero-alert-text">{{ agg.mainRing.value.label }}</span>
+              <span class="hero-alert-text">{{
+                agg.mainRing.value.label
+              }}</span>
             </div>
 
             <!-- Token 汇总行 -->
@@ -34,15 +52,21 @@
               <div class="hero-divider"></div>
               <div class="hero-stat-item">
                 <span class="hero-stat-label">总配额</span>
-                <span class="hero-stat-value accent-text">{{ formatLargeNumber(agg.tokenAgg.value.total) }}</span>
+                <span class="hero-stat-value accent-text">{{
+                  formatLargeNumber(agg.tokenAgg.value.total)
+                }}</span>
               </div>
               <div class="hero-stat-item">
                 <span class="hero-stat-label">已使用</span>
-                <span class="hero-stat-value warn">{{ formatLargeNumber(agg.tokenAgg.value.used) }}</span>
+                <span class="hero-stat-value warn">{{
+                  formatLargeNumber(agg.tokenAgg.value.used)
+                }}</span>
               </div>
               <div class="hero-stat-item">
                 <span class="hero-stat-label">剩余</span>
-                <span class="hero-stat-value ok">{{ formatLargeNumber(agg.tokenAgg.value.remaining) }}</span>
+                <span class="hero-stat-value ok">{{
+                  formatLargeNumber(agg.tokenAgg.value.remaining)
+                }}</span>
               </div>
             </template>
 
@@ -52,7 +76,11 @@
               <div class="hero-stat-item">
                 <span class="hero-stat-label">账户余额</span>
                 <span class="hero-stat-value accent-text">
-                  {{ agg.balanceAgg.value.currency === 'CNY' ? '¥' : agg.balanceAgg.value.currency }}
+                  {{
+                    agg.balanceAgg.value.currency === "CNY"
+                      ? "¥"
+                      : agg.balanceAgg.value.currency
+                  }}
                   {{ agg.balanceAgg.value.totalBalance.toFixed(2) }}
                 </span>
               </div>
@@ -72,7 +100,9 @@
               <el-icon :size="20"><Coin /></el-icon>
             </div>
             <div class="qs-info">
-              <span class="qs-value"><CountUp :value="store.models.length" :duration="800" /></span>
+              <span class="qs-value"
+                ><CountUp :value="store.models.length" :duration="800"
+              /></span>
               <span class="qs-label">配置模型</span>
             </div>
           </div>
@@ -97,7 +127,7 @@
                 <span class="qs-tag p">{{ agg.typeCounts.value.percent }}</span>
                 <span class="qs-tag b">{{ agg.typeCounts.value.balance }}</span>
               </span>
-              <span class="qs-label">T / 窗口 / 余额</span>
+              <span class="qs-label">Token / 窗口 / 余额</span>
             </div>
           </div>
         </div>
@@ -109,20 +139,27 @@
         <div v-if="agg.tokenAgg.value" class="type-card glass-surface">
           <div class="tc-header">
             <span class="tc-title">📦 Token 额度</span>
-            <span class="tc-count">{{ agg.tokenAgg.value.modelCount }} 个模型</span>
+            <span class="tc-count"
+              >{{ agg.tokenAgg.value.modelCount }} 个模型</span
+            >
           </div>
           <div class="tc-bar-track">
             <div
               class="tc-bar-fill"
               :style="{
                 width: Math.min(100, agg.tokenAgg.value.percent) + '%',
-                background: getProgressColor(agg.tokenAgg.value.percent)
+                background: getProgressColor(agg.tokenAgg.value.percent),
               }"
             ></div>
           </div>
           <div class="tc-meta">
-            <span>{{ formatLargeNumber(agg.tokenAgg.value.used) }} / {{ formatLargeNumber(agg.tokenAgg.value.total) }}</span>
-            <span class="tc-pct">{{ agg.tokenAgg.value.percent.toFixed(1) }}%</span>
+            <span
+              >{{ formatLargeNumber(agg.tokenAgg.value.used) }} /
+              {{ formatLargeNumber(agg.tokenAgg.value.total) }}</span
+            >
+            <span class="tc-pct"
+              >{{ agg.tokenAgg.value.percent.toFixed(1) }}%</span
+            >
           </div>
         </div>
 
@@ -130,20 +167,24 @@
         <div v-if="agg.percentAgg.value" class="type-card glass-surface">
           <div class="tc-header">
             <span class="tc-title">⏱ 时间窗口</span>
-            <span class="tc-count">{{ agg.percentAgg.value.modelCount }} 个模型</span>
+            <span class="tc-count"
+              >{{ agg.percentAgg.value.modelCount }} 个模型</span
+            >
           </div>
           <div class="tc-bar-track">
             <div
               class="tc-bar-fill"
               :style="{
                 width: Math.min(100, agg.percentAgg.value.worstPercent) + '%',
-                background: getProgressColor(agg.percentAgg.value.worstPercent)
+                background: getProgressColor(agg.percentAgg.value.worstPercent),
               }"
             ></div>
           </div>
           <div class="tc-meta">
             <span>最紧张: {{ agg.percentAgg.value.worstLabel }}</span>
-            <span class="tc-pct">{{ agg.percentAgg.value.worstPercent.toFixed(1) }}%</span>
+            <span class="tc-pct"
+              >{{ agg.percentAgg.value.worstPercent.toFixed(1) }}%</span
+            >
           </div>
         </div>
 
@@ -151,11 +192,19 @@
         <div v-if="agg.balanceAgg.value" class="type-card glass-surface">
           <div class="tc-header">
             <span class="tc-title">💰 账户余额</span>
-            <span class="tc-count">{{ agg.balanceAgg.value.modelCount }} 个模型</span>
+            <span class="tc-count"
+              >{{ agg.balanceAgg.value.modelCount }} 个模型</span
+            >
           </div>
           <div class="tc-balance">
-            <span class="tc-currency">{{ agg.balanceAgg.value.currency === 'CNY' ? '¥' : agg.balanceAgg.value.currency }}</span>
-            <span class="tc-amount">{{ agg.balanceAgg.value.totalBalance.toFixed(2) }}</span>
+            <span class="tc-currency">{{
+              agg.balanceAgg.value.currency === "CNY"
+                ? "¥"
+                : agg.balanceAgg.value.currency
+            }}</span>
+            <span class="tc-amount">{{
+              agg.balanceAgg.value.totalBalance.toFixed(2)
+            }}</span>
           </div>
         </div>
       </div>
@@ -169,21 +218,27 @@
           <span class="section-subtitle">实时监控各平台 Token 使用情况</span>
         </div>
         <div class="section-actions">
-          <button class="btn-primary" @click="refreshAll" :disabled="store.refreshing">
-            <el-icon :size="16" :class="{ 'spin': store.refreshing }"><Refresh /></el-icon>
+          <button
+            class="btn-primary"
+            @click="refreshAll"
+            :disabled="store.refreshing"
+          >
+            <el-icon :size="16" :class="{ spin: store.refreshing }"
+              ><Refresh
+            /></el-icon>
             <span>刷新全部</span>
           </button>
         </div>
       </div>
 
       <!-- Empty State -->
-      <div v-if="store.models.length === 0" class="empty-state glass-surface">
+      <div v-if="enabledModels.length === 0" class="empty-state glass-surface">
         <div class="empty-visual">
           <div class="empty-ring"></div>
           <el-icon :size="48" class="empty-icon"><Coin /></el-icon>
         </div>
-        <p class="empty-text">暂无配置的模型</p>
-        <p class="empty-hint">添加模型后即可监控 Token 使用情况</p>
+        <p class="empty-text">{{ store.models.length === 0 ? '暂无配置的模型' : '暂无启用的模型' }}</p>
+        <p class="empty-hint">{{ store.models.length === 0 ? '添加模型后即可监控 Token 使用情况' : '请在配置管理中启用模型' }}</p>
         <button class="btn-primary" @click="$router.push('/config')">
           <el-icon :size="16"><Plus /></el-icon>
           添加模型
@@ -191,155 +246,197 @@
       </div>
 
       <!-- Model Grid -->
-      <div v-else class="model-grid">
-        <div
-          v-for="(model, i) in store.models"
-          :key="model.id"
-          class="model-card glass-surface"
-          :style="{ animationDelay: `${i * 80}ms` }"
-        >
-          <!-- Card Header -->
-          <div class="card-header">
-            <div class="card-title-row">
-              <span class="model-name">{{ model.name }}</span>
-              <span class="provider-badge" :class="model.provider">{{ getProviderLabel(model.provider) }}</span>
-            </div>
-            <button
-              class="card-refresh"
-              @click="fetchUsage(model)"
-              :disabled="store.fetching[model.id]"
-              title="刷新"
-            >
-              <el-icon :size="14" :class="{ 'spin': store.fetching[model.id] }">
-                <component :is="store.fetching[model.id] ? Loading : Refresh" />
-              </el-icon>
-            </button>
-          </div>
-
-          <!-- Token Type -->
-          <template v-if="getUsage(model.id)?.usageType === 'token'">
-            <div class="card-body token-type">
-              <div class="token-ring-section">
-                <TokenRing :percent="getUsage(model.id)?.percent || 0" :size="90" />
+      <draggable
+        v-else
+        v-model="store.models"
+        item-key="id"
+        tag="div"
+        class="model-grid"
+        ghost-class="card-ghost"
+        drag-class="card-drag"
+        animation="200"
+        @end="onDragEnd"
+      >
+        <template #item="{ element: model }">
+          <div v-show="model.enabled" class="model-card glass-surface">
+            <!-- Card Header -->
+            <div class="card-header">
+              <div class="card-title-row">
+                <span class="model-name">{{ model.name }}</span>
+                <span class="provider-badge" :class="model.provider">{{
+                  getProviderLabel(model.provider)
+                }}</span>
               </div>
-              <div class="token-details">
-                <div class="detail-row">
-                  <span class="detail-key">套餐</span>
-                  <span class="detail-val">{{ getUsage(model.id)?.planName }}</span>
+                <button
+                  class="card-refresh"
+                  @click="fetchUsage(model)"
+                  :disabled="store.fetching[model.id]"
+                  title="刷新"
+                >
+                  <el-icon :size="14" :class="{ spin: store.fetching[model.id] }">
+                    <component :is="store.fetching[model.id] ? Loading : Refresh" />
+                  </el-icon>
+                </button>
+              </div>
+
+              <!-- Token Type -->
+              <template v-if="getUsage(model.id)?.usageType === 'token'">
+                <div class="card-body token-type">
+                  <div class="token-ring-section">
+                    <TokenRing
+                      :percent="getUsage(model.id)?.percent || 0"
+                      :size="90"
+                    />
+                  </div>
+                  <div class="token-details">
+                    <div class="detail-row">
+                      <span class="detail-key">套餐</span>
+                      <span class="detail-val">{{
+                        getUsage(model.id)?.planName
+                      }}</span>
+                    </div>
+                    <div class="detail-row">
+                      <span class="detail-key">已用</span>
+                      <span class="detail-val">{{
+                        formatFullNumber(getUsage(model.id)?.used || 0)
+                      }}</span>
+                    </div>
+                    <div class="detail-row">
+                      <span class="detail-key">总计</span>
+                      <span class="detail-val">{{
+                        formatFullNumber(getUsage(model.id)?.total || 0)
+                      }}</span>
+                    </div>
+                    <div class="detail-row highlight">
+                      <span class="detail-key">剩余</span>
+                      <span class="detail-val">{{
+                        formatFullNumber(getUsage(model.id)?.remaining || 0)
+                      }}</span>
+                    </div>
+                  </div>
                 </div>
-                <div class="detail-row">
-                  <span class="detail-key">已用</span>
-                  <span class="detail-val">{{ formatTokens(getUsage(model.id)?.used || 0) }}</span>
+              </template>
+
+              <!-- Percent Type (Kimi) -->
+              <template v-else-if="getUsage(model.id)?.usageType === 'percent'">
+                <div class="card-body percent-type">
+                  <PercentBar :tiers="getUsage(model.id)?.tiers || []" />
                 </div>
-                <div class="detail-row">
-                  <span class="detail-key">总计</span>
-                  <span class="detail-val">{{ formatTokens(getUsage(model.id)?.total || 0) }}</span>
+              </template>
+
+              <!-- Balance Type (DeepSeek) -->
+              <template v-else-if="getUsage(model.id)?.usageType === 'balance'">
+                <div class="card-body balance-type">
+                  <BalanceCard
+                    :balance="getUsage(model.id)?.balance || 0"
+                    :currency="getUsage(model.id)?.currency || 'CNY'"
+                  />
                 </div>
-                <div class="detail-row highlight">
-                  <span class="detail-key">剩余</span>
-                  <span class="detail-val">{{ formatTokens(getUsage(model.id)?.remaining || 0) }}</span>
-                </div>
+              </template>
+
+              <!-- No Data -->
+              <div v-else class="card-body empty-type">
+                <button
+                  class="btn-fetch"
+                  @click="fetchUsage(model)"
+                  :disabled="store.fetching[model.id]"
+                >
+                  <el-icon v-if="store.fetching[model.id]" :size="14" class="spin"
+                    ><Loading
+                  /></el-icon>
+                  <span>{{
+                    store.fetching[model.id] ? "获取中..." : "获取额度"
+                  }}</span>
+                </button>
               </div>
             </div>
-          </template>
-
-          <!-- Percent Type (Kimi) -->
-          <template v-else-if="getUsage(model.id)?.usageType === 'percent'">
-            <div class="card-body percent-type">
-              <PercentBar :tiers="getUsage(model.id)?.tiers || []" />
-            </div>
-          </template>
-
-          <!-- Balance Type (DeepSeek) -->
-          <template v-else-if="getUsage(model.id)?.usageType === 'balance'">
-            <div class="card-body balance-type">
-              <BalanceCard :balance="getUsage(model.id)?.balance || 0" :currency="getUsage(model.id)?.currency || 'CNY'" />
-            </div>
-          </template>
-
-          <!-- No Data -->
-          <div v-else class="card-body empty-type">
-            <button
-              class="btn-fetch"
-              @click="fetchUsage(model)"
-              :disabled="store.fetching[model.id]"
-            >
-              <el-icon v-if="store.fetching[model.id]" :size="14" class="spin"><Loading /></el-icon>
-              <span>{{ store.fetching[model.id] ? '获取中...' : '获取额度' }}</span>
-            </button>
-          </div>
-        </div>
-      </div>
+        </template>
+      </draggable>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { computed, ref } from "vue";
+import { ElMessage } from "element-plus";
 import {
   Coin,
   Refresh,
   Loading,
   Plus,
   CircleCheck,
-  DataBoard
-} from '@element-plus/icons-vue'
-import type { ModelConfig } from '@/stores/app'
-import { useAppStore } from '@/stores/app'
-import { formatTokens, getProgressColor } from '@/utils/format'
-import { useUsageAggregation } from '@/composables/useUsageAggregation'
-import TokenRing from '@/components/TokenRing.vue'
-import PercentBar from '@/components/PercentBar.vue'
-import BalanceCard from '@/components/BalanceCard.vue'
-import CountUp from '@/components/CountUp.vue'
+  DataBoard,
+} from "@element-plus/icons-vue";
+import type { ModelConfig } from "@/stores/app";
+import { useAppStore } from "@/stores/app";
+import { formatTokens, getProgressColor } from "@/utils/format";
+import { useUsageAggregation } from "@/composables/useUsageAggregation";
+import draggable from "vuedraggable";
+import TokenRing from "@/components/TokenRing.vue";
+import PercentBar from "@/components/PercentBar.vue";
+import BalanceCard from "@/components/BalanceCard.vue";
+import CountUp from "@/components/CountUp.vue";
 
-const store = useAppStore()
-const agg = useUsageAggregation()
+const store = useAppStore();
+const agg = useUsageAggregation();
 
 const activeModels = computed(() => {
-  return Object.keys(store.modelUsageMap).length
-})
+  return Object.keys(store.modelUsageMap).length;
+});
+
+const enabledModels = computed(() => {
+  return store.models.filter(m => m.enabled);
+});
 
 function getUsage(modelId: string) {
-  return store.modelUsageMap[modelId]
+  return store.modelUsageMap[modelId];
 }
 
 function getProviderLabel(provider: string): string {
   const labels: Record<string, string> = {
-    mimo: 'MIMO',
-    openai: 'OpenAI',
-    claude: 'Claude',
-    deepseek: 'DeepSeek',
-    kimi: 'Kimi'
-  }
-  return labels[provider] || provider
+    mimo: "MIMO",
+    openai: "OpenAI",
+    claude: "Claude",
+    deepseek: "DeepSeek",
+    kimi: "Kimi",
+    opencode: "OpenCode",
+  };
+  return labels[provider] || provider;
 }
 
 function formatLargeNumber(num: number): string {
-  if (num >= 1e12) return (num / 1e12).toFixed(2) + 'T'
-  if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B'
-  if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M'
-  if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K'
-  return num.toFixed(2)
+  if (num >= 1e12) return (num / 1e12).toFixed(2) + "T";
+  if (num >= 1e9) return (num / 1e9).toFixed(2) + "B";
+  if (num >= 1e6) return (num / 1e6).toFixed(2) + "M";
+  if (num >= 1e3) return (num / 1e3).toFixed(2) + "K";
+  return num.toFixed(2);
+}
+
+function formatFullNumber(num: number): string {
+  return num.toLocaleString("zh-CN");
+}
+
+// ── 拖拽排序 ──
+// vuedraggable 直接修改 store.models，拖拽完成后自动保存
+function onDragEnd() {
+  store.saveConfig()
 }
 
 async function fetchUsage(model: ModelConfig) {
   try {
-    await store.requestRefresh(model.id)
-    ElMessage.success({ message: `${model.name} 额度获取成功`, duration: 2000 })
+    await store.requestRefresh(model.id);
+    ElMessage.success({
+      message: `${model.name} 额度获取成功`,
+      duration: 2000,
+    });
   } catch {
-    ElMessage.error({ message: '数据解析失败', duration: 2500 })
+    ElMessage.error({ message: "数据解析失败", duration: 2500 });
   }
 }
 
 async function refreshAll() {
-  await store.requestRefreshAll()
+  await store.requestRefreshAll();
 }
-
-onMounted(async () => {
-  // 数据已在 loadConfig 时从主进程缓存获取
-})
 </script>
 
 <style scoped>
@@ -376,7 +473,7 @@ onMounted(async () => {
 }
 
 .hero-main::before {
-  content: '';
+  content: "";
   position: absolute;
   top: -50%;
   right: -20%;
@@ -542,12 +639,16 @@ onMounted(async () => {
   flex: 1;
   display: flex;
   flex-direction: column;
+  gap: 2px;
+  min-height: 40px;
+  justify-content: center;
 }
 
 .qs-value {
   font-size: 18px;
   font-weight: 700;
   color: var(--text-primary);
+  line-height: 1.2;
 }
 
 .qs-type-counts {
@@ -559,17 +660,28 @@ onMounted(async () => {
 .qs-tag {
   font-size: 13px;
   font-weight: 700;
-  padding: 1px 6px;
+  padding: 2px 6px;
   border-radius: 5px;
+  line-height: 1.2;
 }
 
-.qs-tag.t { color: var(--neon-amber); background: rgba(251, 191, 36, 0.12); }
-.qs-tag.p { color: var(--neon-red); background: rgba(248, 113, 113, 0.12); }
-.qs-tag.b { color: var(--neon-green); background: rgba(34, 211, 238, 0.12); }
+.qs-tag.t {
+  color: var(--neon-amber);
+  background: rgba(251, 191, 36, 0.12);
+}
+.qs-tag.p {
+  color: var(--neon-red);
+  background: rgba(248, 113, 113, 0.12);
+}
+.qs-tag.b {
+  color: var(--neon-green);
+  background: rgba(34, 211, 238, 0.12);
+}
 
 .qs-label {
   font-size: 11px;
   color: var(--text-secondary);
+  line-height: 1.2;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -590,8 +702,9 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  transition: transform var(--duration-normal) var(--ease-spring),
-              box-shadow var(--duration-normal) var(--ease-smooth);
+  transition:
+    transform var(--duration-normal) var(--ease-spring),
+    box-shadow var(--duration-normal) var(--ease-smooth);
 }
 
 .type-card:hover {
@@ -737,7 +850,9 @@ onMounted(async () => {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ── Empty State ── */
@@ -790,15 +905,33 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 12px;
-  min-width: 0; /* 防止 grid 溢出 */
+  min-width: 0;
 }
 
 .model-card {
   border-radius: 16px;
   overflow: hidden;
-  animation: fadeSlideUp var(--duration-slow) var(--ease-smooth) both;
-  transition: transform var(--duration-normal) var(--ease-spring),
-              box-shadow var(--duration-normal) var(--ease-smooth);
+  cursor: grab;
+  transition:
+    transform var(--duration-normal) var(--ease-spring),
+    box-shadow var(--duration-normal) var(--ease-spring);
+}
+.model-card:active {
+  cursor: grabbing;
+}
+
+.card-ghost {
+  opacity: 0.4;
+  transform: scale(0.98);
+  box-shadow: var(--glass-shadow);
+}
+
+.card-drag {
+  opacity: 0.9;
+  transform: scale(1.05);
+  box-shadow: var(--glass-shadow-hover);
+  z-index: 10;
+  cursor: grabbing !important;
 }
 
 .model-card:hover {
@@ -836,11 +969,30 @@ onMounted(async () => {
   letter-spacing: 0.5px;
 }
 
-.provider-badge.mimo { background: rgba(212, 168, 85, 0.12); color: var(--provider-mimo); }
-.provider-badge.openai { background: rgba(107, 158, 122, 0.12); color: var(--provider-openai); }
-.provider-badge.claude { background: rgba(196, 168, 130, 0.12); color: var(--provider-claude); }
-.provider-badge.deepseek { background: rgba(124, 196, 138, 0.12); color: var(--provider-deepseek); }
-.provider-badge.kimi { background: rgba(184, 160, 136, 0.12); color: var(--provider-kimi); }
+.provider-badge.mimo {
+  background: rgba(212, 168, 85, 0.12);
+  color: var(--provider-mimo);
+}
+.provider-badge.openai {
+  background: rgba(107, 158, 122, 0.12);
+  color: var(--provider-openai);
+}
+.provider-badge.claude {
+  background: rgba(196, 168, 130, 0.12);
+  color: var(--provider-claude);
+}
+.provider-badge.deepseek {
+  background: rgba(124, 196, 138, 0.12);
+  color: var(--provider-deepseek);
+}
+.provider-badge.kimi {
+  background: rgba(184, 160, 136, 0.12);
+  color: var(--provider-kimi);
+}
+.provider-badge.opencode {
+  background: rgba(139, 92, 246, 0.12);
+  color: #8b5cf6;
+}
 
 .card-refresh {
   width: 32px;
@@ -870,8 +1022,9 @@ onMounted(async () => {
 /* Token Type */
 .token-type {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 20px;
+  gap: 16px;
 }
 
 .token-ring-section {
@@ -879,7 +1032,7 @@ onMounted(async () => {
 }
 
 .token-details {
-  flex: 1;
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 8px;

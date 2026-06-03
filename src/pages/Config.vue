@@ -20,10 +20,11 @@
       </div>
 
       <!-- Table -->
-      <div v-else class="table-wrap">
+      <div v-else ref="tableWrapRef" class="table-wrap">
         <table class="glass-table">
           <thead>
             <tr>
+              <th class="drag-col"></th>
               <th>模型名称</th>
               <th>提供商</th>
               <th>额度</th>
@@ -32,100 +33,116 @@
               <th>操作</th>
             </tr>
           </thead>
-          <TransitionGroup tag="tbody" name="table-row">
-            <tr v-for="model in store.models" :key="model.id">
-              <td>
-                <span class="model-name">{{ model.name }}</span>
-              </td>
-              <td>
-                <span class="provider-badge" :class="model.provider">{{ model.provider }}</span>
-              </td>
-              <td>
-                <div v-if="store.modelUsageMap[model.id]" class="usage-cell">
-                  <!-- 多层级额度 (Kimi / percent) -->
-                  <template v-if="store.modelUsageMap[model.id].usageType === 'percent' && store.modelUsageMap[model.id].tiers?.length">
-                    <div v-for="tier in store.modelUsageMap[model.id].tiers" :key="tier.name" class="tier-row">
-                      <div class="tier-label">{{ tier.label }}</div>
-                      <div class="tier-bar-track">
+          <draggable
+            v-model="store.models"
+            item-key="id"
+            tag="tbody"
+            ghost-class="row-ghost"
+            drag-class="row-drag"
+            animation="200"
+            @end="onDragEnd"
+          >
+            <template #item="{ element: model }">
+              <tr>
+                <td class="drag-col">
+                  <span class="drag-handle">⠿</span>
+                </td>
+                <td>
+                  <span class="model-name">{{ model.name }}</span>
+                </td>
+                <td>
+                  <span class="provider-badge" :class="model.provider">{{ model.provider }}</span>
+                </td>
+                <td>
+                  <div v-if="store.modelUsageMap[model.id]" class="usage-cell">
+                    <!-- 多层级额度 (Kimi / OpenCode / percent) -->
+                    <template v-if="store.modelUsageMap[model.id].usageType === 'percent' && store.modelUsageMap[model.id].tiers?.length">
+                      <div v-for="tier in store.modelUsageMap[model.id].tiers" :key="tier.name" class="tier-row">
+                        <div class="tier-row-header">
+                          <div class="tier-label">{{ tier.label }}</div>
+                          <!-- 重置时间（右上角） -->
+                          <span v-if="tier.resetAt" class="tier-reset-inline">
+                            <el-icon :size="10"><Clock /></el-icon>
+                            {{ formatResetTime(tier.resetAt) }}
+                          </span>
+                        </div>
+                        <div class="tier-track-row">
+                          <div class="tier-bar-track">
+                            <div
+                              class="tier-bar-fill"
+                              :style="{
+                                width: tier.percent + '%',
+                                background: getProgressColor(tier.percent)
+                              }"
+                            ></div>
+                          </div>
+                          <!-- 百分比（进度条右侧） -->
+                          <span class="tier-percent">{{ tier.percent }}%</span>
+                        </div>
+                      </div>
+                    </template>
+                    <!-- 余额 (DeepSeek / balance) -->
+                    <template v-else-if="store.modelUsageMap[model.id].usageType === 'balance'">
+                      <div class="usage-meta">
+                        <span class="usage-remaining">
+                          {{ store.modelUsageMap[model.id].currency === 'CNY' ? '¥' : store.modelUsageMap[model.id].currency }} {{ (store.modelUsageMap[model.id].balance || 0).toFixed(2) }}
+                        </span>
+                      </div>
+                    </template>
+                    <!-- 单层级额度 (MIMO / OpenAI / Claude / token) -->
+                    <template v-else>
+                      <div class="usage-bar-track">
                         <div
-                          class="tier-bar-fill"
+                          class="usage-bar-fill"
                           :style="{
-                            width: tier.percent + '%',
-                            background: getProgressColor(tier.percent)
+                            width: (store.modelUsageMap[model.id].percent || 0) + '%',
+                            background: getProgressColor(store.modelUsageMap[model.id].percent)
                           }"
                         ></div>
                       </div>
-                      <div class="tier-meta">
-                        <span>{{ formatTokens(tier.used) }} / {{ formatTokens(tier.total) }}</span>
-                        <span class="tier-remaining">余 {{ formatTokens(tier.remaining) }}</span>
+                      <div class="usage-meta">
+                        <span>{{ formatTokens(store.modelUsageMap[model.id].used) }} / {{ formatTokens(store.modelUsageMap[model.id].total) }}</span>
+                        <span class="usage-remaining">余 {{ formatTokens(store.modelUsageMap[model.id].remaining) }}</span>
                       </div>
-                      <div v-if="tier.resetAt" class="tier-reset">
-                        <el-icon :size="10"><Clock /></el-icon>
-                        <span>{{ formatResetTime(tier.resetAt) }}</span>
-                      </div>
-                    </div>
-                  </template>
-                  <!-- 余额 (DeepSeek / balance) -->
-                  <template v-else-if="store.modelUsageMap[model.id].usageType === 'balance'">
-                    <div class="usage-meta">
-                      <span class="usage-remaining">
-                        {{ store.modelUsageMap[model.id].currency === 'CNY' ? '¥' : store.modelUsageMap[model.id].currency }} {{ (store.modelUsageMap[model.id].balance || 0).toFixed(2) }}
-                      </span>
-                    </div>
-                  </template>
-                  <!-- 单层级额度 (MIMO / OpenAI / Claude / token) -->
-                  <template v-else>
-                    <div class="usage-bar-track">
-                      <div
-                        class="usage-bar-fill"
-                        :style="{
-                          width: (store.modelUsageMap[model.id].percent || 0) + '%',
-                          background: getProgressColor(store.modelUsageMap[model.id].percent)
-                        }"
-                      ></div>
-                    </div>
-                    <div class="usage-meta">
-                      <span>{{ formatTokens(store.modelUsageMap[model.id].used) }} / {{ formatTokens(store.modelUsageMap[model.id].total) }}</span>
-                      <span class="usage-remaining">余 {{ formatTokens(store.modelUsageMap[model.id].remaining) }}</span>
-                    </div>
-                  </template>
-                </div>
-                <span v-else class="no-data">未获取</span>
-              </td>
-              <td>
-                <span class="status-dot" :class="model.enabled ? 'active' : 'inactive'">
-                  {{ model.enabled ? '启用' : '禁用' }}
-                </span>
-              </td>
-              <td>
-                <span v-if="model.refreshInterval && model.refreshInterval > 0" class="refresh-badge">
-                  <el-icon :size="12"><Timer /></el-icon>
-                  每 {{ model.refreshInterval }} 分钟
-                </span>
-                <span v-else class="refresh-off">关闭</span>
-              </td>
-              <td>
-                <div class="action-group">
-                  <button
-                    class="icon-btn action-btn"
-                    title="获取额度"
-                    @click="fetchUsage(model)"
-                    :disabled="store.fetching[model.id]"
-                  >
-                    <el-icon :size="15" :class="{ 'spin': store.fetching[model.id] }">
-                      <component :is="store.fetching[model.id] ? Loading : Refresh" />
-                    </el-icon>
-                  </button>
-                  <button class="icon-btn action-btn" title="编辑" @click="editModel(model)">
-                    <el-icon :size="15"><Edit /></el-icon>
-                  </button>
-                  <button class="icon-btn action-btn danger" title="删除" @click="deleteModel(model.id)">
-                    <el-icon :size="15"><Delete /></el-icon>
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </TransitionGroup>
+                    </template>
+                  </div>
+                  <span v-else class="no-data">未获取</span>
+                </td>
+                <td>
+                  <span class="status-dot" :class="model.enabled ? 'active' : 'inactive'">
+                    {{ model.enabled ? '启用' : '禁用' }}
+                  </span>
+                </td>
+                <td>
+                  <span v-if="model.refreshInterval && model.refreshInterval > 0" class="refresh-badge">
+                    <el-icon :size="12"><Timer /></el-icon>
+                    每 {{ model.refreshInterval }} {{ model.refreshUnit === 'second' ? '秒' : model.refreshUnit === 'hour' ? '小时' : '分钟' }}
+                  </span>
+                  <span v-else class="refresh-off">关闭</span>
+                </td>
+                <td>
+                  <div class="action-group">
+                    <button
+                      class="icon-btn action-btn"
+                      title="获取额度"
+                      @click="fetchUsage(model)"
+                      :disabled="store.fetching[model.id]"
+                    >
+                      <el-icon :size="15" :class="{ 'spin': store.fetching[model.id] }">
+                        <component :is="store.fetching[model.id] ? Loading : Refresh" />
+                      </el-icon>
+                    </button>
+                    <button class="icon-btn action-btn" title="编辑" @click="editModel(model)">
+                      <el-icon :size="15"><Edit /></el-icon>
+                    </button>
+                    <button class="icon-btn action-btn danger" title="删除" @click="deleteModel(model.id)">
+                      <el-icon :size="15"><Delete /></el-icon>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </template>
+          </draggable>
         </table>
       </div>
     </div>
@@ -158,16 +175,18 @@
                 <option value="claude">Claude</option>
                 <option value="deepseek">DeepSeek</option>
                 <option value="kimi">Kimi</option>
+                <option value="opencode">Open Code</option>
               </select>
             </div>
-            <div class="form-field">
-              <label class="form-label">API 密钥 <span v-if="form.provider !== 'mimo'" class="required">*</span></label>
+            <!-- API 密钥（OpenCode 除外） -->
+            <div v-if="form.provider !== 'mimo' && form.provider !== 'opencode'" class="form-field">
+              <label class="form-label">API 密钥 <span class="required">*</span></label>
               <div class="input-with-suffix">
                 <input
                   v-model="form.apiKey"
                   class="form-input"
                   :type="showApiKey ? 'text' : 'password'"
-                  :placeholder="form.provider === 'mimo' ? '可选，留空则仅用 Cookie 认证' : 'Bearer Token'"
+                  placeholder="Bearer Token"
                 />
                 <button
                   type="button"
@@ -181,6 +200,7 @@
                 </button>
               </div>
             </div>
+            <!-- MiMo Cookie -->
             <div v-if="form.provider === 'mimo'" class="form-field">
               <label class="form-label">Cookie <span class="required">*</span></label>
               <div class="cookie-field">
@@ -205,6 +225,32 @@
                 </div>
               </div>
             </div>
+            <!-- OpenCode Cookie -->
+            <div v-if="form.provider === 'opencode'" class="form-field">
+              <label class="form-label">Cookie <span class="required">*</span></label>
+              <div class="cookie-field">
+                <textarea
+                  v-model="form.cookies"
+                  class="form-input form-textarea"
+                  rows="3"
+                  placeholder="点击下方按钮自动登录获取"
+                  readonly
+                ></textarea>
+                <div class="cookie-actions">
+                  <button
+                    class="btn-primary btn-sm"
+                    @click="handleOpenCodeLogin"
+                    :disabled="store.loginState === 'logging-in'"
+                  >
+                    <span v-if="store.loginState === 'logging-in'">登录中...</span>
+                    <span v-else>🔑 登录获取 Cookie 和 URL</span>
+                  </button>
+                </div>
+                <div class="cookie-hint">
+                  <p>提示：点击按钮后，在弹出窗口中登录 GitHub，然后进入用量页面（/go），最后关闭窗口即可自动获取</p>
+                </div>
+              </div>
+            </div>
             <div class="form-field form-field-inline">
               <label class="form-label">自动刷新</label>
               <div class="interval-wrap">
@@ -213,11 +259,15 @@
                   type="number"
                   class="form-input interval-input"
                   min="0"
-                  max="1440"
-                  step="5"
+                  max="9999"
+                  step="1"
                   placeholder="0"
                 />
-                <span class="interval-unit">分钟</span>
+                <select v-model="form.refreshUnit" class="form-input unit-select">
+                  <option value="second">秒</option>
+                  <option value="minute">分钟</option>
+                  <option value="hour">小时</option>
+                </select>
               </div>
               <span class="interval-hint">0 = 关闭</span>
             </div>
@@ -292,6 +342,7 @@ import {
 import type { ModelConfig } from '@/stores/app'
 import { useAppStore } from '@/stores/app'
 import { formatTokens, getProgressColor, formatResetTime } from '@/utils/format'
+import draggable from 'vuedraggable'
 
 const store = useAppStore()
 
@@ -301,6 +352,12 @@ const showPasteDialog = ref(false)
 const cookiesInput = ref('')
 const showApiKey = ref(false)
 
+// ── 配置页拖拽排序 ──
+// vuedraggable 直接修改 store.models，拖拽完成后自动保存
+function onDragEnd() {
+  store.saveConfig()
+}
+
 const defaultForm: ModelConfig = {
   id: '',
   name: '',
@@ -309,6 +366,7 @@ const defaultForm: ModelConfig = {
   baseUrl: '',
   cookies: '',
   refreshInterval: 0,
+  refreshUnit: 'minute',
   enabled: true
 }
 
@@ -331,10 +389,15 @@ async function saveModel() {
     ElMessage.warning({ message: '请填写模型名称', duration: 2000 })
     return
   }
-  // MIMO 仅需 Cookie，其他提供商需要 API 密钥
+  // MIMO 仅需 Cookie，OpenCode 仅需 Cookie，其他提供商需要 API 密钥
   if (form.provider === 'mimo') {
     if (!form.cookies) {
-      ElMessage.warning({ message: 'MiMo 需要填写 Cookie', duration: 2000 })
+      ElMessage.warning({ message: '需要填写 Cookie', duration: 2000 })
+      return
+    }
+  } else if (form.provider === 'opencode') {
+    if (!form.cookies) {
+      ElMessage.warning({ message: '请点击登录按钮获取 Cookie', duration: 2000 })
       return
     }
   } else {
@@ -387,6 +450,27 @@ async function handleLogin() {
   } catch (error) {
     ElMessage.error('登录失败')
     console.error('登录失败:', error)
+  }
+}
+
+async function handleOpenCodeLogin() {
+  try {
+    store.loginState = 'logging-in'
+    const result = await window.electronAPI.openOpencodeLogin()
+    if (result.cookies) {
+      form.cookies = result.cookies
+      if (result.baseUrl) {
+        form.baseUrl = result.baseUrl
+      }
+      ElMessage.success('登录成功，Cookie 和 API URL 已自动获取')
+    } else {
+      ElMessage.warning('登录超时或已取消')
+    }
+  } catch (error) {
+    ElMessage.error('登录失败')
+    console.error('Open Code 登录失败:', error)
+  } finally {
+    store.loginState = 'idle'
   }
 }
 
@@ -481,6 +565,22 @@ async function fetchUsage(model: ModelConfig) {
 
 .glass-table tbody tr {
   transition: background var(--duration-fast) var(--ease-smooth);
+  cursor: grab;
+}
+
+.glass-table tbody tr:active {
+  cursor: grabbing;
+}
+
+.row-ghost {
+  opacity: 0.4;
+  background: var(--glass-bg);
+}
+
+.row-drag {
+  opacity: 0.9;
+  background: var(--glass-bg);
+  cursor: grabbing !important;
 }
 
 .glass-table tbody tr:hover {
@@ -491,6 +591,25 @@ async function fetchUsage(model: ModelConfig) {
   padding: 16px;
   border-bottom: 1px solid var(--border-light);
   vertical-align: middle;
+}
+
+.drag-col {
+  width: 24px;
+  padding: 4px 8px !important;
+  text-align: center;
+}
+
+.drag-handle {
+  color: var(--text-placeholder);
+  font-size: 14px;
+  cursor: grab;
+  user-select: none;
+  opacity: 0.5;
+  transition: opacity var(--duration-fast);
+}
+
+.glass-table tbody tr:hover .drag-handle {
+  opacity: 1;
 }
 
 .model-name {
@@ -533,13 +652,19 @@ async function fetchUsage(model: ModelConfig) {
 /* ── Tier rows ── */
 .tier-row {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 6px;
 }
 
 .tier-row:last-child {
   margin-bottom: 0;
+}
+
+.tier-row-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .tier-label {
@@ -551,7 +676,21 @@ async function fetchUsage(model: ModelConfig) {
   border-radius: 4px;
   padding: 1px 6px;
   white-space: nowrap;
-  flex-shrink: 0;
+}
+
+.tier-reset-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 9px;
+  color: var(--text-placeholder);
+  white-space: nowrap;
+}
+
+.tier-track-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .tier-bar-track {
@@ -568,28 +707,12 @@ async function fetchUsage(model: ModelConfig) {
   transition: width 1s var(--ease-spring);
 }
 
-.tier-meta {
-  display: flex;
-  justify-content: space-between;
-  font-size: 10px;
-  color: var(--text-secondary);
-  margin-top: 2px;
-  padding-left: 34px;
-}
-
-.tier-remaining {
-  color: var(--success);
+.tier-percent {
+  font-size: 12px;
   font-weight: 600;
-}
-
-.tier-reset {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 9px;
-  color: var(--text-placeholder);
-  margin-top: 2px;
-  padding-left: 34px;
+  color: var(--text-primary);
+  min-width: 35px;
+  text-align: right;
 }
 
 .no-data {
@@ -642,10 +765,11 @@ async function fetchUsage(model: ModelConfig) {
   margin: 0;
 }
 
-.interval-unit {
-  font-size: 12px;
-  color: var(--text-secondary);
-  flex-shrink: 0;
+.unit-select {
+  width: 72px !important;
+  text-align: center;
+  cursor: pointer;
+  padding-right: 20px !important;
 }
 
 .interval-hint {
@@ -891,6 +1015,29 @@ async function fetchUsage(model: ModelConfig) {
   gap: 8px;
 }
 
+.cookie-hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 8px;
+  padding: 8px;
+  background: var(--glass-bg);
+  border-radius: 6px;
+  border: 1px solid var(--border-light);
+}
+
+.cookie-hint p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.cookie-hint code {
+  background: var(--glass-bg-strong);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 11px;
+}
+
 .btn-sm {
   padding: 4px 12px;
   font-size: 12px;
@@ -941,5 +1088,46 @@ async function fetchUsage(model: ModelConfig) {
 
 .toggle-btn.active .toggle-knob {
   transform: translateX(20px);
+}
+
+/* ── Provider Badge ── */
+.provider-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.provider-badge.mimo {
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+}
+
+.provider-badge.kimi {
+  background: rgba(99, 102, 241, 0.1);
+  color: #6366f1;
+}
+
+.provider-badge.deepseek {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+}
+
+.provider-badge.openai {
+  background: rgba(16, 163, 127, 0.1);
+  color: #10a37f;
+}
+
+.provider-badge.claude {
+  background: rgba(217, 119, 6, 0.1);
+  color: #d97706;
+}
+
+.provider-badge.opencode {
+  background: rgba(139, 92, 246, 0.1);
+  color: #8b5cf6;
 }
 </style>

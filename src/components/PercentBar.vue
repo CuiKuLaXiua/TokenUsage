@@ -4,34 +4,31 @@
       <div class="tier-header">
         <div class="tier-badge">
           <span class="tier-label">{{ tier.label }}</span>
-          <span class="tier-percent" :style="{ color: getColor(tier.percent) }">
-            {{ tier.percent.toFixed(1) }}%
-          </span>
         </div>
-      </div>
-      
-      <div class="tier-track">
-        <div
-          class="tier-fill"
-          :style="{
-            width: tier.percent + '%',
-            background: `linear-gradient(90deg, ${getColor(tier.percent)}, ${getColor(tier.percent)}88)`
-          }"
-        >
-          <div class="tier-glow" :style="{ background: getColor(tier.percent) }"></div>
-          <div class="tier-shine"></div>
-        </div>
+        <!-- 重置时间（右上角） -->
+        <span v-if="tier.resetAt" class="tier-reset">
+          <el-icon :size="10"><Clock /></el-icon>
+          {{ formatResetTime(tier.resetAt) }}
+        </span>
       </div>
 
-      <div v-if="showDetail" class="tier-detail">
-        <div class="tier-stats">
-          <span class="tier-used">{{ formatValue(tier.used) }} / {{ formatValue(tier.total) }}</span>
-          <span class="tier-remaining">余 {{ formatValue(tier.remaining) }}</span>
+      <div class="tier-track-row">
+        <div class="tier-track">
+          <div
+            class="tier-fill"
+            :style="{
+              width: tier.percent + '%',
+              background: `linear-gradient(90deg, ${getColor(tier.percent)}, ${getColor(tier.percent)}88)`
+            }"
+          >
+            <div class="tier-glow" :style="{ background: getColor(tier.percent) }"></div>
+            <div class="tier-shine"></div>
+          </div>
         </div>
-        <div v-if="tier.resetAt" class="tier-reset">
-          <el-icon :size="12"><Clock /></el-icon>
-          <span>重置: {{ formatResetTime(tier.resetAt) }}</span>
-        </div>
+        <!-- 百分比（进度条右侧） -->
+        <span class="tier-percent" :style="{ color: getColor(tier.percent) }">
+          {{ tier.percent.toFixed(1) }}%
+        </span>
       </div>
     </div>
   </div>
@@ -63,30 +60,32 @@ function getColor(percent: number): string {
   return 'var(--neon-green)'
 }
 
-function formatValue(value?: number): string {
-  if (value === undefined || value === null) return '-'
-  if (value >= 1e9) return (value / 1e9).toFixed(2) + 'B'
-  if (value >= 1e6) return (value / 1e6).toFixed(2) + 'M'
-  if (value >= 1e3) return (value / 1e3).toFixed(2) + 'K'
-  return value.toLocaleString('zh-CN')
-}
-
 function formatResetTime(timeStr: string): string {
   try {
     const date = new Date(timeStr)
     const now = new Date()
     const diff = date.getTime() - now.getTime()
-    
+
     if (diff <= 0) return '即将重置'
-    
-    const hours = Math.floor(diff / (1000 * 60 * 60))
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
-    
-    if (hours > 24) {
-      const days = Math.floor(hours / 24)
-      return `${days}天${hours % 24}时后`
+
+    const totalMinutes = Math.floor(diff / (1000 * 60))
+    const hours = Math.floor(totalMinutes / 60)
+    const minutes = totalMinutes % 60
+    const days = Math.floor(hours / 24)
+    const remainHours = hours % 24
+
+    if (days > 0) {
+      if (remainHours > 0) {
+        return `${days}天${remainHours}时后`
+      }
+      return `${days}天后`
     }
-    if (hours > 0) return `${hours}时${minutes}分后`
+    if (hours > 0) {
+      if (minutes > 0) {
+        return `${hours}时${minutes}分后`
+      }
+      return `${hours}时后`
+    }
     return `${minutes}分后`
   } catch {
     return timeStr
@@ -134,13 +133,21 @@ function formatResetTime(timeStr: string): string {
 }
 
 .tier-percent {
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  min-width: 50px;
+  text-align: right;
+}
+
+.tier-track-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .tier-track {
-  width: 100%;
+  flex: 1;
   height: 10px;
   border-radius: 5px;
   background: var(--border-light);
@@ -174,28 +181,10 @@ function formatResetTime(timeStr: string): string {
   animation: shine 2s ease-in-out infinite;
 }
 
-.tier-detail {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.tier-stats {
-  display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.tier-remaining {
-  color: var(--success);
-  font-weight: 600;
-}
-
 .tier-reset {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   font-size: 11px;
   color: var(--text-placeholder);
 }

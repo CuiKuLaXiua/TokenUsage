@@ -11,6 +11,7 @@ interface ModelConfig {
   baseUrl: string
   cookies: string
   refreshInterval?: number
+  refreshUnit?: 'second' | 'minute' | 'hour'
   enabled: boolean
 }
 
@@ -42,6 +43,7 @@ interface ModelUsageStatus {
 const MIMO_DEFAULT_BASE_URL = 'https://platform.xiaomimimo.com/api/v1/tokenPlan/usage'
 const KIMI_DEFAULT_BASE_URL = 'https://api.kimi.com/coding/v1/usages'
 const DEEPSEEK_DEFAULT_BASE_URL = 'https://api.deepseek.com/user/balance'
+const OPENCODE_DEFAULT_BASE_URL = 'https://opencode.ai/_server'
 
 // ── 解析逻辑（从 src/services/api.ts 复制） ──
 
@@ -183,6 +185,131 @@ function parseDeepSeekResponse(response: any): ModelUsageStatus | null {
   }
 }
 
+function parseOpenCodeResponse(response: any): ModelUsageStatus | null {
+  // Open Code 返回的是 JavaScript 代码，需要从字符串中提取数据
+  if (typeof response === 'string') {
+    try {
+      // 提取 monthlyUsage 的 usagePercent
+      const monthlyMatch = response.match(/monthlyUsage:\s*\$R\[\d+\]\s*=\s*\{[^}]*usagePercent:\s*(\d+)[^}]*\}/)
+      const weeklyMatch = response.match(/weeklyUsage:\s*\$R\[\d+\]\s*=\s*\{[^}]*usagePercent:\s*(\d+)[^}]*\}/)
+      const rollingMatch = response.match(/rollingUsage:\s*\$R\[\d+\]\s*=\s*\{[^}]*usagePercent:\s*(\d+)[^}]*\}/)
+
+      // 提取 resetInSec
+      const monthlyResetMatch = response.match(/monthlyUsage:\s*\$R\[\d+\]\s*=\s*\{[^}]*resetInSec:\s*(\d+)[^}]*\}/)
+      const weeklyResetMatch = response.match(/weeklyUsage:\s*\$R\[\d+\]\s*=\s*\{[^}]*resetInSec:\s*(\d+)[^}]*\}/)
+      const rollingResetMatch = response.match(/rollingUsage:\s*\$R\[\d+\]\s*=\s*\{[^}]*resetInSec:\s*(\d+)[^}]*\}/)
+
+      // 提取 status
+      const monthlyStatusMatch = response.match(/monthlyUsage:\s*\$R\[\d+\]\s*=\s*\{[^}]*status:\s*"(\w+)"[^}]*\}/)
+
+      const tiers: UsageTier[] = []
+
+      if (rollingMatch) {
+        const percent = parseInt(rollingMatch[1])
+        const resetSec = rollingResetMatch ? parseInt(rollingResetMatch[1]) : undefined
+        // 将秒数转换为 ISO 日期格式（当前时间 + resetInSec）
+        const resetAt = resetSec ? new Date(Date.now() + resetSec * 1000).toISOString() : undefined
+        tiers.push({
+          name: 'five_hour',
+          label: '5H',
+          percent,
+          resetAt
+        })
+      }
+
+      if (weeklyMatch) {
+        const percent = parseInt(weeklyMatch[1])
+        const resetSec = weeklyResetMatch ? parseInt(weeklyResetMatch[1]) : undefined
+        const resetAt = resetSec ? new Date(Date.now() + resetSec * 1000).toISOString() : undefined
+        tiers.push({
+          name: 'weekly',
+          label: '7D',
+          percent,
+          resetAt
+        })
+      }
+
+      if (monthlyMatch) {
+        const percent = parseInt(monthlyMatch[1])
+        const resetSec = monthlyResetMatch ? parseInt(monthlyResetMatch[1]) : undefined
+        const resetAt = resetSec ? new Date(Date.now() + resetSec * 1000).toISOString() : undefined
+        tiers.push({
+          name: 'monthly',
+          label: '月',
+          percent,
+          resetAt
+        })
+      }
+
+      if (tiers.length > 0) {
+        return {
+          usageType: 'percent',
+          planName: 'Open Code',
+          lastUpdated: Date.now(),
+          tiers
+        }
+      }
+
+      return null
+    } catch (e) {
+      console.error('[OpenCode] 解析 JavaScript 响应失败:', e)
+      return null
+    }
+  }
+
+  // 如果是对象，尝试之前的格式
+  if (response && typeof response === 'object') {
+    // 格式 1: { usage: { used, total, remaining }, planName }
+    if (response.usage && typeof response.usage === 'object') {
+      const { used, total, remaining } = response.usage
+      if (typeof total === 'number' && total > 0) {
+        return {
+          usageType: 'token',
+          planName: response.planName || 'Open Code',
+          used: Number(used) || 0,
+          total: Number(total) || 0,
+          remaining: Number(remaining) || Math.max(0, total - (used || 0)),
+          percent: total > 0 ? Math.round(((used || 0) / total) * 10000) / 100 : 0,
+          lastUpdated: Date.now()
+        }
+      }
+    }
+
+    // 格式 2: { balance: number, currency: string }
+    if (typeof response.balance === 'number') {
+      return {
+        usageType: 'balance',
+        planName: response.planName || 'Open Code',
+        balance: response.balance,
+        currency: response.currency || 'USD',
+        lastUpdated: Date.now()
+      }
+    }
+
+    // 格式 3: { total, used, remaining } 直接在顶层
+    if (typeof response.total === 'number' && response.total > 0) {
+      return {
+        usageType: 'token',
+        planName: response.planName || 'Open Code',
+        used: Number(response.used) || 0,
+        total: Number(response.total) || 0,
+        remaining: Number(response.remaining) || Math.max(0, response.total - (response.used || 0)),
+        percent: response.total > 0 ? Math.round(((response.used || 0) / response.total) * 10000) / 100 : 0,
+        lastUpdated: Date.now()
+      }
+    }
+
+    // 格式 4: 尝试 Kimi 风格的 limits/usage
+    const kimiStyleResult = parseKimiResponse(response)
+    if (kimiStyleResult) {
+      kimiStyleResult.planName = 'Open Code'
+      return kimiStyleResult
+    }
+  }
+
+  return null
+}
+
 function extractUsage(response: any, provider: string): ModelUsageStatus | null {
   let result: ModelUsageStatus | null = null
 
@@ -195,6 +322,9 @@ function extractUsage(response: any, provider: string): ModelUsageStatus | null 
       break
     case 'deepseek':
       result = parseDeepSeekResponse(response)
+      break
+    case 'opencode':
+      result = parseOpenCodeResponse(response)
       break
     default:
       result = parseKimiResponse(response)
@@ -226,8 +356,13 @@ export class UsageRefresher {
 
     for (const model of this.models) {
       if (!model.enabled) continue
-      // MIMO 仅需 Cookie，其他提供商需要 apiKey
-      const hasAuth = model.provider === 'mimo' ? !!model.cookies : !!model.apiKey
+      // MIMO 和 OpenCode 仅需 Cookie，其他提供商需要 apiKey
+      let hasAuth = false
+      if (model.provider === 'mimo' || model.provider === 'opencode') {
+        hasAuth = !!model.cookies
+      } else {
+        hasAuth = !!model.apiKey
+      }
       if (!hasAuth) continue
 
       // 首次立即拉取
@@ -235,11 +370,16 @@ export class UsageRefresher {
 
       // 设置定时器
       if (model.refreshInterval && model.refreshInterval > 0) {
+        const unit = model.refreshUnit || 'minute'
+        const multiplier = unit === 'second' ? 1000 : unit === 'hour' ? 3600 * 1000 : 60 * 1000
+        const intervalMs = model.refreshInterval * multiplier
+        // 最小间隔 5 秒，防止过于频繁
+        const safeInterval = Math.max(intervalMs, 5000)
         const timer = setInterval(() => {
           if (!this.fetchInProgress.has(model.id)) {
             this.fetchModel(model).catch(() => {})
           }
-        }, model.refreshInterval * 60 * 1000)
+        }, safeInterval)
         this.timers.set(model.id, timer)
       }
     }
@@ -276,8 +416,8 @@ export class UsageRefresher {
     } catch (error) {
       console.error(`[Refresher] ${model.name} 拉取失败:`, error)
 
-      // 检测 cookie 过期（MiMo）
-      if (model.provider === 'mimo' && this.isCookieExpired(error)) {
+      // 检测 cookie 过期（MiMo 和 OpenCode）
+      if ((model.provider === 'mimo' || model.provider === 'opencode') && this.isCookieExpired(error)) {
         console.log('[Refresher] 检测到 Cookie 过期，广播 login-needed')
         this.broadcastLoginNeeded()
       }
@@ -310,7 +450,12 @@ export class UsageRefresher {
   async refreshAll(): Promise<void> {
     console.log('[Refresher] 开始刷新所有模型')
     for (const model of this.models) {
-      const hasAuth = model.provider === 'mimo' ? !!model.cookies : !!model.apiKey
+      let hasAuth = false
+      if (model.provider === 'mimo' || model.provider === 'opencode') {
+        hasAuth = !!model.cookies
+      } else {
+        hasAuth = !!model.apiKey
+      }
       if (model.enabled && hasAuth) {
         try {
           await this.fetchModel(model)
@@ -367,6 +512,21 @@ export class UsageRefresher {
         method: 'GET',
         headers: { 'Accept': 'application/json' }
       }
+    } else if (model.provider === 'opencode') {
+      // Open Code 使用 Cookie 认证
+      // 如果没有 baseUrl，使用默认值（会在登录时自动获取）
+      const url = model.baseUrl || OPENCODE_DEFAULT_BASE_URL
+
+      return {
+        url,
+        cookies: model.cookies,
+        method: 'GET',
+        headers: {
+          'Accept': '*/*',
+          'x-server-id': 'c7389bd0e731f80f49593e5ee53835475f4e28594dd6bd83eb229bab753498cd',
+          'x-server-instance': 'server-fn:1'
+        }
+      }
     } else {
       return {
         url: model.baseUrl || MIMO_DEFAULT_BASE_URL,
@@ -405,7 +565,9 @@ export class UsageRefresher {
         response.on('data', (chunk: Buffer) => { responseData += chunk.toString() })
         response.on('end', () => {
           try {
-            const data = JSON.parse(responseData)
+            // 记录原始响应（调试用）
+            console.log(`[Refresher] ${url} 响应状态: ${response.statusCode}`)
+            console.log(`[Refresher] ${url} 响应内容前 500 字符:`, responseData.substring(0, 500))
 
             // 检测 MiMo 登录重定向
             if (url.includes('platform.xiaomimimo.com')) {
@@ -413,7 +575,30 @@ export class UsageRefresher {
                 const error = new Error('Cookie expired or unauthorized')
                 ;(error as any).code = 'COOKIE_EXPIRED'
                 reject(error)
-                return              }
+                return
+              }
+            }
+
+            // 检测 Kimi/DeepSeek/OpenCode 等 API key 失效（401/403 状态码）
+            if (response.statusCode === 401 || response.statusCode === 403) {
+              const error = new Error(`API request failed with status ${response.statusCode}: unauthorized`)
+              reject(error)
+              return
+            }
+
+            // 检查 Content-Type，如果是 text/javascript 则直接返回字符串
+            const contentType = response.headers['content-type'] || ''
+            if (contentType.includes('text/javascript') || contentType.includes('application/javascript')) {
+              // 对于 Open Code 等返回 JavaScript 的 API，直接返回响应字符串
+              resolve(responseData)
+              return
+            }
+
+            // 尝试解析为 JSON
+            const data = JSON.parse(responseData)
+
+            // 检测 MiMo 登录重定向（JSON 响应）
+            if (url.includes('platform.xiaomimimo.com')) {
               if (data.loginUrl) {
                 const error = new Error('Cookie expired or unauthorized')
                 ;(error as any).code = 'COOKIE_EXPIRED'
@@ -422,18 +607,10 @@ export class UsageRefresher {
               }
             }
 
-            // 检测 Kimi/DeepSeek 等 API key 失效（401/403 状态码）
-            if (!url.includes('platform.xiaomimimo.com')) {
-              if (response.statusCode === 401 || response.statusCode === 403) {
-                const error = new Error(`API request failed with status ${response.statusCode}: unauthorized`)
-                reject(error)
-                return
-              }
-            }
-
             resolve(data)
-          } catch {
-            reject(new Error('JSON解析失败'))
+          } catch (parseError) {
+            console.error(`[Refresher] JSON 解析失败，原始响应:`, responseData)
+            reject(new Error(`JSON解析失败，响应内容: ${responseData.substring(0, 200)}`))
           }
         })
       })
@@ -482,7 +659,8 @@ export class UsageRefresher {
 
   private isApiKeyInvalid(error: any, provider: string): boolean {
     // 检测 API key 相关的错误（用于 Kimi、DeepSeek 等使用 API key 的提供商）
-    if (provider === 'mimo') return false // MiMo 使用 cookie，不检测 API key
+    // MIMO 和 OpenCode 使用 cookie，不检测 API key
+    if (provider === 'mimo' || provider === 'opencode') return false
 
     if (error instanceof Error) {
       const message = error.message.toLowerCase()

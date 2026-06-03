@@ -13,7 +13,8 @@ export interface ModelConfig {
   loginUrl?: string
   inputPrice?: number
   outputPrice?: number
-  refreshInterval?: number  // 自动刷新间隔（分钟），0 或 undefined 表示关闭
+  refreshInterval?: number  // 自动刷新间隔数值，0 或 undefined 表示关闭
+  refreshUnit?: 'second' | 'minute' | 'hour'  // 刷新间隔单位，默认 minute
   enabled: boolean
 }
 
@@ -187,6 +188,16 @@ export const useAppStore = defineStore('app', () => {
     await saveConfig()
   }
 
+  async function reorderModels(fromIndex: number, toIndex: number, persist = true) {
+    const arr = [...models.value]
+    const [moved] = arr.splice(fromIndex, 1)
+    arr.splice(toIndex, 0, moved)
+    models.value = arr
+    if (persist) {
+      await saveConfig()
+    }
+  }
+
   function addUsageRecord(record: UsageRecord) {
     usageRecords.value.push(record)
     saveUsage()
@@ -291,6 +302,54 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  /**
+   * 开始 Open Code 登录流程
+   */
+  async function startOpenCodeLogin(): Promise<void> {
+    if (loginState.value === 'logging-in') {
+      console.log('[OpenCodeLogin] 已经在登录中，跳过')
+      return
+    }
+
+    console.log('[OpenCodeLogin] 开始登录流程，准备调用 openOpencodeLogin()')
+    loginState.value = 'logging-in'
+    loginError.value = null
+
+    try {
+      console.log('[OpenCodeLogin] 调用 window.electronAPI.openOpencodeLogin()')
+      const result = await window.electronAPI.openOpencodeLogin()
+      console.log('[OpenCodeLogin] openOpencodeLogin 返回:', result.cookies ? 'cookies 已获取' : 'cookies 为空')
+
+      if (result.cookies) {
+        // 更新所有 Open Code 模型的 cookies 和 baseUrl
+        for (const model of models.value) {
+          if (model.provider === 'opencode') {
+            model.cookies = result.cookies
+            if (result.baseUrl) {
+              model.baseUrl = result.baseUrl
+            }
+          }
+        }
+        await saveConfig()
+        loginState.value = 'complete'
+        console.log('[OpenCodeLogin] 登录完成，cookies 和 baseUrl 已保存')
+
+        // 2 秒后恢复 idle
+        setTimeout(() => {
+          if (loginState.value === 'complete') {
+            loginState.value = 'idle'
+          }
+        }, 2000)
+      } else {
+        loginState.value = 'failed'
+        loginError.value = '登录超时或已取消'
+      }
+    } catch (error) {
+      loginState.value = 'failed'
+      loginError.value = error instanceof Error ? error.message : '登录失败'
+    }
+  }
+
   function resetLoginState(): void {
     loginState.value = 'idle'
     loginError.value = null
@@ -313,11 +372,13 @@ export const useAppStore = defineStore('app', () => {
     addModel,
     updateModel,
     removeModel,
+    reorderModels,
     addUsageRecord,
     updateModelUsage,
     requestRefresh,
     requestRefreshAll,
     startMimoLogin,
+    startOpenCodeLogin,
     resetLoginState,
     setMimoCookies,
     stopSubscription

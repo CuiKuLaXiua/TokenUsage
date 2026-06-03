@@ -10,8 +10,24 @@
     @mousedown="onWindowDragStart"
     @dblclick="onDoubleClick"
   >
-    <!-- Empty -->
-    <div v-if="store.models.length === 0" class="float-empty">
+    <!-- 贴边迷你视图：20 层堆叠矩形，底部绿→顶红渐变 -->
+    <div
+      v-if="isDocked && !isDragging"
+      class="docked-strip"
+      :class="`edge-${dockEdge}`"
+    >
+      <div
+        v-for="(seg, i) in dockSegments"
+        :key="i"
+        class="dsg"
+        :style="seg.filled ? { background: seg.color } : {}"
+      />
+    </div>
+
+    <!-- 正常内容（贴边时隐藏，拖拽时显示） -->
+    <template v-if="!isDocked || isDragging">
+      <!-- Empty -->
+    <div v-if="enabledModels.length === 0" class="float-empty">
       <div class="empty-icon-wrap">
         <el-icon :size="20" class="empty-float"><DataAnalysis /></el-icon>
       </div>
@@ -23,31 +39,61 @@
       <div class="compact-wrap">
         <div class="compact-card" :data-model-id="'__overview__'">
           <div class="ov-row">
-            <div class="ov-ring" :style="ringCSS(agg.mainRing.value.percent, 40)">
+            <div
+              class="ov-ring"
+              :style="ringCSS(agg.mainRing.value.percent, 40)"
+            >
               <div class="ov-ring-inner">
-                <span class="ov-pct">{{ agg.mainRing.value.source !== 'none' ? agg.mainRing.value.percent.toFixed(0) : '—' }}</span>
-                <span class="ov-pct-u">{{ agg.mainRing.value.source !== 'none' ? '%' : '' }}</span>
+                <span class="ov-pct">{{
+                  agg.mainRing.value.source !== "none"
+                    ? agg.mainRing.value.percent.toFixed(0)
+                    : "—"
+                }}</span>
+                <span class="ov-pct-u">{{
+                  agg.mainRing.value.source !== "none" ? "%" : ""
+                }}</span>
               </div>
             </div>
             <div class="ov-nums">
               <div class="ov-n" v-if="agg.tokenAgg.value">
-                <span class="ov-nv">{{ fmtLg(agg.tokenAgg.value.used) }}/{{ fmtLg(agg.tokenAgg.value.total) }}</span>
-                <span class="ov-nl">Token {{ agg.tokenAgg.value.percent.toFixed(0) }}%</span>
+                <span class="ov-nv"
+                  >{{ fmtLg(agg.tokenAgg.value.used) }}/{{
+                    fmtLg(agg.tokenAgg.value.total)
+                  }}</span
+                >
+                <span class="ov-nl"
+                  >Token {{ agg.tokenAgg.value.percent.toFixed(0) }}%</span
+                >
               </div>
               <div class="ov-n" v-if="agg.percentAgg.value">
-                <span class="ov-nv warn">{{ agg.percentAgg.value.worstLabel }} {{ agg.percentAgg.value.worstPercent.toFixed(0) }}%</span>
+                <span class="ov-nv warn"
+                  >{{ agg.percentAgg.value.worstLabel }}
+                  {{ agg.percentAgg.value.worstPercent.toFixed(0) }}%</span
+                >
                 <span class="ov-nl">时间窗口</span>
               </div>
               <div class="ov-n" v-if="agg.balanceAgg.value">
-                <span class="ov-nv ok">{{ agg.balanceAgg.value.currency === 'CNY' ? '¥' : agg.balanceAgg.value.currency }}{{ agg.balanceAgg.value.totalBalance.toFixed(0) }}</span>
+                <span class="ov-nv ok"
+                  >{{
+                    agg.balanceAgg.value.currency === "CNY"
+                      ? "¥"
+                      : agg.balanceAgg.value.currency
+                  }}{{ agg.balanceAgg.value.totalBalance.toFixed(0) }}</span
+                >
                 <span class="ov-nl">余额</span>
               </div>
             </div>
           </div>
           <div class="ov-types" v-if="agg.hasAnyData.value">
-            <span class="ov-type-tag t">T:{{ agg.typeCounts.value.token }}</span>
-            <span class="ov-type-tag p">P:{{ agg.typeCounts.value.percent }}</span>
-            <span class="ov-type-tag b">B:{{ agg.typeCounts.value.balance }}</span>
+            <span class="ov-type-tag t"
+              >T:{{ agg.typeCounts.value.token }}</span
+            >
+            <span class="ov-type-tag p"
+              >P:{{ agg.typeCounts.value.percent }}</span
+            >
+            <span class="ov-type-tag b"
+              >B:{{ agg.typeCounts.value.balance }}</span
+            >
           </div>
         </div>
       </div>
@@ -68,40 +114,67 @@
           <!-- Overview slide -->
           <div class="cslide" :data-model-id="'__overview__'">
             <div class="cslide-body ov-slide">
-              <div class="ov-ring-lg" :style="ringCSS(agg.mainRing.value.percent, 58)">
+              <div
+                class="ov-ring-lg"
+                :style="ringCSS(agg.mainRing.value.percent, 58)"
+              >
                 <div class="ov-ring-lg-in">
-                  <span class="ov-pct-lg">{{ agg.mainRing.value.source !== 'none' ? agg.mainRing.value.percent.toFixed(1) : '—' }}</span>
-                  <span class="ov-pct-u-lg">{{ agg.mainRing.value.source !== 'none' ? '%' : '' }}</span>
+                  <span class="ov-pct-lg">{{
+                    agg.mainRing.value.source !== "none"
+                      ? agg.mainRing.value.percent.toFixed(1)
+                      : "—"
+                  }}</span>
+                  <span class="ov-pct-u-lg">{{
+                    agg.mainRing.value.source !== "none" ? "%" : ""
+                  }}</span>
                 </div>
               </div>
               <div class="ov-stats">
                 <div class="ov-st" v-if="agg.tokenAgg.value">
-                  <span class="ov-stv">{{ fmtLg(agg.tokenAgg.value.used) }}/{{ fmtLg(agg.tokenAgg.value.total) }}</span
-                  ><span class="ov-stl">Token {{ agg.tokenAgg.value.percent.toFixed(0) }}%</span>
+                  <span class="ov-stv"
+                    >{{ fmtLg(agg.tokenAgg.value.used) }}/{{
+                      fmtLg(agg.tokenAgg.value.total)
+                    }}</span
+                  ><span class="ov-stl"
+                    >Token {{ agg.tokenAgg.value.percent.toFixed(0) }}%</span
+                  >
                 </div>
                 <div class="ov-st" v-if="agg.percentAgg.value">
-                  <span class="ov-stv warn">{{ agg.percentAgg.value.worstLabel }} {{ agg.percentAgg.value.worstPercent.toFixed(0) }}%</span
+                  <span class="ov-stv warn"
+                    >{{ agg.percentAgg.value.worstLabel }}
+                    {{ agg.percentAgg.value.worstPercent.toFixed(0) }}%</span
                   ><span class="ov-stl">最紧张窗口</span>
                 </div>
                 <div class="ov-st" v-if="agg.balanceAgg.value">
-                  <span class="ov-stv ok">{{ agg.balanceAgg.value.currency === 'CNY' ? '¥' : agg.balanceAgg.value.currency }}{{ agg.balanceAgg.value.totalBalance.toFixed(2) }}</span
+                  <span class="ov-stv ok"
+                    >{{
+                      agg.balanceAgg.value.currency === "CNY"
+                        ? "¥"
+                        : agg.balanceAgg.value.currency
+                    }}{{ agg.balanceAgg.value.totalBalance.toFixed(2) }}</span
                   ><span class="ov-stl">余额</span>
                 </div>
               </div>
               <div class="ov-foot">
-                <span class="ov-cnt">{{ store.models.length }}</span
+                <span class="ov-cnt">{{ enabledModels.length }}</span
                 ><span class="ov-cntl">个模型</span>
                 <span class="ov-type-sep"></span>
-                <span class="ov-type-tag t">T{{ agg.typeCounts.value.token }}</span>
-                <span class="ov-type-tag p">P{{ agg.typeCounts.value.percent }}</span>
-                <span class="ov-type-tag b">B{{ agg.typeCounts.value.balance }}</span>
+                <span class="ov-type-tag t"
+                  >T{{ agg.typeCounts.value.token }}</span
+                >
+                <span class="ov-type-tag p"
+                  >P{{ agg.typeCounts.value.percent }}</span
+                >
+                <span class="ov-type-tag b"
+                  >B{{ agg.typeCounts.value.balance }}</span
+                >
               </div>
             </div>
           </div>
 
           <!-- Model slides -->
           <div
-            v-for="model in store.models"
+            v-for="model in enabledModels"
             :key="model.id"
             class="cslide"
             :data-model-id="model.id"
@@ -159,29 +232,27 @@
                       class="ms-tier"
                     >
                       <div class="ms-tier-hd">
-                        <span class="ms-tier-lb">{{ tier.label }}</span
-                        ><span class="ms-tier-pc"
+                        <span class="ms-tier-lb">{{ tier.label }}</span>
+                        <!-- 重置时间（右上角） -->
+                        <span v-if="tier.resetAt" class="ms-tier-reset-inline">
+                          <el-icon :size="10"><Clock /></el-icon>
+                          {{ fmtReset(tier.resetAt) }}
+                        </span>
+                      </div>
+                      <div class="ms-tier-track-row">
+                        <div class="ms-bar">
+                          <div
+                            class="ms-bar-f"
+                            :style="{
+                              width: tier.percent + '%',
+                              background: getColor(tier.percent),
+                            }"
+                          ></div>
+                        </div>
+                        <!-- 百分比（进度条右侧） -->
+                        <span class="ms-tier-pc"
                           >{{ fmtPct(tier.percent) }}%</span
                         >
-                      </div>
-                      <div class="ms-bar">
-                        <div
-                          class="ms-bar-f"
-                          :style="{
-                            width: tier.percent + '%',
-                            background: getColor(tier.percent),
-                          }"
-                        ></div>
-                      </div>
-                      <div class="ms-tier-ft">
-                        <span
-                          >{{ fmtTk(tier.used) }} /
-                          {{ fmtTk(tier.total) }}</span
-                        ><span class="hl">余 {{ fmtTk(tier.remaining) }}</span>
-                      </div>
-                      <div v-if="tier.resetAt" class="ms-tier-reset">
-                        <el-icon :size="10"><Clock /></el-icon>
-                        <span>{{ fmtReset(tier.resetAt) }}</span>
                       </div>
                     </div>
                   </template>
@@ -221,15 +292,17 @@
         </div>
       </div>
     </template>
+
+    </template>
+
+    <!-- 全屏遮罩：拖拽时防止事件截断 -->
+    <div ref="dragOverlayRef" class="drag-overlay"></div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, nextTick, watch } from "vue";
-import {
-  Clock,
-  DataAnalysis,
-} from "@element-plus/icons-vue";
+import { Clock, DataAnalysis } from "@element-plus/icons-vue";
 import { useAppStore } from "@/stores/app";
 import type { ModelConfig } from "@/stores/app";
 import {
@@ -258,72 +331,106 @@ let unsubDetailHover: (() => void) | null = null;
 let unsubCtxAction: (() => void) | null = null;
 let unsubNativeCtx: (() => void) | null = null;
 let unsubCtxClosed: (() => void) | null = null;
+let unsubEdgeDock: (() => void) | null = null;
+
+// ── 贴边状态 ──
+const isDocked = ref(false);
+const dockEdge = ref<"left" | "right" | "top" | null>(null);
+
+// 贴边条带：20 层堆叠矩形，绿色→红色渐变色
+const DOCK_SEGMENTS = 20;
+const dockPct = computed(() => agg.mainRing.value.percent);
+
+const dockSegments = computed(() => {
+  const pct = Math.min(100, Math.max(0, dockPct.value));
+  const filled = Math.round((pct / 100) * DOCK_SEGMENTS);
+  const segs: { color: string; filled: boolean }[] = [];
+  for (let i = 0; i < DOCK_SEGMENTS; i++) {
+    const t = i / (DOCK_SEGMENTS - 1);
+    const h = 120 - t * 115; // 120° 绿 → 5° 红
+    const s = 65 + t * 18; // 饱和度缓慢上升
+    const l = 48 - t * 12; // 明度缓慢下降
+    segs.push({ color: `hsl(${h}, ${s}%, ${l}%)`, filled: i < filled });
+  }
+  return segs;
+});
 
 // ── 详情窗口 hover 控制 ──
-let showDetailTimer: ReturnType<typeof setTimeout> | null = null
-let hideDetailTimer: ReturnType<typeof setTimeout> | null = null
-const isDetailHovered = ref(false)
-const SHOW_DELAY = 350   // 悬停 350ms 后弹出详情
-const HIDE_DELAY = 300   // 离开 300ms 后关闭详情
+let showDetailTimer: ReturnType<typeof setTimeout> | null = null;
+let hideDetailTimer: ReturnType<typeof setTimeout> | null = null;
+const isDetailHovered = ref(false);
+const SHOW_DELAY = 350; // 悬停 350ms 后弹出详情
+const HIDE_DELAY = 300; // 离开 300ms 后关闭详情
 
 async function showDetailWindow() {
-  if (layoutMode.value !== 'list') return
+  if (layoutMode.value !== "list") return;
   // 获取当前窗口 bounds，传给主进程计算详情窗口位置
-  const bounds = await window.electronAPI.getFloatWindowBounds()
-  if (!bounds) return
+  const bounds = await window.electronAPI.getFloatWindowBounds();
+  if (!bounds) return;
   window.electronAPI.showFloatDetail({
     anchorX: bounds.x,
     anchorY: bounds.y,
     anchorW: bounds.width,
-    anchorH: bounds.height
-  })
+    anchorH: bounds.height,
+  });
 }
 
 async function hideDetailWindow() {
-  window.electronAPI.hideFloatDetail()
+  window.electronAPI.hideFloatDetail();
 }
 
 function onFloatEnter() {
+  // 贴边状态：hover 弹出时立即取消贴边条显示
+  if (isDocked.value) {
+    isDocked.value = false;
+  }
   // 重置拖拽状态，避免残留状态影响右键菜单
   if (isDragging.value) {
-    isDragging.value = false
-    cleanupDragListeners()
+    isDragging.value = false;
+    cleanupDragListeners();
   }
-  hasMoved.value = false
+  hasMoved.value = false;
   // 关闭可能打开的右键菜单（详情窗口与右键菜单互斥）
   if (ctxMenuOpen.value) {
-    ctxMenuOpen.value = false
-    window.electronAPI.hideCtxMenu()
+    ctxMenuOpen.value = false;
+    window.electronAPI.hideCtxMenu();
   }
-  if (layoutMode.value !== 'list') return
-  if (hideDetailTimer) { clearTimeout(hideDetailTimer); hideDetailTimer = null }
-  if (showDetailTimer) return
+  if (layoutMode.value !== "list") return;
+  if (hideDetailTimer) {
+    clearTimeout(hideDetailTimer);
+    hideDetailTimer = null;
+  }
+  if (showDetailTimer) return;
   showDetailTimer = setTimeout(() => {
-    showDetailTimer = null
-    if (isDragging.value) return
-    showDetailWindow()
-  }, SHOW_DELAY)
+    showDetailTimer = null;
+    if (isDragging.value) return;
+    showDetailWindow();
+  }, SHOW_DELAY);
 }
 
 function onFloatLeave() {
-  if (layoutMode.value !== 'list' || isDragging.value) return
-  if (showDetailTimer) { clearTimeout(showDetailTimer); showDetailTimer = null }
-  if (hideDetailTimer) return
+  if (layoutMode.value !== "list" || isDragging.value) return;
+  if (showDetailTimer) {
+    clearTimeout(showDetailTimer);
+    showDetailTimer = null;
+  }
+  if (hideDetailTimer) return;
   hideDetailTimer = setTimeout(() => {
-    hideDetailTimer = null
+    hideDetailTimer = null;
     // 如果详情窗口正在被 hover，不关闭
     if (!isDetailHovered.value) {
-      hideDetailWindow()
+      hideDetailWindow();
     }
-  }, HIDE_DELAY)
+  }, HIDE_DELAY);
 }
 
 // Context menu state
-const ctxMenuOpen = ref(false)
+const ctxMenuOpen = ref(false);
 const ctxModel = ref<ModelConfig | null>(null);
 
 // Computed
-const slideCount = computed(() => 1 + store.models.length);
+const enabledModels = computed(() => store.models.filter(m => m.enabled));
+const slideCount = computed(() => 1 + enabledModels.value.length);
 
 // Helpers
 function u(id: string) {
@@ -361,52 +468,66 @@ const FLOAT_WIDTH = 240;
 const FLOAT_LIST_HEIGHT = 88;
 const FLOAT_CAROUSEL_HEIGHT = 220;
 
-let resizeTimer: ReturnType<typeof setTimeout> | null = null
+let resizeTimer: ReturnType<typeof setTimeout> | null = null;
 
 function resizeToFit() {
   // 取消上一次尚未执行的 resize，避免竞态
-  if (resizeTimer) { clearTimeout(resizeTimer); resizeTimer = null }
+  if (resizeTimer) {
+    clearTimeout(resizeTimer);
+    resizeTimer = null;
+  }
   // 使用 setTimeout 而非 nextTick，等待浏览器完成布局绘制后再 resize
   // nextTick 可能在 v-if 分支切换的 DOM 更新完成前触发
-  const mode = layoutMode.value
-  const targetH = mode === 'carousel' ? FLOAT_CAROUSEL_HEIGHT : FLOAT_LIST_HEIGHT
-  window.electronAPI.debugLog(`resizeToFit: mode=${mode}, target=${FLOAT_WIDTH}x${targetH}`)
+  const mode = layoutMode.value;
+  const targetH =
+    mode === "carousel" ? FLOAT_CAROUSEL_HEIGHT : FLOAT_LIST_HEIGHT;
+  window.electronAPI.debugLog(
+    `resizeToFit: mode=${mode}, target=${FLOAT_WIDTH}x${targetH}`,
+  );
   resizeTimer = setTimeout(() => {
-    resizeTimer = null
-    window.electronAPI.debugLog(`resizeToFit: executing ${FLOAT_WIDTH}x${targetH}`)
-    window.electronAPI.resizeFloatWindow(FLOAT_WIDTH, targetH)
-  }, 50)
+    resizeTimer = null;
+    window.electronAPI.debugLog(
+      `resizeToFit: executing ${FLOAT_WIDTH}x${targetH}`,
+    );
+    window.electronAPI.resizeFloatWindow(FLOAT_WIDTH, targetH);
+  }, 50);
 }
 
 // Menu
 async function showMenu(e: MouseEvent) {
   // 拖拽后不弹菜单，或拖拽状态残留时清理
   if (isDragging.value) {
-    isDragging.value = false
-    hasMoved.value = false
-    cleanupDragListeners()
+    isDragging.value = false;
+    hasMoved.value = false;
+    cleanupDragListeners();
   }
   if (hasMoved.value) return;
 
   // 详情窗口与右键菜单互斥：打开菜单时先关闭详情窗口
-  if (showDetailTimer) { clearTimeout(showDetailTimer); showDetailTimer = null }
-  if (hideDetailTimer) { clearTimeout(hideDetailTimer); hideDetailTimer = null }
-  hideDetailWindow()
+  if (showDetailTimer) {
+    clearTimeout(showDetailTimer);
+    showDetailTimer = null;
+  }
+  if (hideDetailTimer) {
+    clearTimeout(hideDetailTimer);
+    hideDetailTimer = null;
+  }
+  hideDetailWindow();
 
   // Walk up from target to find a model card
-  let el = e.target as HTMLElement | null
-  ctxModel.value = null
+  let el = e.target as HTMLElement | null;
+  ctxModel.value = null;
   while (el && el !== e.currentTarget) {
-    const mid = el.dataset?.modelId
-    if (mid && mid !== '__overview__') {
-      ctxModel.value = store.models.find(m => m.id === mid) || null
-      break
+    const mid = el.dataset?.modelId;
+    if (mid && mid !== "__overview__") {
+      ctxModel.value = store.models.find((m) => m.id === mid) || null;
+      break;
     }
-    el = el.parentElement
+    el = el.parentElement;
   }
 
   // 标记菜单已打开（由 ctx-menu-closed 事件重置）
-  ctxMenuOpen.value = true
+  ctxMenuOpen.value = true;
 
   // 主进程统一管理菜单生命周期（复用窗口，show/hide）
   window.electronAPI.showCtxMenu({
@@ -416,41 +537,46 @@ async function showMenu(e: MouseEvent) {
     modelName: ctxModel.value?.name ?? null,
     theme: theme.value,
     layoutMode: layoutMode.value,
-    alwaysOnTop: alwaysOnTop.value
-  })
+    alwaysOnTop: alwaysOnTop.value,
+  });
 }
 
 function handleCtxMenuAction(action: string) {
   // 重置菜单状态，确保下次右键能正常弹出
-  ctxMenuOpen.value = false
+  ctxMenuOpen.value = false;
 
   switch (action) {
-    case 'fetch-model':
-      if (ctxModel.value) fetchModel(ctxModel.value)
-      break
-    case 'refresh-all':
-      store.requestRefreshAll()
-      break
-    case 'set-layout:list':
-      layoutMode.value = 'list'
-      localStorage.setItem('floatLayout', 'list')
-      hideDetailWindow()
-      nextTick(() => resizeToFit())
-      break
-    case 'set-layout:carousel':
-      layoutMode.value = 'carousel'
-      localStorage.setItem('floatLayout', 'carousel')
-      hideDetailWindow()
-      nextTick(() => { idx.value = 0; go(0); updateActiveSlide(); resizeToFit() })
-      break
-    case 'toggle-top':
-      alwaysOnTop.value = !alwaysOnTop.value
-      localStorage.setItem('floatAlwaysOnTop', String(alwaysOnTop.value))
-      window.electronAPI.setFloatAlwaysOnTop(alwaysOnTop.value)
-      break
-    case 'close-float':
-      window.electronAPI.closeFloatWindow()
-      break
+    case "fetch-model":
+      if (ctxModel.value) fetchModel(ctxModel.value);
+      break;
+    case "refresh-all":
+      store.requestRefreshAll();
+      break;
+    case "set-layout:list":
+      layoutMode.value = "list";
+      localStorage.setItem("floatLayout", "list");
+      hideDetailWindow();
+      nextTick(() => resizeToFit());
+      break;
+    case "set-layout:carousel":
+      layoutMode.value = "carousel";
+      localStorage.setItem("floatLayout", "carousel");
+      hideDetailWindow();
+      nextTick(() => {
+        idx.value = 0;
+        go(0);
+        updateActiveSlide();
+        resizeToFit();
+      });
+      break;
+    case "toggle-top":
+      alwaysOnTop.value = !alwaysOnTop.value;
+      localStorage.setItem("floatAlwaysOnTop", String(alwaysOnTop.value));
+      window.electronAPI.setFloatAlwaysOnTop(alwaysOnTop.value);
+      break;
+    case "close-float":
+      window.electronAPI.closeFloatWindow();
+      break;
   }
 }
 
@@ -528,35 +654,69 @@ const isDragging = ref(false);
 const hasMoved = ref(false);
 let windowDragStartX = 0;
 let windowDragStartY = 0;
-const DRAG_THRESHOLD = 5;
-// 轮播模式下的拖拽方向判断
-let dragDirection: 'unknown' | 'horizontal' | 'vertical' = 'unknown';
-const DIRECTION_THRESHOLD = 10; // 判断方向的最小移动距离
-// 拖拽节流
-let dragRAF: number | null = null;
-let lastDragX = 0;
-let lastDragY = 0;
+const DRAG_THRESHOLD = 3;
+// 心跳机制：定期发送位置给主进程
+let dragHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
+const HEARTBEAT_INTERVAL = 100; // 每 100ms 发送一次心跳
 
 function onWindowDragStart(e: MouseEvent) {
+  // 贴边拖拽开始时立即取消贴边条
+  if (isDocked.value) {
+    isDocked.value = false;
+  }
   // 忽略右键（右键菜单单独处理）
   if (e.button !== 0) return;
 
   // 菜单打开时点击浮窗其他区域 → 关闭菜单
   if (ctxMenuOpen.value) {
-    ctxMenuOpen.value = false
-    window.electronAPI.hideCtxMenu()
-    return
+    ctxMenuOpen.value = false;
+    window.electronAPI.hideCtxMenu();
+    return;
   }
 
   windowDragStartX = e.screenX;
   windowDragStartY = e.screenY;
   isDragging.value = true;
   hasMoved.value = false;
-  dragDirection = 'unknown';
+
+  // 显示全屏遮罩，防止事件被其他元素截断
+  showDragOverlay();
 
   // 使用 document 级别事件，防止快速拖拽时鼠标移出窗口导致中断
-  document.addEventListener('mousemove', onDocMouseMove, true);
-  document.addEventListener('mouseup', onDocMouseUp, true);
+  document.addEventListener("mousemove", onDocMouseMove, true);
+  document.addEventListener("mouseup", onDocMouseUp, true);
+  // 额外添加 window 级别事件，作为兜底
+  window.addEventListener("mouseup", onWindowMouseUp, true);
+
+  // 启动心跳定时器
+  startDragHeartbeat();
+}
+
+function startDragHeartbeat() {
+  if (dragHeartbeatTimer) {
+    clearInterval(dragHeartbeatTimer);
+  }
+
+  dragHeartbeatTimer = setInterval(() => {
+    if (!isDragging.value || !hasMoved.value) {
+      stopDragHeartbeat();
+      return;
+    }
+
+    // 发送当前位置作为心跳
+    // 主进程会根据这个判断拖拽是否仍在进行
+    window.electronAPI.dragHeartbeat({
+      mouseX: windowDragStartX,
+      mouseY: windowDragStartY,
+    });
+  }, HEARTBEAT_INTERVAL);
+}
+
+function stopDragHeartbeat() {
+  if (dragHeartbeatTimer) {
+    clearInterval(dragHeartbeatTimer);
+    dragHeartbeatTimer = null;
+  }
 }
 
 function onDocMouseMove(e: MouseEvent) {
@@ -567,72 +727,96 @@ function onDocMouseMove(e: MouseEvent) {
   const absDx = Math.abs(dx);
   const absDy = Math.abs(dy);
 
-  // 超过方向阈值后确定拖拽方向（只判断一次）
-  if (dragDirection === 'unknown' && (absDx > DIRECTION_THRESHOLD || absDy > DIRECTION_THRESHOLD)) {
-    dragDirection = absDx > absDy ? 'horizontal' : 'vertical';
-    // 启动 IPC 拖拽
-    window.electronAPI.startWindowDrag({ mouseX: windowDragStartX, mouseY: windowDragStartY });
-  }
-
-  // 超过阈值后开始移动窗口
+  // 超过阈值后启动拖拽
   if (absDx > DRAG_THRESHOLD || absDy > DRAG_THRESHOLD) {
     if (!hasMoved.value) {
+      hasMoved.value = true;
       // 拖拽开始时关闭详情窗口
-      hideDetailWindow()
-    }
-    hasMoved.value = true;
-  }
-  if (hasMoved.value) {
-    // 使用 requestAnimationFrame 节流，避免过多 IPC 调用
-    lastDragX = e.screenX;
-    lastDragY = e.screenY;
-    if (dragRAF === null) {
-      dragRAF = requestAnimationFrame(() => {
-        dragRAF = null;
-        if (isDragging.value) {
-          window.electronAPI.windowDragMove({ mouseX: lastDragX, mouseY: lastDragY });
-        }
+      hideDetailWindow();
+      // 启动主进程拖拽（只需调用一次，主进程会持续跟踪鼠标）
+      window.electronAPI.startWindowDrag({
+        mouseX: windowDragStartX,
+        mouseY: windowDragStartY,
       });
     }
   }
 }
 
-function onDocMouseUp() {
-  cleanupDragListeners();
+function onDocMouseUp(e: MouseEvent) {
+  // 只处理左键释放
+  if (e.button !== 0) return;
+
+  console.log("[FloatWindow] mouseup detected (document), stopping drag");
+  stopDrag();
+}
+
+function onWindowMouseUp(e: MouseEvent) {
+  // 只处理左键释放（兜底）
+  if (e.button !== 0) return;
+
+  console.log("[FloatWindow] mouseup detected (window), stopping drag");
+  stopDrag();
+}
+
+function stopDrag() {
+  // 防止重复调用
   if (!isDragging.value) return;
+
+  console.log("[FloatWindow] stopDrag called");
+
+  // 立即清理所有事件监听器和定时器
+  cleanupDragListeners();
+
+  // 标记拖拽结束
   isDragging.value = false;
-  if (dragDirection !== 'unknown') {
+
+  // 总是调用 stopWindowDrag，确保主进程清理定时器
+  if (hasMoved.value) {
+    console.log("[FloatWindow] Calling stopWindowDrag");
     window.electronAPI.stopWindowDrag();
   }
-  dragDirection = 'unknown';
 }
 
 function cleanupDragListeners() {
-  document.removeEventListener('mousemove', onDocMouseMove, true);
-  document.removeEventListener('mouseup', onDocMouseUp, true);
-  // 清理 requestAnimationFrame
-  if (dragRAF !== null) {
-    cancelAnimationFrame(dragRAF);
-    dragRAF = null;
-  }
+  document.removeEventListener("mousemove", onDocMouseMove, true);
+  document.removeEventListener("mouseup", onDocMouseUp, true);
+  window.removeEventListener("mouseup", onWindowMouseUp, true);
+  // 停止心跳
+  stopDragHeartbeat();
+  // 隐藏遮罩
+  hideDragOverlay();
 }
 
 function onWindowDragEnd() {
   cleanupDragListeners();
   if (!isDragging.value) return;
   isDragging.value = false;
-  if (dragDirection !== 'unknown') {
+  if (hasMoved.value) {
     window.electronAPI.stopWindowDrag();
   }
-  dragDirection = 'unknown';
+}
+
+// 全屏遮罩，防止拖拽时事件被其他元素截断
+const dragOverlayRef = ref<HTMLElement | null>(null);
+
+function showDragOverlay() {
+  if (dragOverlayRef.value) {
+    dragOverlayRef.value.style.display = "block";
+  }
+}
+
+function hideDragOverlay() {
+  if (dragOverlayRef.value) {
+    dragOverlayRef.value.style.display = "none";
+  }
 }
 
 function onDoubleClick(e: MouseEvent) {
   // 只响应左键双击，且不是拖拽状态
-  if (e.button !== 0 || hasMoved.value) return
+  if (e.button !== 0 || hasMoved.value) return;
 
-  console.log('[FloatWindow] 双击打开主窗口')
-  window.electronAPI.showMainWindow()
+  console.log("[FloatWindow] 双击打开主窗口");
+  window.electronAPI.showMainWindow();
 }
 
 // Fetch
@@ -662,63 +846,87 @@ onMounted(async () => {
   });
   // 监听详情窗口 hover 状态，避免鼠标桥接时误关闭
   unsubDetailHover = window.electronAPI.onDetailHoverChanged((state) => {
-    isDetailHovered.value = state === 'enter'
-    if (state === 'enter') {
+    isDetailHovered.value = state === "enter";
+    if (state === "enter") {
       // 详情窗口被 hover，取消关闭计时器
-      if (hideDetailTimer) { clearTimeout(hideDetailTimer); hideDetailTimer = null }
+      if (hideDetailTimer) {
+        clearTimeout(hideDetailTimer);
+        hideDetailTimer = null;
+      }
     } else {
       // 详情窗口失去 hover，开始延迟关闭
-      onFloatLeave()
+      onFloatLeave();
     }
-  })
+  });
   // 监听菜单动作执行
-  unsubCtxAction = window.electronAPI.onExecuteCtxMenuAction((action: string) => {
-    handleCtxMenuAction(action)
-  })
+  unsubCtxAction = window.electronAPI.onExecuteCtxMenuAction(
+    (action: string) => {
+      handleCtxMenuAction(action);
+    },
+  );
   // 监听原生 context-menu 事件（窗口未聚焦时的兜底，修复 Issue #1）
-  unsubNativeCtx = window.electronAPI.onNativeContextMenu((pos: { x: number; y: number }) => {
-    // 详情窗口与右键菜单互斥：打开菜单时先关闭详情窗口
-    if (showDetailTimer) { clearTimeout(showDetailTimer); showDetailTimer = null }
-    if (hideDetailTimer) { clearTimeout(hideDetailTimer); hideDetailTimer = null }
-    hideDetailWindow()
-    // DOM 事件已处理过则跳过
-    if (ctxMenuOpen.value) return
-    ctxMenuOpen.value = true
-    window.electronAPI.showCtxMenu({
-      screenX: pos.x,
-      screenY: pos.y,
-      modelId: null,
-      modelName: null,
-      theme: theme.value,
-      layoutMode: layoutMode.value,
-      alwaysOnTop: alwaysOnTop.value
-    })
-  })
+  unsubNativeCtx = window.electronAPI.onNativeContextMenu(
+    (pos: { x: number; y: number }) => {
+      // 详情窗口与右键菜单互斥：打开菜单时先关闭详情窗口
+      if (showDetailTimer) {
+        clearTimeout(showDetailTimer);
+        showDetailTimer = null;
+      }
+      if (hideDetailTimer) {
+        clearTimeout(hideDetailTimer);
+        hideDetailTimer = null;
+      }
+      hideDetailWindow();
+      // DOM 事件已处理过则跳过
+      if (ctxMenuOpen.value) return;
+      ctxMenuOpen.value = true;
+      window.electronAPI.showCtxMenu({
+        screenX: pos.x,
+        screenY: pos.y,
+        modelId: null,
+        modelName: null,
+        theme: theme.value,
+        layoutMode: layoutMode.value,
+        alwaysOnTop: alwaysOnTop.value,
+      });
+    },
+  );
   // 监听右键菜单关闭，重置状态
   unsubCtxClosed = window.electronAPI.onCtxMenuClosed(() => {
-    ctxMenuOpen.value = false
-  })
+    ctxMenuOpen.value = false;
+  });
+  // 初始化贴边状态
+  const s2 = await window.electronAPI.getEdgeDockState();
+  if (s2) {
+    isDocked.value = s2.isDocked;
+    dockEdge.value = s2.edge;
+  }
+  unsubEdgeDock = window.electronAPI.onEdgeDockChanged((s) => {
+    isDocked.value = s.isDocked;
+    dockEdge.value = s.edge;
+  });
 });
 onUnmounted(() => {
   // 关闭详情窗口
-  hideDetailWindow()
+  hideDetailWindow();
   store.stopSubscription();
   unsubCfg?.();
   unsubDetailHover?.();
   unsubCtxAction?.();
   unsubNativeCtx?.();
   unsubCtxClosed?.();
+  unsubEdgeDock?.();
   cleanupDragListeners();
 });
 
 // Re-resize when layout mode or model count changes
 watch(layoutMode, (newVal) => {
-  window.electronAPI.debugLog(`watch(layoutMode): changed to ${newVal}`)
+  window.electronAPI.debugLog(`watch(layoutMode): changed to ${newVal}`);
   resizeToFit();
   if (layoutMode.value === "carousel") nextTick(updateActiveSlide);
 });
 watch(
-  () => store.models.length,
+  () => enabledModels.value.length,
   () => {
     resizeToFit();
     if (layoutMode.value === "carousel") nextTick(updateActiveSlide);
@@ -738,6 +946,20 @@ watch(
   flex-direction: column;
   /* 顶部边缘微光 */
   box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.04);
+  position: relative;
+}
+
+/* 全屏遮罩：拖拽时防止事件截断 */
+.drag-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 99999;
+  cursor: grabbing;
+  background: transparent;
 }
 
 .float-empty {
@@ -768,8 +990,13 @@ watch(
 }
 
 @keyframes emptyPulse {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 0.7; }
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.7;
+  }
 }
 
 /* ═══ Compact list (overview only) ═══ */
@@ -778,7 +1005,7 @@ watch(
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 8px;
+  padding: 0 0 0 1px;
 }
 .compact-card {
   width: 100%;
@@ -895,9 +1122,18 @@ watch(
   border-radius: 3px;
 }
 
-.ov-type-tag.t { color: var(--neon-amber); background: rgba(212, 168, 85, 0.12); }
-.ov-type-tag.p { color: var(--neon-red); background: rgba(212, 119, 106, 0.12); }
-.ov-type-tag.b { color: var(--neon-green); background: rgba(124, 196, 138, 0.12); }
+.ov-type-tag.t {
+  color: var(--neon-amber);
+  background: rgba(212, 168, 85, 0.12);
+}
+.ov-type-tag.p {
+  color: var(--neon-red);
+  background: rgba(212, 119, 106, 0.12);
+}
+.ov-type-tag.b {
+  color: var(--neon-green);
+  background: rgba(124, 196, 138, 0.12);
+}
 
 .ov-type-sep {
   width: 1px;
@@ -1088,6 +1324,10 @@ watch(
   background: rgba(212, 168, 85, 0.12);
   color: var(--provider-mimo);
 }
+.ms-badge.opencode {
+  background: rgba(139, 92, 246, 0.12);
+  color: #8b5cf6;
+}
 
 .ms-bd {
   flex: 1;
@@ -1156,6 +1396,7 @@ watch(
 .ms-tier-hd {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   margin-bottom: 2px;
 }
 .ms-tier-lb {
@@ -1163,40 +1404,37 @@ watch(
   font-weight: 600;
   color: var(--text-secondary);
 }
-.ms-tier-pc {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-secondary);
+.ms-tier-reset-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 9px;
+  color: var(--text-placeholder);
+  white-space: nowrap;
+}
+.ms-tier-track-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .ms-bar {
+  flex: 1;
   height: 4px;
   border-radius: 2px;
   background: var(--border-light);
   overflow: hidden;
-  margin-bottom: 2px;
 }
 .ms-bar-f {
   height: 100%;
   border-radius: 2px;
   transition: width 0.8s var(--ease-spring);
 }
-.ms-tier-ft {
-  display: flex;
-  justify-content: space-between;
-  font-size: 10px;
-  color: var(--text-secondary);
-}
-.ms-tier-ft .hl {
-  color: var(--success);
+.ms-tier-pc {
+  font-size: 12px;
   font-weight: 600;
-}
-.ms-tier-reset {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 10px;
-  color: var(--text-placeholder);
-  margin-top: 1px;
+  color: var(--text-primary);
+  min-width: 40px;
+  text-align: right;
 }
 
 .ms-bal {
@@ -1274,5 +1512,44 @@ watch(
   border-radius: 3px;
   background: var(--accent);
   opacity: 1;
+}
+
+/* ── 贴边迷你视图 ── */
+.docked-strip {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  background: #000;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 1px;
+  overflow: hidden;
+  z-index: 999;
+  border-radius: 0;
+}
+.docked-strip.edge-left {
+  right: 0;
+}
+.docked-strip.edge-right {
+  left: 0;
+}
+.docked-strip.edge-top {
+  top: auto;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: auto;
+  height: 8px;
+  flex-direction: row;
+}
+
+/* 单个堆叠矩形：等分空间，填色渐变 */
+.dsg {
+  flex: 1;
+  border-radius: 0;
+  transition: background 0.5s ease;
+  min-width: 0;
+  min-height: 0;
 }
 </style>

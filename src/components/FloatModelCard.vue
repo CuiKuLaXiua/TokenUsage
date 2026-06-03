@@ -6,20 +6,24 @@
         <span class="provider-badge" :class="model.provider">{{ model.provider }}</span>
         <span v-if="model.refreshInterval && model.refreshInterval > 0" class="refresh-timer">
           <el-icon :size="10"><Timer /></el-icon>
-          {{ model.refreshInterval }}m
+          {{ model.refreshInterval }}{{ model.refreshUnit === 'second' ? 's' : model.refreshUnit === 'hour' ? 'h' : 'm' }}
         </span>
       </div>
     </div>
 
     <template v-if="usage">
-      <!-- 多层级额度 (Kimi / percent) -->
+      <!-- 多层级额度 (Kimi / OpenCode / percent) -->
       <template v-if="usage.usageType === 'percent' && usage.tiers?.length">
         <div v-for="tier in usage.tiers" :key="tier.name" class="tier-row">
           <div class="tier-header">
             <span class="tier-name">{{ tier.label }}</span>
-            <span class="tier-percent">{{ formatPercent(tier.percent) }}%</span>
+            <!-- 重置时间（右上角） -->
+            <span v-if="tier.resetAt" class="tier-reset-inline">
+              <el-icon :size="10"><Clock /></el-icon>
+              {{ formatResetTime(tier.resetAt) }}
+            </span>
           </div>
-          <div class="tier-bar">
+          <div class="tier-track-row">
             <div class="tier-track">
               <div
                 class="tier-fill"
@@ -29,14 +33,8 @@
                 }"
               ></div>
             </div>
-          </div>
-          <div class="tier-detail">
-            <span>{{ formatTokens(tier.used) }} / {{ formatTokens(tier.total) }}</span>
-            <span class="tier-remaining">余 {{ formatTokens(tier.remaining) }}</span>
-          </div>
-          <div v-if="tier.resetAt" class="tier-reset">
-            <el-icon :size="10"><Clock /></el-icon>
-            <span>{{ formatResetTime(tier.resetAt) }}</span>
+            <!-- 百分比（进度条右侧） -->
+            <span class="tier-percent">{{ formatPercent(tier.percent) }}%</span>
           </div>
         </div>
       </template>
@@ -152,6 +150,7 @@ const usage = computed(() => store.modelUsageMap[props.model.id])
 .provider-badge.deepseek { background: rgba(124, 196, 138, 0.12); color: var(--provider-deepseek); border-color: rgba(124, 196, 138, 0.2); }
 .provider-badge.kimi { background: rgba(184, 160, 136, 0.12); color: var(--provider-kimi); border-color: rgba(184, 160, 136, 0.2); }
 .provider-badge.mimo { background: rgba(212, 168, 85, 0.12); color: var(--provider-mimo); border-color: rgba(212, 168, 85, 0.2); }
+.provider-badge.opencode { background: rgba(139, 92, 246, 0.12); color: #8b5cf6; border-color: rgba(139, 92, 246, 0.2); }
 
 .refresh-timer {
   display: inline-flex;
@@ -262,19 +261,19 @@ const usage = computed(() => store.modelUsageMap[props.model.id])
   padding: 1px 6px;
 }
 
-.tier-percent {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  min-width: 32px;
-  text-align: right;
+.tier-reset-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 10px;
+  color: var(--text-placeholder);
+  white-space: nowrap;
 }
 
-.tier-bar {
+.tier-track-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 2px;
 }
 
 .tier-track {
@@ -301,26 +300,12 @@ const usage = computed(() => store.modelUsageMap[props.model.id])
   animation: shimmer 2.5s ease-in-out infinite;
 }
 
-.tier-detail {
-  display: flex;
-  justify-content: space-between;
-  font-size: 11px;
-  color: var(--text-secondary);
-}
-
-.tier-remaining {
-  font-size: 11px;
-  color: var(--success);
+.tier-percent {
+  font-size: 12px;
   font-weight: 600;
-}
-
-.tier-reset {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 10px;
-  color: var(--text-placeholder);
-  margin-top: 2px;
+  color: var(--text-primary);
+  min-width: 40px;
+  text-align: right;
 }
 
 /* Fetch button */

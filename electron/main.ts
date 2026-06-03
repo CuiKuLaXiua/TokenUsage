@@ -1,61 +1,71 @@
-import { app, BrowserWindow, ipcMain, net } from 'electron'
-import { join } from 'path'
+import { app, BrowserWindow, ipcMain, net, screen } from "electron";
+import { join } from "path";
 
-const isDev = !app.isPackaged
-const rendererUrl = process.env.ELECTRON_RENDERER_URL || 'http://localhost:3000'
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
-import { homedir } from 'os'
-import { config as loadDotenv } from 'dotenv'
-import { isValidMonth, isValidConfig, isAllowedUrl, isValidUsageData } from './ipc-validators'
-import { LoginWindowManager } from './login'
-import { UsageRefresher } from './refresher'
+const isDev = !app.isPackaged;
+const rendererUrl =
+  process.env.ELECTRON_RENDERER_URL || "http://localhost:3000";
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
+import { homedir } from "os";
+import { config as loadDotenv } from "dotenv";
+import {
+  isValidMonth,
+  isValidConfig,
+  isAllowedUrl,
+  isValidUsageData,
+} from "./ipc-validators";
+import { LoginWindowManager } from "./login";
+import { OpenCodeLoginWindowManager } from "./opencode-login";
+import { UsageRefresher } from "./refresher";
 
 // 加载 .env.local 环境变量
-loadDotenv({ path: join(__dirname, '../.env.local') })
+loadDotenv({ path: join(__dirname, "../.env.local") });
 
 // 捕获未处理的错误，防止进程退出
-process.on('uncaughtException', (error) => {
-  console.error('未捕获的异常:', error)
-})
+process.on("uncaughtException", (error) => {
+  console.error("未捕获的异常:", error);
+});
 
-process.on('unhandledRejection', (reason) => {
-  console.error('未处理的Promise拒绝:', reason)
-})
+process.on("unhandledRejection", (reason) => {
+  console.error("未处理的Promise拒绝:", reason);
+});
 
-let mainWindow: BrowserWindow | null = null
-let floatWindow: BrowserWindow | null = null
-let detailWindow: BrowserWindow | null = null
-let ctxMenuWindow: BrowserWindow | null = null
-const loginManager = new LoginWindowManager()
+let mainWindow: BrowserWindow | null = null;
+let floatWindow: BrowserWindow | null = null;
+let detailWindow: BrowserWindow | null = null;
+let ctxMenuWindow: BrowserWindow | null = null;
+const loginManager = new LoginWindowManager();
+const openCodeLoginManager = new OpenCodeLoginWindowManager();
 
-const dataDir = join(homedir(), '.token-usage')
-const configPath = join(dataDir, 'config.json')
-const usagePath = join(dataDir, 'usage')
-const refresher = new UsageRefresher(configPath)
+const dataDir = join(homedir(), ".token-usage");
+const configPath = join(dataDir, "config.json");
+const usagePath = join(dataDir, "usage");
+const refresher = new UsageRefresher(configPath);
 
 function ensureDataDir() {
   if (!existsSync(dataDir)) {
-    mkdirSync(dataDir, { recursive: true })
+    mkdirSync(dataDir, { recursive: true });
   }
   if (!existsSync(usagePath)) {
-    mkdirSync(usagePath, { recursive: true })
+    mkdirSync(usagePath, { recursive: true });
   }
   if (!existsSync(configPath)) {
     const defaultConfig = {
       models: [
         {
-          id: 'mimo-default',
-          name: '小米MIMO',
-          provider: 'mimo',
-          apiKey: process.env.MIMO_API_KEY || '',
-          baseUrl: process.env.MIMO_BASE_URL || 'https://platform.xiaomimimo.com/api/v1/tokenPlan/usage',
-          cookies: process.env.MIMO_COOKIES || '',
-          loginUrl: 'https://platform.xiaomimimo.com/console/plan-manage',
-          enabled: true
-        }
-      ]
-    }
-    writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2))
+          id: "mimo-default",
+          name: "小米MIMO",
+          provider: "mimo",
+          apiKey: process.env.MIMO_API_KEY || "",
+          baseUrl:
+            process.env.MIMO_BASE_URL ||
+            "https://platform.xiaomimimo.com/api/v1/tokenPlan/usage",
+          cookies: process.env.MIMO_COOKIES || "",
+          loginUrl: "https://platform.xiaomimimo.com/console/plan-manage",
+          enabled: true,
+        },
+      ],
+    };
+    writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2));
   }
 }
 
@@ -66,58 +76,63 @@ function createWindow() {
     minWidth: 1000,
     minHeight: 700,
     webPreferences: {
-      preload: join(__dirname, 'preload.js'),
+      preload: join(__dirname, "preload.js"),
       nodeIntegration: false,
-      contextIsolation: true
+      contextIsolation: true,
     },
     frame: false,
-    titleBarStyle: 'hidden',
-    ...(process.platform === 'darwin' ? { trafficLightPosition: { x: 12, y: 16 } } : {}),
-    icon: join(__dirname, '../public/logo.png')
-  })
+    titleBarStyle: "hidden",
+    ...(process.platform === "darwin"
+      ? { trafficLightPosition: { x: 12, y: 16 } }
+      : {}),
+    icon: join(__dirname, "../public/logo.png"),
+  });
 
   if (isDev) {
-    mainWindow.loadURL(rendererUrl)
-    mainWindow.webContents.openDevTools()
+    mainWindow.loadURL(rendererUrl);
+    mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.loadFile(join(__dirname, '../dist/index.html'))
+    mainWindow.loadFile(join(__dirname, "../dist/index.html"));
   }
 
   // 捕获渲染进程崩溃事件
-  mainWindow.webContents.on('crashed', () => {
-    console.error('渲染进程崩溃!')
-  })
+  mainWindow.webContents.on("crashed", () => {
+    console.error("渲染进程崩溃!");
+  });
 
-  mainWindow.on('unresponsive', () => {
-    console.error('窗口无响应!')
-  })
+  mainWindow.on("unresponsive", () => {
+    console.error("窗口无响应!");
+  });
 
-  mainWindow.webContents.on('did-fail-load', (_, errorCode, errorDescription) => {
-    console.error('页面加载失败:', errorCode, errorDescription)
-  })
+  mainWindow.webContents.on(
+    "did-fail-load",
+    (_, errorCode, errorDescription) => {
+      console.error("页面加载失败:", errorCode, errorDescription);
+    },
+  );
 
   // 添加窗口关闭清理
-  mainWindow.on('closed', () => {
-    mainWindow = null
-  })
+  mainWindow.on("closed", () => {
+    mainWindow = null;
+  });
 }
 
-const FLOAT_WIDTH = 240
-const FLOAT_HEIGHT = 88
-const DETAIL_WIDTH = 320
-const DETAIL_HEIGHT = 420
-const DETAIL_GAP = 8
-const CTX_MENU_WIDTH = 200
-const CTX_MENU_HEIGHT = 290
+const FLOAT_WIDTH = 240;
+const FLOAT_HEIGHT = 88;
+const DETAIL_WIDTH = 320;
+const DETAIL_HEIGHT = 420;
+const DETAIL_GAP = 8;
+const CTX_MENU_WIDTH = 200;
+const CTX_MENU_HEIGHT = 290;
 
 // 缓存最近一次右键菜单配置，供渲染进程拉取
 let lastCtxMenuConfig: {
-  modelId: string | null
-  modelName: string | null
-  theme: string
-  layoutMode: string
-  alwaysOnTop: boolean
-} | null = null
+  modelId: string | null;
+  modelName: string | null;
+  theme: string;
+  layoutMode: string;
+  alwaysOnTop: boolean;
+} | null = null;
 
 function createFloatWindow() {
   floatWindow = new BrowserWindow({
@@ -128,46 +143,55 @@ function createFloatWindow() {
     skipTaskbar: true,
     frame: false,
     webPreferences: {
-      preload: join(__dirname, 'preload.js'),
+      preload: join(__dirname, "preload.js"),
       nodeIntegration: false,
-      contextIsolation: true
+      contextIsolation: true,
     },
-    icon: join(__dirname, '../public/logo.png')
-  })
+    icon: join(__dirname, "../public/logo.png"),
+  });
 
   if (isDev) {
-    floatWindow.loadURL(rendererUrl + '/#/float')
+    floatWindow.loadURL(rendererUrl + "/#/float");
   } else {
-    floatWindow.loadFile(join(__dirname, '../dist/index.html'), {
-      hash: '/float'
-    })
+    floatWindow.loadFile(join(__dirname, "../dist/index.html"), {
+      hash: "/float",
+    });
   }
 
   // Fix: 捕获原生右键事件（即使窗口未聚焦也能触发，解决 Issue #1）
-  floatWindow.webContents.on('context-menu', (_, params) => {
-    floatWindow?.webContents.send('native-context-menu', {
+  floatWindow.webContents.on("context-menu", (_, params) => {
+    floatWindow?.webContents.send("native-context-menu", {
       x: params.x,
-      y: params.y
-    })
-  })
+      y: params.y,
+    });
+  });
 
-  floatWindow.on('closed', () => {
+  floatWindow.on("closed", () => {
+    // 清理拖拽状态和定时器
+    const dragState = dragStateMap.get(floatWindow?.id || -1);
+    if (dragState?.intervalId) {
+      clearInterval(dragState.intervalId);
+    }
+    dragStateMap.delete(floatWindow?.id || -1);
+
     // 主窗口关闭时同步关闭详情窗口
     if (detailWindow && !detailWindow.isDestroyed()) {
-      detailWindow.close()
+      detailWindow.close();
     }
-    destroyCtxMenu()
-    floatWindow = null
-  })
+    destroyCtxMenu();
+    stopHoverPolling();
+    edgeDockState.delete(floatWindow?.id || -1);
+    floatWindow = null;
+  });
 }
 
 function createDetailWindow() {
   if (detailWindow && !detailWindow.isDestroyed()) {
-    return detailWindow
+    return detailWindow;
   }
 
   if (!floatWindow || floatWindow.isDestroyed()) {
-    return null
+    return null;
   }
 
   detailWindow = new BrowserWindow({
@@ -180,34 +204,34 @@ function createDetailWindow() {
     show: false,
     parent: floatWindow,
     webPreferences: {
-      preload: join(__dirname, 'preload.js'),
+      preload: join(__dirname, "preload.js"),
       nodeIntegration: false,
-      contextIsolation: true
+      contextIsolation: true,
     },
-    icon: join(__dirname, '../public/logo.png')
-  })
+    icon: join(__dirname, "../public/logo.png"),
+  });
 
   // 确保详情窗口在主窗口之上
-  detailWindow.setAlwaysOnTop(true, 'pop-up-menu')
+  detailWindow.setAlwaysOnTop(true, "pop-up-menu");
 
   if (isDev) {
-    detailWindow.loadURL(rendererUrl + '/#/float-detail')
+    detailWindow.loadURL(rendererUrl + "/#/float-detail");
   } else {
-    detailWindow.loadFile(join(__dirname, '../dist/index.html'), {
-      hash: '/float-detail'
-    })
+    detailWindow.loadFile(join(__dirname, "../dist/index.html"), {
+      hash: "/float-detail",
+    });
   }
 
-  detailWindow.on('closed', () => {
-    detailWindow = null
-  })
+  detailWindow.on("closed", () => {
+    detailWindow = null;
+  });
 
-  return detailWindow
+  return detailWindow;
 }
 
 function ensureCtxMenuWindow() {
   if (ctxMenuWindow && !ctxMenuWindow.isDestroyed()) {
-    return ctxMenuWindow
+    return ctxMenuWindow;
   }
 
   ctxMenuWindow = new BrowserWindow({
@@ -221,101 +245,114 @@ function ensureCtxMenuWindow() {
     hasShadow: false,
     show: false,
     webPreferences: {
-      preload: join(__dirname, 'preload.js'),
+      preload: join(__dirname, "preload.js"),
       nodeIntegration: false,
-      contextIsolation: true
-    }
-  })
+      contextIsolation: true,
+    },
+  });
 
-  ctxMenuWindow.setAlwaysOnTop(true, 'pop-up-menu')
+  ctxMenuWindow.setAlwaysOnTop(true, "pop-up-menu");
 
   if (isDev) {
-    ctxMenuWindow.loadURL(rendererUrl + '/#/ctx-menu')
+    ctxMenuWindow.loadURL(rendererUrl + "/#/ctx-menu");
   } else {
-    ctxMenuWindow.loadFile(join(__dirname, '../dist/index.html'), {
-      hash: '/ctx-menu'
-    })
+    ctxMenuWindow.loadFile(join(__dirname, "../dist/index.html"), {
+      hash: "/ctx-menu",
+    });
   }
 
   // 点击外部关闭 — 使用 generation 计数器防止旧 blur 回调干扰新 show
-  let blurTimer: ReturnType<typeof setTimeout> | null = null
-  const genAtBind = ctxMenuGen  // 捕获绑定时的 generation
+  let blurTimer: ReturnType<typeof setTimeout> | null = null;
+  const genAtBind = ctxMenuGen; // 捕获绑定时的 generation
 
-  ctxMenuWindow.on('blur', () => {
-    if (ctxMenuClosing) return     // hideCtxMenu 触发的 blur，忽略
-    if (blurTimer) clearTimeout(blurTimer)
+  ctxMenuWindow.on("blur", () => {
+    if (ctxMenuClosing) return; // hideCtxMenu 触发的 blur，忽略
+    if (blurTimer) clearTimeout(blurTimer);
     blurTimer = setTimeout(() => {
-      blurTimer = null
+      blurTimer = null;
       // generation 不匹配 → 菜单已被新的 show 操作接管，不关闭
-      if (ctxMenuClosing || ctxMenuGen !== genAtBind) return
-      hideCtxMenuWindow()
-    }, 120)
-  })
+      if (ctxMenuClosing || ctxMenuGen !== genAtBind) return;
+      hideCtxMenuWindow();
+    }, 120);
+  });
 
-  ctxMenuWindow.on('closed', () => {
-    if (blurTimer) { clearTimeout(blurTimer); blurTimer = null }
-    ctxMenuWindow = null
-  })
+  ctxMenuWindow.on("closed", () => {
+    if (blurTimer) {
+      clearTimeout(blurTimer);
+      blurTimer = null;
+    }
+    ctxMenuWindow = null;
+  });
 
-  return ctxMenuWindow
+  return ctxMenuWindow;
 }
 
 // 右键菜单生命周期管理 — 复用同一窗口，仅 show/hide
-let ctxMenuGen = 0         // 每次 show 递增，blur 回调通过 generation 判断是否过期
-let ctxMenuClosing = false // hideCtxMenu 主动关闭时为 true，抑制 blur
-let ctxMenuFocusTimer: ReturnType<typeof setTimeout> | null = null
+let ctxMenuGen = 0; // 每次 show 递增，blur 回调通过 generation 判断是否过期
+let ctxMenuClosing = false; // hideCtxMenu 主动关闭时为 true，抑制 blur
+let ctxMenuFocusTimer: ReturnType<typeof setTimeout> | null = null;
 
 /**
  * 显示右键菜单（复用同一窗口，position + config + show）
  */
 function showCtxMenuWindow(options: {
-  screenX: number; screenY: number
-  modelId: string | null; modelName: string | null
-  theme: string; layoutMode: string; alwaysOnTop: boolean
+  screenX: number;
+  screenY: number;
+  modelId: string | null;
+  modelName: string | null;
+  theme: string;
+  layoutMode: string;
+  alwaysOnTop: boolean;
 }) {
-  const win = ensureCtxMenuWindow()
-  if (!win) return false
+  const win = ensureCtxMenuWindow();
+  if (!win) return false;
 
-  ctxMenuGen++
+  ctxMenuGen++;
 
-  const { x, y } = computeCtxMenuPosition(options.screenX, options.screenY)
-  win.setPosition(x, y)
+  const { x, y } = computeCtxMenuPosition(options.screenX, options.screenY);
+  win.setPosition(x, y);
 
   const config = {
     modelId: options.modelId,
     modelName: options.modelName,
     theme: options.theme,
     layoutMode: options.layoutMode,
-    alwaysOnTop: options.alwaysOnTop
+    alwaysOnTop: options.alwaysOnTop,
+  };
+  lastCtxMenuConfig = config;
+  win.webContents.send("ctx-menu-config", config);
+
+  win.showInactive();
+  if (ctxMenuFocusTimer) {
+    clearTimeout(ctxMenuFocusTimer);
+    ctxMenuFocusTimer = null;
   }
-  lastCtxMenuConfig = config
-  win.webContents.send('ctx-menu-config', config)
-
-  win.showInactive()
-  if (ctxMenuFocusTimer) { clearTimeout(ctxMenuFocusTimer); ctxMenuFocusTimer = null }
   ctxMenuFocusTimer = setTimeout(() => {
-    ctxMenuFocusTimer = null
+    ctxMenuFocusTimer = null;
     if (ctxMenuWindow && !ctxMenuWindow.isDestroyed()) {
-      ctxMenuWindow.focus()
+      ctxMenuWindow.focus();
     }
-  }, 80)
+  }, 80);
 
-  return true
+  return true;
 }
 
 /**
  * 隐藏右键菜单（仅 hide，不销毁窗口，供下次复用）
  */
 function hideCtxMenuWindow() {
-  if (ctxMenuFocusTimer) { clearTimeout(ctxMenuFocusTimer); ctxMenuFocusTimer = null }
-  ctxMenuClosing = true
-  if (ctxMenuWindow && !ctxMenuWindow.isDestroyed()) {
-    ctxMenuWindow.hide()
-    ctxMenuWindow.blur()
+  if (ctxMenuFocusTimer) {
+    clearTimeout(ctxMenuFocusTimer);
+    ctxMenuFocusTimer = null;
   }
-  ctxMenuClosing = false
+  ctxMenuClosing = true;
+  if (ctxMenuWindow && !ctxMenuWindow.isDestroyed()) {
+    ctxMenuWindow.hide();
+    ctxMenuWindow.blur();
+  }
+  ctxMenuClosing = false;
   if (floatWindow && !floatWindow.isDestroyed()) {
-    floatWindow.webContents.send('ctx-menu-closed')
+    floatWindow.webContents.send("ctx-menu-closed");
   }
 }
 
@@ -323,10 +360,13 @@ function hideCtxMenuWindow() {
  * 彻底销毁右键菜单窗口（浮窗关闭时调用）
  */
 function destroyCtxMenu() {
-  if (ctxMenuFocusTimer) { clearTimeout(ctxMenuFocusTimer); ctxMenuFocusTimer = null }
+  if (ctxMenuFocusTimer) {
+    clearTimeout(ctxMenuFocusTimer);
+    ctxMenuFocusTimer = null;
+  }
   if (ctxMenuWindow && !ctxMenuWindow.isDestroyed()) {
-    ctxMenuWindow.destroy()
-    ctxMenuWindow = null
+    ctxMenuWindow.destroy();
+    ctxMenuWindow = null;
   }
 }
 
@@ -337,26 +377,26 @@ function computeDetailPosition(
   anchorX: number,
   anchorY: number,
   anchorW: number,
-  anchorH: number
+  anchorH: number,
 ): { x: number; y: number } {
   const { width: screenW, height: screenH } =
-    require('electron').screen.getPrimaryDisplay().workAreaSize
+    require("electron").screen.getPrimaryDisplay().workAreaSize;
 
   // 默认在右侧
-  let x = anchorX + anchorW + DETAIL_GAP
-  let y = anchorY
+  let x = anchorX + anchorW + DETAIL_GAP;
+  let y = anchorY;
 
   // 右侧空间不足，放左侧
   if (x + DETAIL_WIDTH > screenW - 20) {
-    x = Math.max(0, anchorX - DETAIL_WIDTH - DETAIL_GAP)
+    x = Math.max(0, anchorX - DETAIL_WIDTH - DETAIL_GAP);
   }
 
   // 底部空间不足，向上对齐
   if (y + DETAIL_HEIGHT > screenH - 20) {
-    y = Math.max(0, anchorY + anchorH - DETAIL_HEIGHT)
+    y = Math.max(0, anchorY + anchorH - DETAIL_HEIGHT);
   }
 
-  return { x: Math.round(x), y: Math.round(y) }
+  return { x: Math.round(x), y: Math.round(y) };
 }
 
 /**
@@ -364,632 +404,1301 @@ function computeDetailPosition(
  */
 function computeCtxMenuPosition(
   anchorX: number,
-  anchorY: number
+  anchorY: number,
 ): { x: number; y: number } {
   const { width: screenW, height: screenH } =
-    require('electron').screen.getPrimaryDisplay().workAreaSize
+    require("electron").screen.getPrimaryDisplay().workAreaSize;
 
-  let x = anchorX
-  let y = anchorY
+  let x = anchorX;
+  let y = anchorY;
 
   // 右侧越界
   if (x + CTX_MENU_WIDTH > screenW - 10) {
-    x = Math.max(0, screenW - CTX_MENU_WIDTH - 10)
+    x = Math.max(0, screenW - CTX_MENU_WIDTH - 10);
   }
 
   // 底部越界：翻转到光标上方
   if (y + CTX_MENU_HEIGHT > screenH - 10) {
-    y = Math.max(0, anchorY - CTX_MENU_HEIGHT)
+    y = Math.max(0, anchorY - CTX_MENU_HEIGHT);
   }
 
   // 顶部安全边距
-  if (y < 0) y = 10
+  if (y < 0) y = 10;
 
-  return { x: Math.round(x), y: Math.round(y) }
+  return { x: Math.round(x), y: Math.round(y) };
 }
 
 app.whenReady().then(() => {
-  ensureDataDir()
-  createWindow()
-  refresher.start()  // 启动统一刷新
+  ensureDataDir();
+  createWindow();
+  refresher.start(); // 启动统一刷新
 
-  app.on('activate', () => {
+  app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow()
+      createWindow();
     }
-  })
-})
+  });
+});
 
-app.on('window-all-closed', () => {
+app.on("window-all-closed", () => {
   // 开发模式下不自动退出，方便调试
-  if (!isDev && process.platform !== 'darwin') {
-    app.quit()
+  if (!isDev && process.platform !== "darwin") {
+    app.quit();
   }
-})
+});
 
 // IPC handlers for data storage
-ipcMain.handle('load-config', () => {
+ipcMain.handle("load-config", () => {
   try {
     if (existsSync(configPath)) {
-      return JSON.parse(readFileSync(configPath, 'utf-8'))
+      return JSON.parse(readFileSync(configPath, "utf-8"));
     }
-    return {}
+    return {};
   } catch (error) {
-    console.error('Error loading config:', error)
-    return {}
+    console.error("Error loading config:", error);
+    return {};
   }
-})
+});
 
-ipcMain.handle('save-config', (_, config) => {
+ipcMain.handle("save-config", (_, config) => {
   try {
     if (!isValidConfig(config)) {
-      console.error('Invalid config structure')
-      return false
+      console.error("Invalid config structure");
+      return false;
     }
-    writeFileSync(configPath, JSON.stringify(config, null, 2))
+    writeFileSync(configPath, JSON.stringify(config, null, 2));
 
     // 广播配置更新给所有窗口
-    BrowserWindow.getAllWindows().forEach(win => {
-      win.webContents.send('config-updated')
-    })
+    BrowserWindow.getAllWindows().forEach((win) => {
+      win.webContents.send("config-updated");
+    });
 
     // 重启刷新服务
-    refresher.restart()
+    refresher.restart();
 
-    return true
+    return true;
   } catch (error) {
-    console.error('Error saving config:', error)
-    return false
+    console.error("Error saving config:", error);
+    return false;
   }
-})
+});
 
-ipcMain.handle('load-usage', (_, month) => {
+ipcMain.handle("load-usage", (_, month) => {
   try {
     if (!isValidMonth(month)) {
-      console.error('Invalid month format:', month)
-      return []
+      console.error("Invalid month format:", month);
+      return [];
     }
-    const filePath = join(usagePath, `${month}.json`)
+    const filePath = join(usagePath, `${month}.json`);
     if (existsSync(filePath)) {
-      return JSON.parse(readFileSync(filePath, 'utf-8'))
+      return JSON.parse(readFileSync(filePath, "utf-8"));
     }
-    return []
+    return [];
   } catch (error) {
-    console.error('Error loading usage:', error)
-    return []
+    console.error("Error loading usage:", error);
+    return [];
   }
-})
+});
 
-ipcMain.handle('save-usage', (_, month, data) => {
+ipcMain.handle("save-usage", (_, month, data) => {
   try {
     if (!isValidMonth(month)) {
-      console.error('Invalid month format:', month)
-      return false
+      console.error("Invalid month format:", month);
+      return false;
     }
     if (!isValidUsageData(data)) {
-      console.error('Invalid usage data')
-      return false
+      console.error("Invalid usage data");
+      return false;
     }
-    const filePath = join(usagePath, `${month}.json`)
-    writeFileSync(filePath, JSON.stringify(data, null, 2))
-    return true
+    const filePath = join(usagePath, `${month}.json`);
+    writeFileSync(filePath, JSON.stringify(data, null, 2));
+    return true;
   } catch (error) {
-    console.error('Error saving usage:', error)
-    return false
+    console.error("Error saving usage:", error);
+    return false;
   }
-})
+});
 
-ipcMain.handle('get-data-path', () => {
-  return dataDir
-})
+ipcMain.handle("get-data-path", () => {
+  return dataDir;
+});
 
-ipcMain.handle('open-float-window', () => {
+ipcMain.handle("open-float-window", () => {
   if (!floatWindow) {
-    createFloatWindow()
+    createFloatWindow();
   } else {
-    floatWindow.focus()
+    floatWindow.focus();
   }
-  return true
-})
+  return true;
+});
 
-ipcMain.handle('close-float-window', () => {
+ipcMain.handle("close-float-window", () => {
   if (detailWindow && !detailWindow.isDestroyed()) {
-    detailWindow.close()
-    detailWindow = null
+    detailWindow.close();
+    detailWindow = null;
   }
-  destroyCtxMenu()
+  destroyCtxMenu();
+  stopHoverPolling();
   if (floatWindow) {
-    floatWindow.close()
-    floatWindow = null
+    edgeDockState.delete(floatWindow.id);
+    floatWindow.close();
+    floatWindow = null;
   }
-  return true
-})
+  return true;
+});
 
 // ── 详情悬浮窗 IPC ──
 
-ipcMain.handle('focus-float-window', () => {
+ipcMain.handle("focus-float-window", () => {
   if (floatWindow && !floatWindow.isDestroyed()) {
-    floatWindow.focus()
+    floatWindow.focus();
   }
-  return true
-})
+  return true;
+});
 
-ipcMain.handle('show-float-detail', (_, options: {
-  anchorX: number
-  anchorY: number
-  anchorW: number
-  anchorH: number
-}) => {
-  const win = createDetailWindow()
-  if (!win) return false
+ipcMain.handle(
+  "show-float-detail",
+  (
+    _,
+    options: {
+      anchorX: number;
+      anchorY: number;
+      anchorW: number;
+      anchorH: number;
+    },
+  ) => {
+    const win = createDetailWindow();
+    if (!win) return false;
 
-  const { x, y } = computeDetailPosition(
-    options.anchorX,
-    options.anchorY,
-    options.anchorW,
-    options.anchorH
-  )
+    const { x, y } = computeDetailPosition(
+      options.anchorX,
+      options.anchorY,
+      options.anchorW,
+      options.anchorH,
+    );
 
-  win.setPosition(x, y)
+    win.setPosition(x, y);
 
-  if (!win.isVisible()) {
-    win.show()
-    win.focus()
-  }
+    if (!win.isVisible()) {
+      win.show();
+      win.focus();
+    }
 
-  return true
-})
+    return true;
+  },
+);
 
-ipcMain.handle('hide-float-detail', () => {
+ipcMain.handle("hide-float-detail", () => {
   if (detailWindow && !detailWindow.isDestroyed()) {
-    detailWindow.hide()
+    detailWindow.hide();
   }
-  return true
-})
+  return true;
+});
 
-ipcMain.handle('resize-detail-window', (_, width: number, height: number) => {
+ipcMain.handle("resize-detail-window", (_, width: number, height: number) => {
   if (detailWindow && !detailWindow.isDestroyed()) {
-    const MIN_H = 120
-    const MAX_H = 620
-    const clamped = Math.round(Math.min(MAX_H, Math.max(MIN_H, height)))
-    detailWindow.setSize(Math.round(width), clamped)
+    const MIN_H = 120;
+    const MAX_H = 620;
+    const clamped = Math.round(Math.min(MAX_H, Math.max(MIN_H, height)));
+    detailWindow.setSize(Math.round(width), clamped);
   }
-  return true
-})
+  return true;
+});
 
-ipcMain.handle('notify-detail-hover', (_event, state: 'enter' | 'leave') => {
+ipcMain.handle("notify-detail-hover", (_event, state: "enter" | "leave") => {
   // 将详情窗口的 hover 状态广播给主悬浮窗
   if (floatWindow && !floatWindow.isDestroyed()) {
-    floatWindow.webContents.send('detail-hover-changed', state)
+    floatWindow.webContents.send("detail-hover-changed", state);
   }
-})
+});
 
 // ── 右键菜单弹出窗 IPC ──
 
-ipcMain.handle('show-ctx-menu', (_, options: {
-  screenX: number
-  screenY: number
-  modelId: string | null
-  modelName: string | null
-  theme: string
-  layoutMode: string
-  alwaysOnTop: boolean
-}) => {
-  return showCtxMenuWindow(options)
-})
+ipcMain.handle(
+  "show-ctx-menu",
+  (
+    _,
+    options: {
+      screenX: number;
+      screenY: number;
+      modelId: string | null;
+      modelName: string | null;
+      theme: string;
+      layoutMode: string;
+      alwaysOnTop: boolean;
+    },
+  ) => {
+    return showCtxMenuWindow(options);
+  },
+);
 
-ipcMain.handle('hide-ctx-menu', () => {
-  hideCtxMenuWindow()
-  return true
-})
+ipcMain.handle("hide-ctx-menu", () => {
+  hideCtxMenuWindow();
+  return true;
+});
 
-ipcMain.handle('get-ctx-menu-config', () => {
-  return lastCtxMenuConfig
-})
+ipcMain.handle("get-ctx-menu-config", () => {
+  return lastCtxMenuConfig;
+});
 
-ipcMain.handle('ctx-menu-action', (_, action: string) => {
+ipcMain.handle("ctx-menu-action", (_, action: string) => {
   // 转发动作到浮窗执行（在隐藏菜单之前，确保动作被处理）
   if (floatWindow && !floatWindow.isDestroyed()) {
-    floatWindow.webContents.send('execute-ctx-menu-action', action)
+    floatWindow.webContents.send("execute-ctx-menu-action", action);
   }
-  hideCtxMenuWindow()
-  return true
-})
+  hideCtxMenuWindow();
+  return true;
+});
 
-ipcMain.handle('get-float-window-bounds', () => {
-  if (!floatWindow || floatWindow.isDestroyed()) return null
-  const [x, y] = floatWindow.getPosition()
-  const [w, h] = floatWindow.getSize()
-  return { x, y, width: w, height: h }
-})
+ipcMain.handle("get-float-window-bounds", () => {
+  if (!floatWindow || floatWindow.isDestroyed()) return null;
+  const [x, y] = floatWindow.getPosition();
+  const [w, h] = floatWindow.getSize();
+  return { x, y, width: w, height: h };
+});
 
-ipcMain.handle('set-float-always-on-top', (_, value: boolean) => {
+ipcMain.handle("set-float-always-on-top", (_, value: boolean) => {
   if (floatWindow) {
-    floatWindow.setAlwaysOnTop(value)
+    floatWindow.setAlwaysOnTop(value);
   }
-  return true
-})
+  return true;
+});
 
-const _logFile = join(app.getPath('temp'), 'tokenusage-debug.log')
+const _logFile = join(app.getPath("temp"), "tokenusage-debug.log");
 function _dbg(msg: string) {
-  const line = `[${new Date().toLocaleTimeString()}] ${msg}\n`
-  try { require('fs').appendFileSync(_logFile, line) } catch {}
+  const line = `[${new Date().toLocaleTimeString()}] ${msg}\n`;
+  try {
+    require("fs").appendFileSync(_logFile, line);
+  } catch {}
 }
 
-ipcMain.handle('resize-float-window', (_, width: number, height: number) => {
+ipcMain.handle("resize-float-window", (_, width: number, height: number) => {
   if (floatWindow && !floatWindow.isDestroyed()) {
-    const [currentWidth, currentHeight] = floatWindow.getSize()
+    const [currentWidth, currentHeight] = floatWindow.getSize();
     // 只在尺寸有明显变化时调整，避免频繁闪烁
-    if (Math.abs(currentWidth - width) > 5 || Math.abs(currentHeight - height) > 5) {
-      _dbg(`resize-float-window: ${currentWidth}x${currentHeight} -> ${width}x${height}`)
+    if (
+      Math.abs(currentWidth - width) > 5 ||
+      Math.abs(currentHeight - height) > 5
+    ) {
+      _dbg(
+        `resize-float-window: ${currentWidth}x${currentHeight} -> ${width}x${height}`,
+      );
       // Windows 无边框窗口在 resizable=false 时可能无法正确缩小
       // 临时切换 resizable 状态以确保 setSize 生效
-      floatWindow.setResizable(true)
-      floatWindow.setSize(width, height)
-      floatWindow.setResizable(false)
-      const [afterW, afterH] = floatWindow.getSize()
-      _dbg(`  after setSize: ${afterW}x${afterH}`)
+      floatWindow.setResizable(true);
+      floatWindow.setSize(width, height);
+      floatWindow.setResizable(false);
+      const [afterW, afterH] = floatWindow.getSize();
+      _dbg(`  after setSize: ${afterW}x${afterH}`);
     } else {
-      _dbg(`resize-float-window: skipped (diff too small) ${currentWidth}x${currentHeight} -> ${width}x${height}`)
+      _dbg(
+        `resize-float-window: skipped (diff too small) ${currentWidth}x${currentHeight} -> ${width}x${height}`,
+      );
     }
   }
-  return true
-})
+  return true;
+});
 
-ipcMain.handle('debug-log', (_, msg: string) => {
-  _dbg(`[renderer] ${msg}`)
-  return true
-})
+ipcMain.handle("debug-log", (_, msg: string) => {
+  _dbg(`[renderer] ${msg}`);
+  return true;
+});
 
-// 拖拽状态管理
-const dragState = new Map<number, { startMouseX: number; startMouseY: number; startPosX: number; startPosY: number }>()
+// 靠边隐藏状态管理
+interface EdgeDockState {
+  isDocked: boolean;
+  edge: "left" | "right" | "top" | null;
+  dockX: number;
+  dockY: number;
+  originalX: number;
+  originalY: number;
+}
+const edgeDockState = new Map<number, EdgeDockState>();
+const EDGE_THRESHOLD = 20; // 距离边缘 20px 内触发靠边隐藏
+const DOCK_VISIBLE_WIDTH = 8; // 吸附后露出边缘的宽度
 
-ipcMain.handle('start-window-drag', (event, options: { mouseX: number; mouseY: number }) => {
-  const win = BrowserWindow.fromWebContents(event.sender)
-  if (!win || win.isDestroyed()) return
-  const [posX, posY] = win.getPosition()
-  dragState.set(win.id, {
-    startMouseX: options.mouseX,
-    startMouseY: options.mouseY,
-    startPosX: posX,
-    startPosY: posY
-  })
-})
+// 更稳定的拖拽方案：主进程控制
+interface DragState {
+  isDragging: boolean;
+  startMouseX: number;
+  startMouseY: number;
+  startPosX: number;
+  startPosY: number;
+  intervalId: ReturnType<typeof setInterval> | null;
+  heartbeatTimer: ReturnType<typeof setTimeout> | null;
+  lastHeartbeat: number;
+}
 
-ipcMain.handle('window-drag-move', (event, options: { mouseX: number; mouseY: number }) => {
-  const win = BrowserWindow.fromWebContents(event.sender)
-  if (!win || win.isDestroyed()) return
-  const state = dragState.get(win.id)
-  if (!state) return
-  const dx = options.mouseX - state.startMouseX
-  const dy = options.mouseY - state.startMouseY
-  win.setPosition(state.startPosX + dx, state.startPosY + dy)
-})
+const dragStateMap = new Map<number, DragState>();
+const DRAG_HEARTBEAT_TIMEOUT = 500; // 500ms 没收到心跳，自动停止拖拽
 
-ipcMain.handle('stop-window-drag', (event) => {
-  const win = BrowserWindow.fromWebContents(event.sender)
-  if (!win) return
-  dragState.delete(win.id)
-})
+ipcMain.handle(
+  "start-window-drag",
+  (event, options: { mouseX: number; mouseY: number }) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win || win.isDestroyed()) return;
 
-ipcMain.handle('set-float-window-position', (_, x: number, y: number) => {
-  if (!floatWindow || floatWindow.isDestroyed()) return false
-  floatWindow.setPosition(Math.round(x), Math.round(y))
-  return true
-})
+    // 拖拽开始时停止 hover polling，防止拖拽结束后干扰
+    if (edgeDockState.has(win.id)) {
+      stopHoverPolling();
+    }
 
-ipcMain.handle('resize-float-window-animated', (_, width: number, height: number, duration: number = 300) => {
-  if (!floatWindow || floatWindow.isDestroyed()) return false
-  const [startW, startH] = floatWindow.getSize()
-  const targetW = Math.round(width)
-  const targetH = Math.round(height)
-  if (Math.abs(startW - targetW) <= 2 && Math.abs(startH - targetH) <= 2) return false
+    const [posX, posY] = win.getPosition();
 
-  const startTime = Date.now()
-  const step = () => {
-    const elapsed = Date.now() - startTime
-    const progress = Math.min(elapsed / duration, 1)
-    // ease-out cubic
-    const t = 1 - Math.pow(1 - progress, 3)
-    floatWindow!.setSize(
-      Math.round(startW + (targetW - startW) * t),
-      Math.round(startH + (targetH - startH) * t)
-    )
-    if (progress < 1) {
-      setTimeout(step, 16)
+    // 如果已有拖拽状态，先清理
+    const existingState = dragStateMap.get(win.id);
+    if (existingState) {
+      if (existingState.intervalId) clearInterval(existingState.intervalId);
+      if (existingState.heartbeatTimer)
+        clearTimeout(existingState.heartbeatTimer);
+    }
+
+    const state: DragState = {
+      isDragging: true,
+      startMouseX: options.mouseX,
+      startMouseY: options.mouseY,
+      startPosX: posX,
+      startPosY: posY,
+      intervalId: null,
+      heartbeatTimer: null,
+      lastHeartbeat: Date.now(),
+    };
+
+    // 启动心跳超时检测
+    const checkHeartbeat = () => {
+      if (!state.isDragging || win.isDestroyed()) {
+        return;
+      }
+
+      const elapsed = Date.now() - state.lastHeartbeat;
+      if (elapsed > DRAG_HEARTBEAT_TIMEOUT) {
+        console.log(
+          `[Main] Drag heartbeat timeout (${elapsed}ms), stopping drag for window ${win.id}`,
+        );
+        // 超时，自动停止拖拽
+        stopDragForWindow(win.id);
+        return;
+      }
+
+      // 继续检测
+      state.heartbeatTimer = setTimeout(checkHeartbeat, 100);
+    };
+
+    state.heartbeatTimer = setTimeout(checkHeartbeat, 100);
+
+    // 使用定时器持续更新位置（比渲染进程发 IPC 更稳定）
+    state.intervalId = setInterval(() => {
+      if (!state.isDragging || win.isDestroyed()) {
+        if (state.intervalId) {
+          clearInterval(state.intervalId);
+          state.intervalId = null;
+        }
+        return;
+      }
+
+      // 获取当前鼠标位置（全局）
+      const cursor = screen.getCursorScreenPoint();
+
+      // 计算新位置
+      const dx = cursor.x - state.startMouseX;
+      const dy = cursor.y - state.startMouseY;
+      let newX = state.startPosX + dx;
+      let newY = state.startPosY + dy;
+
+      // 获取显示器工作区
+      const display = screen.getDisplayMatching(win.getBounds());
+      const {
+        x: workX,
+        y: workY,
+        width: workW,
+        height: workH,
+      } = display.workArea;
+      const [winW, winH] = win.getSize();
+
+      // 严格限制在工作区内
+      newX = Math.max(workX, newX);
+      newX = Math.min(newX, workX + workW - winW);
+      newY = Math.max(workY, newY);
+      newY = Math.min(newY, workY + workH - winH);
+
+      // 只在位置变化时更新，避免闪烁
+      const [currentX, currentY] = win.getPosition();
+      if (Math.abs(currentX - newX) > 1 || Math.abs(currentY - newY) > 1) {
+        win.setPosition(Math.round(newX), Math.round(newY));
+      }
+    }, 16); // ~60fps
+
+    dragStateMap.set(win.id, state);
+  },
+);
+
+// 心跳处理：渲染进程定期发送，主进程更新时间戳
+ipcMain.handle(
+  "drag-heartbeat",
+  (event, _options: { mouseX: number; mouseY: number }) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win || win.isDestroyed()) return;
+
+    const state = dragStateMap.get(win.id);
+    if (state && state.isDragging) {
+      state.lastHeartbeat = Date.now();
+    }
+  },
+);
+
+// 停止指定窗口的拖拽
+function stopDragForWindow(windowId: number) {
+  const state = dragStateMap.get(windowId);
+  if (!state) return;
+
+  console.log(`[Main] Stopping drag for window ${windowId}`);
+
+  state.isDragging = false;
+  if (state.intervalId) {
+    clearInterval(state.intervalId);
+    state.intervalId = null;
+  }
+  if (state.heartbeatTimer) {
+    clearTimeout(state.heartbeatTimer);
+    state.heartbeatTimer = null;
+  }
+  dragStateMap.delete(windowId);
+
+  // 基于窗口当前位置重新检测边缘吸附
+  const win = BrowserWindow.fromId(windowId);
+  if (win && !win.isDestroyed()) {
+    const dockState = checkEdgeDocking(win);
+    if (dockState) {
+      // 窗口在边缘附近 → 吸附（更新/覆盖旧的 dock state）
+      edgeDockState.set(windowId, dockState);
+      animateWindowPosition(win, dockState.dockX, dockState.dockY, 200).then(
+        () => {
+          startHoverPolling();
+          win.webContents.send("edge-dock-changed", {
+            isDocked: true,
+            edge: dockState.edge,
+          });
+        },
+      );
+    } else {
+      // 窗口不在任何边缘 → 清除吸附状态
+      if (edgeDockState.has(windowId)) {
+        edgeDockState.delete(windowId);
+        win.webContents.send("edge-dock-changed", {
+          isDocked: false,
+          edge: null,
+        });
+      }
     }
   }
-  step()
-  return true
-})
+}
+
+ipcMain.handle("stop-window-drag", async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win.isDestroyed()) return;
+
+  console.log(`[Main] stop-window-drag received for window ${win.id}`);
+
+  // 使用统一的清理函数
+  stopDragForWindow(win.id);
+});
+
+/**
+ * 窗口位置动画函数
+ * 使用 ease-out cubic 缓动实现流畅的窗口移动
+ */
+async function animateWindowPosition(
+  win: BrowserWindow,
+  targetX: number,
+  targetY: number,
+  duration: number = 300,
+): Promise<void> {
+  return new Promise((resolve) => {
+    const [startX, startY] = win.getPosition();
+    const startTime = Date.now();
+
+    const animate = () => {
+      if (win.isDestroyed()) {
+        resolve();
+        return;
+      }
+
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      // ease-out cubic
+      const t = 1 - Math.pow(1 - progress, 3);
+
+      const x = Math.round(startX + (targetX - startX) * t);
+      const y = Math.round(startY + (targetY - startY) * t);
+
+      win.setPosition(x, y);
+
+      if (progress < 1) {
+        setTimeout(animate, 16); // ~60fps
+      } else {
+        resolve();
+      }
+    };
+
+    animate();
+  });
+}
+
+/**
+ * 检测窗口是否应该靠边隐藏
+ * 返回 EdgeDockState 如果应该靠边，否则返回 null
+ */
+function checkEdgeDocking(win: BrowserWindow): EdgeDockState | null {
+  const [x, y] = win.getPosition();
+  const [w, h] = win.getSize();
+  const display = screen.getDisplayMatching(win.getBounds());
+  const { x: workX, y: workY, width: workW, height: workH } = display.workArea;
+
+  // 检查左侧
+  if (x <= workX + EDGE_THRESHOLD) {
+    return {
+      isDocked: true,
+      edge: "left",
+      dockX: workX - w + DOCK_VISIBLE_WIDTH,
+      dockY: y,
+      originalX: workX,
+      originalY: y,
+    };
+  }
+  // 检查右侧
+  if (x + w >= workX + workW - EDGE_THRESHOLD) {
+    return {
+      isDocked: true,
+      edge: "right",
+      dockX: workX + workW - DOCK_VISIBLE_WIDTH,
+      dockY: y,
+      originalX: workX + workW - w,
+      originalY: y,
+    };
+  }
+  // 检查顶部
+  if (y <= workY + EDGE_THRESHOLD) {
+    return {
+      isDocked: true,
+      edge: "top",
+      dockX: x,
+      dockY: workY - h + DOCK_VISIBLE_WIDTH,
+      originalX: x,
+      originalY: workY,
+    };
+  }
+
+  return null;
+}
+
+// 鼠标轮询状态和函数
+let hoverPollTimer: ReturnType<typeof setInterval> | null = null;
+const EDGE_REVEAL_ZONE = 5; // 鼠标距离边缘 5px 内触发弹出
+const EDGE_HIDE_ZONE = 50; // 鼠标距离窗口 50px 外触发收起
+
+/**
+ * 启动鼠标轮询检测（靠边隐藏后自动调用）
+ * 同时处理：移入弹出 和 移出收起
+ */
+function startHoverPolling() {
+  if (hoverPollTimer) return; // 已经启动
+
+  hoverPollTimer = setInterval(() => {
+    if (!floatWindow || floatWindow.isDestroyed()) {
+      stopHoverPolling();
+      return;
+    }
+
+    const state = edgeDockState.get(floatWindow.id);
+    if (!state) return;
+
+    const cursor = screen.getCursorScreenPoint();
+    const {
+      x: winX,
+      y: winY,
+      width: winW,
+      height: winH,
+    } = floatWindow.getBounds();
+
+    // 情况1：窗口处于靠边隐藏状态，检测是否应该弹出
+    if (state.isDocked) {
+      let shouldReveal = false;
+      switch (state.edge) {
+        case "left":
+          shouldReveal =
+            cursor.x <= winX + winW + EDGE_REVEAL_ZONE &&
+            cursor.y >= winY &&
+            cursor.y <= winY + winH;
+          break;
+        case "right":
+          shouldReveal =
+            cursor.x >= winX - EDGE_REVEAL_ZONE &&
+            cursor.y >= winY &&
+            cursor.y <= winY + winH;
+          break;
+        case "top":
+          shouldReveal =
+            cursor.y <= winY + winH + EDGE_REVEAL_ZONE &&
+            cursor.x >= winX &&
+            cursor.x <= winX + winW;
+          break;
+      }
+
+      if (shouldReveal) {
+        // 使用动画弹出窗口
+        animateWindowPosition(
+          floatWindow,
+          state.originalX,
+          state.originalY,
+          200,
+        ).then(() => {
+          if (floatWindow && !floatWindow.isDestroyed()) {
+            edgeDockState.set(floatWindow.id, { ...state, isDocked: false });
+            floatWindow.webContents.send("edge-dock-changed", {
+              isDocked: false,
+              edge: state.edge,
+            });
+          }
+        });
+      }
+    }
+    // 情况2：窗口处于弹出状态（但仍然属于靠边模式），检测是否应该收起
+    else {
+      let shouldHide = false;
+      switch (state.edge) {
+        case "left":
+          // 鼠标在窗口右侧一定距离外
+          shouldHide = cursor.x > winX + winW + EDGE_HIDE_ZONE;
+          break;
+        case "right":
+          // 鼠标在窗口左侧一定距离外
+          shouldHide = cursor.x < winX - EDGE_HIDE_ZONE;
+          break;
+        case "top":
+          // 鼠标在窗口下方一定距离外
+          shouldHide = cursor.y > winY + winH + EDGE_HIDE_ZONE;
+          break;
+      }
+
+      // 额外检查：如果鼠标完全不在窗口区域外
+      const isMouseOutsideWindow =
+        cursor.x < winX - EDGE_HIDE_ZONE ||
+        cursor.x > winX + winW + EDGE_HIDE_ZONE ||
+        cursor.y < winY - EDGE_HIDE_ZONE ||
+        cursor.y > winY + winH + EDGE_HIDE_ZONE;
+
+      if (shouldHide || isMouseOutsideWindow) {
+        // 使用动画收起窗口
+        animateWindowPosition(floatWindow, state.dockX, state.dockY, 200).then(
+          () => {
+            if (floatWindow && !floatWindow.isDestroyed()) {
+              edgeDockState.set(floatWindow.id, { ...state, isDocked: true });
+              floatWindow.webContents.send("edge-dock-changed", {
+                isDocked: true,
+                edge: state.edge,
+              });
+            }
+          },
+        );
+      }
+    }
+  }, 200); // 200ms 轮询间隔
+}
+
+/**
+ * 停止鼠标轮询检测
+ */
+function stopHoverPolling() {
+  if (hoverPollTimer) {
+    clearInterval(hoverPollTimer);
+    hoverPollTimer = null;
+  }
+}
+
+ipcMain.handle("set-float-window-position", (_, x: number, y: number) => {
+  if (!floatWindow || floatWindow.isDestroyed()) return false;
+  floatWindow.setPosition(Math.round(x), Math.round(y));
+  return true;
+});
+
+// 靠边隐藏相关 IPC handlers
+ipcMain.handle(
+  "dock-float-window",
+  async (_, edge: "left" | "right" | "top") => {
+    if (!floatWindow || floatWindow.isDestroyed()) return false;
+
+    const [x, y] = floatWindow.getPosition();
+    const [w, h] = floatWindow.getSize();
+    const display = screen.getDisplayMatching(floatWindow.getBounds());
+    const {
+      x: workX,
+      y: workY,
+      width: workW,
+      height: workH,
+    } = display.workArea;
+
+    let dockX = x;
+    let dockY = y;
+
+    // 根据边缘计算靠边位置
+    switch (edge) {
+      case "left":
+        dockX = workX - w + DOCK_VISIBLE_WIDTH;
+        break;
+      case "right":
+        dockX = workX + workW - DOCK_VISIBLE_WIDTH;
+        break;
+      case "top":
+        dockY = workY - h + DOCK_VISIBLE_WIDTH;
+        break;
+    }
+
+    const dockState: EdgeDockState = {
+      isDocked: true,
+      edge,
+      dockX,
+      dockY,
+      originalX: x,
+      originalY: y,
+    };
+
+    edgeDockState.set(floatWindow.id, dockState);
+    await animateWindowPosition(floatWindow, dockX, dockY, 200);
+    startHoverPolling();
+    floatWindow.webContents.send("edge-dock-changed", {
+      isDocked: true,
+      edge,
+    });
+
+    return true;
+  },
+);
+
+ipcMain.handle("undock-float-window", async () => {
+  if (!floatWindow || floatWindow.isDestroyed()) return false;
+
+  const state = edgeDockState.get(floatWindow.id);
+  if (!state?.isDocked) return false;
+
+  // 使用动画恢复原位
+  await animateWindowPosition(
+    floatWindow,
+    state.originalX,
+    state.originalY,
+    200,
+  );
+  edgeDockState.delete(floatWindow.id);
+  stopHoverPolling();
+  floatWindow.webContents.send("edge-dock-changed", {
+    isDocked: false,
+    edge: null,
+  });
+
+  return true;
+});
+
+ipcMain.handle("get-edge-dock-state", () => {
+  if (!floatWindow || floatWindow.isDestroyed()) return null;
+  return edgeDockState.get(floatWindow.id) || null;
+});
+
+ipcMain.handle(
+  "resize-float-window-animated",
+  (_, width: number, height: number, duration: number = 300) => {
+    if (!floatWindow || floatWindow.isDestroyed()) return false;
+    const [startW, startH] = floatWindow.getSize();
+    const targetW = Math.round(width);
+    const targetH = Math.round(height);
+    if (Math.abs(startW - targetW) <= 2 && Math.abs(startH - targetH) <= 2)
+      return false;
+
+    const startTime = Date.now();
+    const step = () => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      // ease-out cubic
+      const t = 1 - Math.pow(1 - progress, 3);
+      floatWindow!.setSize(
+        Math.round(startW + (targetW - startW) * t),
+        Math.round(startH + (targetH - startH) * t),
+      );
+      if (progress < 1) {
+        setTimeout(step, 16);
+      }
+    };
+    step();
+    return true;
+  },
+);
 
 // 登录窗口管理
-let loginInProgress = false
-let loginPromise: Promise<string | null> | null = null
+let loginInProgress = false;
+let loginPromise: Promise<string | null> | null = null;
 
-ipcMain.handle('open-mimo-login', async () => {
-  console.log('[Login] open-mimo-login handler 被调用, loginInProgress:', loginInProgress)
-  
+ipcMain.handle("open-mimo-login", async () => {
+  console.log(
+    "[Login] open-mimo-login handler 被调用, loginInProgress:",
+    loginInProgress,
+  );
+
   // 如果已有登录在进行中，等待其完成
   if (loginInProgress && loginPromise) {
-    console.log('[Login] 登录已在进行中，等待结果')
-    return loginPromise
+    console.log("[Login] 登录已在进行中，等待结果");
+    return loginPromise;
   }
-  
-  loginInProgress = true
-  
+
+  loginInProgress = true;
+
   loginPromise = new Promise<string | null>((resolve) => {
     // 读取 config 获取 loginUrl
-    let loginUrl = 'https://platform.xiaomimimo.com/console/plan-manage'
+    let loginUrl = "https://platform.xiaomimimo.com/console/plan-manage";
     try {
       if (existsSync(configPath)) {
-        const config = JSON.parse(readFileSync(configPath, 'utf-8'))
-        const mimoModel = config.models?.find((m: any) => m.provider === 'mimo')
+        const config = JSON.parse(readFileSync(configPath, "utf-8"));
+        const mimoModel = config.models?.find(
+          (m: any) => m.provider === "mimo",
+        );
         if (mimoModel?.loginUrl) {
-          loginUrl = mimoModel.loginUrl
+          loginUrl = mimoModel.loginUrl;
         }
         // 如果已有 cookie，先验证是否有效
         if (mimoModel?.cookies) {
           // 尝试用已有 cookie 做一次 API 请求验证
           const testHeaders: Record<string, string> = {
-            'Cookie': mimoModel.cookies
-          }
+            Cookie: mimoModel.cookies,
+          };
           if (mimoModel.apiKey) {
-            testHeaders['Authorization'] = `Bearer ${mimoModel.apiKey}`
+            testHeaders["Authorization"] = `Bearer ${mimoModel.apiKey}`;
           }
           const testRequest = net.request({
-            method: 'GET',
-            url: mimoModel.baseUrl || 'https://platform.xiaomimimo.com/api/v1/tokenPlan/usage',
-            headers: testHeaders
-          })
+            method: "GET",
+            url:
+              mimoModel.baseUrl ||
+              "https://platform.xiaomimimo.com/api/v1/tokenPlan/usage",
+            headers: testHeaders,
+          });
 
-          let testData = ''
-          testRequest.on('response', (response) => {
-            response.on('data', (chunk) => { testData += chunk.toString() })
-            response.on('end', () => {
+          let testData = "";
+          testRequest.on("response", (response) => {
+            response.on("data", (chunk) => {
+              testData += chunk.toString();
+            });
+            response.on("end", () => {
               try {
-                const data = JSON.parse(testData)
+                const data = JSON.parse(testData);
                 // 如果返回 code === 0，说明 cookie 有效
                 if (data.code === 0) {
-                  console.log('[Login] 已有 cookie 有效，跳过登录')
-                  resolve(mimoModel.cookies)
-                  return
+                  console.log("[Login] 已有 cookie 有效，跳过登录");
+                  resolve(mimoModel.cookies);
+                  return;
                 }
-              } catch { /* 解析失败，继续登录流程 */ }
+              } catch {
+                /* 解析失败，继续登录流程 */
+              }
               // cookie 无效，打开登录窗口
-              doLogin(loginUrl, resolve)
-            })
-          })
-          testRequest.on('error', () => {
+              doLogin(loginUrl, resolve);
+            });
+          });
+          testRequest.on("error", () => {
             // 请求失败，打开登录窗口
-            doLogin(loginUrl, resolve)
-          })
-          testRequest.end()
-          return
+            doLogin(loginUrl, resolve);
+          });
+          testRequest.end();
+          return;
         }
       }
     } catch (error) {
-      console.error('[Login] 读取配置失败:', error)
+      console.error("[Login] 读取配置失败:", error);
     }
 
     // 无 cookie，直接打开登录窗口
-    doLogin(loginUrl, resolve)
-  })
-  
+    doLogin(loginUrl, resolve);
+  });
+
   // 登录完成后重置状态
   loginPromise.finally(() => {
-    loginInProgress = false
-    loginPromise = null
-  })
-  
-  return loginPromise
-})
+    loginInProgress = false;
+    loginPromise = null;
+  });
 
-async function doLogin(loginUrl: string, resolve: (value: string | null) => void): Promise<void> {
-  console.log('[Login] 打开登录窗口:', loginUrl)
-  await loginManager.openLoginWindow(loginUrl, mainWindow || undefined)
+  return loginPromise;
+});
+
+async function doLogin(
+  loginUrl: string,
+  resolve: (value: string | null) => void,
+): Promise<void> {
+  console.log("[Login] 打开登录窗口:", loginUrl);
+  await loginManager.openLoginWindow(loginUrl, mainWindow || undefined);
   loginManager.onLoginComplete((cookies) => {
-    console.log('[Login] 登录完成，cookies:', cookies ? '已获取' : '未获取')
+    console.log("[Login] 登录完成，cookies:", cookies ? "已获取" : "未获取");
     if (cookies) {
       // 打印 cookie 完整信息
-      console.log('[Login] Cookie 完整值:', cookies)
-      
+      console.log("[Login] Cookie 完整值:", cookies);
+
       // 将 cookies 保存到 config
       try {
         if (existsSync(configPath)) {
-          const config = JSON.parse(readFileSync(configPath, 'utf-8'))
-          const mimoModel = config.models?.find((m: any) => m.provider === 'mimo')
+          const config = JSON.parse(readFileSync(configPath, "utf-8"));
+          const mimoModel = config.models?.find(
+            (m: any) => m.provider === "mimo",
+          );
           if (mimoModel) {
-            mimoModel.cookies = cookies
-            writeFileSync(configPath, JSON.stringify(config, null, 2))
-            console.log('[Login] Cookies 已保存到 config')
+            mimoModel.cookies = cookies;
+            writeFileSync(configPath, JSON.stringify(config, null, 2));
+            console.log("[Login] Cookies 已保存到 config");
           }
         }
       } catch (error) {
-        console.error('[Login] 保存 cookies 失败:', error)
+        console.error("[Login] 保存 cookies 失败:", error);
       }
     } else {
-      console.warn('[Login] 未获取到 cookies（超时或用户未登录）')
+      console.warn("[Login] 未获取到 cookies（超时或用户未登录）");
     }
-    resolve(cookies)
-  })
+    resolve(cookies);
+  });
 }
 
 // 窗口控制
-ipcMain.handle('window-minimize', () => {
-  mainWindow?.minimize()
-})
+ipcMain.handle("window-minimize", () => {
+  mainWindow?.minimize();
+});
 
-ipcMain.handle('window-maximize', () => {
+ipcMain.handle("window-maximize", () => {
   if (mainWindow?.isMaximized()) {
-    mainWindow.unmaximize()
+    mainWindow.unmaximize();
   } else {
-    mainWindow?.maximize()
+    mainWindow?.maximize();
   }
-})
+});
 
-ipcMain.handle('window-close', () => {
-  mainWindow?.close()
-})
+ipcMain.handle("window-close", () => {
+  mainWindow?.close();
+});
 
-ipcMain.handle('show-main-window', () => {
+ipcMain.handle("show-main-window", () => {
   if (!mainWindow || mainWindow.isDestroyed()) {
-    createWindow()
+    createWindow();
   } else {
     if (mainWindow.isMinimized()) {
-      mainWindow.restore()
+      mainWindow.restore();
     }
-    mainWindow.show()
-    mainWindow.focus()
+    mainWindow.show();
+    mainWindow.focus();
   }
-  return true
-})
+  return true;
+});
 
 // 统一刷新相关
-ipcMain.handle('get-cached-usage', () => {
-  return refresher.getCachedData()
-})
+ipcMain.handle("get-cached-usage", () => {
+  return refresher.getCachedData();
+});
 
-ipcMain.handle('refresh-all-models', async () => {
-  await refresher.refreshAll()
-  return true
-})
+ipcMain.handle("refresh-all-models", async () => {
+  await refresher.refreshAll();
+  return true;
+});
 
-ipcMain.handle('refresh-model', async (_, modelId: string) => {
-  await refresher.fetchModelById(modelId)
-  return true
-})
+ipcMain.handle("refresh-model", async (_, modelId: string) => {
+  await refresher.fetchModelById(modelId);
+  return true;
+});
 
 // API调用 - 在主进程中处理，避免CORS问题
-ipcMain.handle('fetch-mimo-usage', async (_, options) => {
+ipcMain.handle("fetch-mimo-usage", async (_, options) => {
   return new Promise((resolve, reject) => {
-    const { url, apiKey, cookies, method = 'GET', headers = {}, body } = options
+    const {
+      url,
+      apiKey,
+      cookies,
+      method = "GET",
+      headers = {},
+      body,
+    } = options;
 
     if (!isAllowedUrl(url)) {
-      reject(new Error('URL not allowed'))
-      return
+      reject(new Error("URL not allowed"));
+      return;
     }
 
     const requestHeaders: Record<string, string> = {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36'
-    }
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
+    };
 
     if (apiKey) {
-      requestHeaders['Authorization'] = `Bearer ${apiKey}`
+      requestHeaders["Authorization"] = `Bearer ${apiKey}`;
     }
 
     // 合并自定义 headers
     for (const [key, value] of Object.entries(headers)) {
-      if (typeof value === 'string') {
-        requestHeaders[key] = value
+      if (typeof value === "string") {
+        requestHeaders[key] = value;
       }
     }
 
     // POST 请求默认加 Content-Type
-    if (method === 'POST' && !requestHeaders['Content-Type']) {
-      requestHeaders['Content-Type'] = 'application/json'
+    if (method === "POST" && !requestHeaders["Content-Type"]) {
+      requestHeaders["Content-Type"] = "application/json";
     }
 
     if (cookies) {
-      requestHeaders['Cookie'] = cookies
-      if (isDev) console.log('[API] 使用 cookies:', cookies)
+      requestHeaders["Cookie"] = cookies;
+      if (isDev) console.log("[API] 使用 cookies:", cookies);
     } else {
-      if (isDev) console.log('[API] 未提供 cookies')
+      if (isDev) console.log("[API] 未提供 cookies");
     }
 
     if (isDev) {
-      console.log('主进程发起', method, '请求到:', url)
-      console.log('[API] apiKey 长度:', apiKey?.length || 0)
-      console.log('[API] Authorization:', requestHeaders['Authorization']?.substring(0, 30) + '...')
-      console.log('[API] 所有 headers:', Object.keys(requestHeaders).join(', '))
+      console.log("主进程发起", method, "请求到:", url);
+      console.log("[API] apiKey 长度:", apiKey?.length || 0);
+      console.log(
+        "[API] Authorization:",
+        requestHeaders["Authorization"]?.substring(0, 30) + "...",
+      );
+      console.log(
+        "[API] 所有 headers:",
+        Object.keys(requestHeaders).join(", "),
+      );
     }
 
     const request = net.request({
       method: method,
       url: url,
-      headers: requestHeaders
-    })
+      headers: requestHeaders,
+    });
 
-    let responseData = ''
+    let responseData = "";
 
-    request.on('response', (response) => {
-      if (isDev) console.log('收到响应状态码:', response.statusCode)
+    request.on("response", (response) => {
+      if (isDev) console.log("收到响应状态码:", response.statusCode);
 
-      response.on('data', (chunk) => {
-        responseData += chunk.toString()
-      })
+      response.on("data", (chunk) => {
+        responseData += chunk.toString();
+      });
 
-      response.on('end', () => {
+      response.on("end", () => {
         try {
-          const data = JSON.parse(responseData)
-          
+          const data = JSON.parse(responseData);
+
           // 检测是否需要重新登录（仅对 MiMo API 生效）
-          const isMimoUrl = url.includes('platform.xiaomimimo.com')
+          const isMimoUrl = url.includes("platform.xiaomimimo.com");
           if (isMimoUrl) {
             // 情况1: HTTP 401/403 状态码
             if (response.statusCode === 401 || response.statusCode === 403) {
-              console.warn('[API] MiMo 返回 401/403，触发登录，状态码:', response.statusCode)
+              console.warn(
+                "[API] MiMo 返回 401/403，触发登录，状态码:",
+                response.statusCode,
+              );
               if (mainWindow && !mainWindow.isDestroyed()) {
-                mainWindow.webContents.send('login-needed')
+                mainWindow.webContents.send("login-needed");
               }
-              const error = new Error('Cookie expired or unauthorized')
-              ;(error as any).code = 'COOKIE_EXPIRED'
-              ;(error as any).statusCode = response.statusCode
-              reject(error)
-              return
+              const error = new Error("Cookie expired or unauthorized");
+              (error as any).code = "COOKIE_EXPIRED";
+              (error as any).statusCode = response.statusCode;
+              reject(error);
+              return;
             }
-            
+
             // 情况2: 响应中包含 loginUrl 字段（MiMo 特有的登录重定向）
             if (data.loginUrl) {
-              console.warn('[API] MiMo 返回 loginUrl，触发登录')
+              console.warn("[API] MiMo 返回 loginUrl，触发登录");
               if (mainWindow && !mainWindow.isDestroyed()) {
-                mainWindow.webContents.send('login-needed')
+                mainWindow.webContents.send("login-needed");
               }
-              const error = new Error('Cookie expired or unauthorized')
-              ;(error as any).code = 'COOKIE_EXPIRED'
-              reject(error)
-              return
+              const error = new Error("Cookie expired or unauthorized");
+              (error as any).code = "COOKIE_EXPIRED";
+              reject(error);
+              return;
             }
-            
+
             // 情况3: code 不为 0 且响应包含错误关键词
             if (data.code !== 0) {
-              const bodyStr = JSON.stringify(data)
-              const errorKeywords = ['unauthorized', 'expired', 'invalid token', 'authentication']
-              const isCookieError = errorKeywords.some(keyword => 
-                bodyStr.toLowerCase().includes(keyword)
-              )
-              
+              const bodyStr = JSON.stringify(data);
+              const errorKeywords = [
+                "unauthorized",
+                "expired",
+                "invalid token",
+                "authentication",
+              ];
+              const isCookieError = errorKeywords.some((keyword) =>
+                bodyStr.toLowerCase().includes(keyword),
+              );
+
               if (isCookieError) {
-                console.warn('[API] MiMo 检测到 Cookie 相关错误关键词')
+                console.warn("[API] MiMo 检测到 Cookie 相关错误关键词");
                 if (mainWindow && !mainWindow.isDestroyed()) {
-                  mainWindow.webContents.send('login-needed')
+                  mainWindow.webContents.send("login-needed");
                 }
-                const error = new Error('Cookie expired or unauthorized')
-                ;(error as any).code = 'COOKIE_EXPIRED'
-                reject(error)
-                return
+                const error = new Error("Cookie expired or unauthorized");
+                (error as any).code = "COOKIE_EXPIRED";
+                reject(error);
+                return;
               }
             }
           }
-          
-          resolve(data)
-        } catch (error) {
-          reject(new Error('JSON解析失败'))
-        }
-      })
-    })
 
-    request.on('error', (error) => {
-      console.error('请求错误:', error)
-      reject(error)
-    })
+          resolve(data);
+        } catch (error) {
+          reject(new Error("JSON解析失败"));
+        }
+      });
+    });
+
+    request.on("error", (error) => {
+      console.error("请求错误:", error);
+      reject(error);
+    });
 
     // 发送 body（仅 POST/PUT/PATCH）
-    if (body && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
-      const bodyStr = typeof body === 'string' ? body : JSON.stringify(body)
-      request.write(bodyStr)
+    if (body && (method === "POST" || method === "PUT" || method === "PATCH")) {
+      const bodyStr = typeof body === "string" ? body : JSON.stringify(body);
+      request.write(bodyStr);
     }
 
-    request.end()
-  })
-})
+    request.end();
+  });
+});
+
+// Open Code 登录窗口管理
+let openCodeLoginInProgress = false;
+let openCodeLoginPromise: Promise<{
+  cookies: string | null;
+  baseUrl: string | null;
+}> | null = null;
+
+ipcMain.handle("open-opencode-login", async () => {
+  console.log(
+    "[OpenCodeLogin] open-opencode-login handler 被调用, loginInProgress:",
+    openCodeLoginInProgress,
+  );
+
+  // 如果已有登录在进行中，等待其完成
+  if (openCodeLoginInProgress && openCodeLoginPromise) {
+    console.log("[OpenCodeLogin] 登录已在进行中，等待结果");
+    return openCodeLoginPromise;
+  }
+
+  openCodeLoginInProgress = true;
+
+  openCodeLoginPromise = new Promise<{
+    cookies: string | null;
+    baseUrl: string | null;
+  }>((resolvePromise) => {
+    // Open Code 的登录页面（包含登录按钮）
+    const loginUrl = "https://opencode.ai/zh/go";
+
+    // 如果已有 cookie，先验证是否有效
+    if (existsSync(configPath)) {
+      const config = JSON.parse(readFileSync(configPath, "utf-8"));
+      const opencodeModel = config.models?.find(
+        (m: any) => m.provider === "opencode",
+      );
+      if (opencodeModel?.cookies && opencodeModel?.baseUrl) {
+        // 尝试用已有 cookie 做一次 API 请求验证
+        const testHeaders: Record<string, string> = {
+          Cookie: opencodeModel.cookies,
+          Accept: "*/*",
+          "x-server-id":
+            "c7389bd0e731f80f49593e5ee53835475f4e28594dd6bd83eb229bab753498cd",
+          "x-server-instance": "server-fn:1",
+        };
+
+        const testRequest = net.request({
+          method: "GET",
+          url: opencodeModel.baseUrl,
+          headers: testHeaders,
+        });
+
+        let testData = "";
+        testRequest.on("response", (response) => {
+          response.on("data", (chunk) => {
+            testData += chunk.toString();
+          });
+          response.on("end", () => {
+            // 如果返回的是 JavaScript（包含 usagePercent），说明 cookie 有效
+            if (testData.includes("usagePercent")) {
+              console.log("[OpenCodeLogin] 已有 cookie 有效，跳过登录");
+              resolvePromise({
+                cookies: opencodeModel.cookies,
+                baseUrl: opencodeModel.baseUrl,
+              });
+              return;
+            }
+            // cookie 无效，打开登录窗口
+            doOpenCodeLogin(loginUrl, resolvePromise);
+          });
+        });
+        testRequest.on("error", () => {
+          // 请求失败，打开登录窗口
+          doOpenCodeLogin(loginUrl, resolvePromise);
+        });
+        testRequest.end();
+        return;
+      }
+    }
+
+    // 无 cookie，直接打开登录窗口
+    doOpenCodeLogin(loginUrl, resolvePromise);
+  });
+
+  // 登录完成后重置状态
+  openCodeLoginPromise.finally(() => {
+    openCodeLoginInProgress = false;
+    openCodeLoginPromise = null;
+  });
+
+  return openCodeLoginPromise;
+});
+
+async function doOpenCodeLogin(
+  loginUrl: string,
+  resolvePromise: (value: {
+    cookies: string | null;
+    baseUrl: string | null;
+  }) => void,
+): Promise<void> {
+  console.log("[OpenCodeLogin] 打开登录窗口:", loginUrl);
+  await openCodeLoginManager.openLoginWindow(loginUrl, mainWindow || undefined);
+  openCodeLoginManager.onLoginComplete((data) => {
+    console.log(
+      "[OpenCodeLogin] 登录完成回调，data:",
+      data ? "已获取" : "null",
+    );
+
+    if (data) {
+      console.log("[OpenCodeLogin] Cookie 长度:", data.cookies.length);
+      console.log(
+        "[OpenCodeLogin] API URL:",
+        data.apiUrl ? "已捕获" : "未捕获",
+      );
+
+      const baseUrl = data.apiUrl;
+
+      // 保存到 config
+      try {
+        if (existsSync(configPath)) {
+          const config = JSON.parse(readFileSync(configPath, "utf-8"));
+          const opencodeModel = config.models?.find(
+            (m: any) => m.provider === "opencode",
+          );
+          if (opencodeModel) {
+            opencodeModel.cookies = data.cookies;
+            if (baseUrl) {
+              opencodeModel.baseUrl = baseUrl;
+            }
+            writeFileSync(configPath, JSON.stringify(config, null, 2));
+            console.log("[OpenCodeLogin] 已保存到 config");
+          }
+        }
+      } catch (error) {
+        console.error("[OpenCodeLogin] 保存配置失败:", error);
+      }
+
+      resolvePromise({ cookies: data.cookies, baseUrl });
+    } else {
+      console.warn("[OpenCodeLogin] 登录失败或已取消");
+      resolvePromise({ cookies: null, baseUrl: null });
+    }
+  });
+}

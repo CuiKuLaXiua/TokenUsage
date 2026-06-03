@@ -3,6 +3,7 @@ import type { ModelUsageStatus, UsageTier } from '@/stores/app'
 export const MIMO_DEFAULT_BASE_URL = 'https://platform.xiaomimimo.com/api/v1/tokenPlan/usage'
 export const KIMI_DEFAULT_BASE_URL = 'https://api.kimi.com/coding/v1/usages'
 export const DEEPSEEK_DEFAULT_BASE_URL = 'https://api.deepseek.com/user/balance'
+export const OPENCODE_DEFAULT_BASE_URL = 'https://opencode.ai/_server'
 
 // ── MIMO ──
 interface MimoResponseItem {
@@ -177,6 +178,131 @@ function parseDeepSeekResponse(response: DeepSeekResponse): ModelUsageStatus | n
   }
 }
 
+// ── Open Code (通用查询) ──
+// 响应格式未明确，尝试多种常见格式
+
+function parseOpenCodeResponse(response: any): ModelUsageStatus | null {
+  // Open Code 返回的是 JavaScript 代码，需要从字符串中提取数据
+  if (typeof response === 'string') {
+    try {
+      // 提取 monthlyUsage 的 usagePercent
+      const monthlyMatch = response.match(/monthlyUsage:\s*\$R\[\d+\]\s*=\s*\{[^}]*usagePercent:\s*(\d+)[^}]*\}/)
+      const weeklyMatch = response.match(/weeklyUsage:\s*\$R\[\d+\]\s*=\s*\{[^}]*usagePercent:\s*(\d+)[^}]*\}/)
+      const rollingMatch = response.match(/rollingUsage:\s*\$R\[\d+\]\s*=\s*\{[^}]*usagePercent:\s*(\d+)[^}]*\}/)
+
+      // 提取 resetInSec
+      const monthlyResetMatch = response.match(/monthlyUsage:\s*\$R\[\d+\]\s*=\s*\{[^}]*resetInSec:\s*(\d+)[^}]*\}/)
+      const weeklyResetMatch = response.match(/weeklyUsage:\s*\$R\[\d+\]\s*=\s*\{[^}]*resetInSec:\s*(\d+)[^}]*\}/)
+      const rollingResetMatch = response.match(/rollingUsage:\s*\$R\[\d+\]\s*=\s*\{[^}]*resetInSec:\s*(\d+)[^}]*\}/)
+
+      const tiers: UsageTier[] = []
+
+      if (rollingMatch) {
+        const percent = parseInt(rollingMatch[1])
+        const resetSec = rollingResetMatch ? parseInt(rollingResetMatch[1]) : undefined
+        // 将秒数转换为 ISO 日期格式（当前时间 + resetInSec）
+        const resetAt = resetSec ? new Date(Date.now() + resetSec * 1000).toISOString() : undefined
+        tiers.push({
+          name: 'five_hour',
+          label: '5H',
+          percent,
+          resetAt
+        })
+      }
+
+      if (weeklyMatch) {
+        const percent = parseInt(weeklyMatch[1])
+        const resetSec = weeklyResetMatch ? parseInt(weeklyResetMatch[1]) : undefined
+        const resetAt = resetSec ? new Date(Date.now() + resetSec * 1000).toISOString() : undefined
+        tiers.push({
+          name: 'weekly',
+          label: '7D',
+          percent,
+          resetAt
+        })
+      }
+
+      if (monthlyMatch) {
+        const percent = parseInt(monthlyMatch[1])
+        const resetSec = monthlyResetMatch ? parseInt(monthlyResetMatch[1]) : undefined
+        const resetAt = resetSec ? new Date(Date.now() + resetSec * 1000).toISOString() : undefined
+        tiers.push({
+          name: 'monthly',
+          label: '月',
+          percent,
+          resetAt
+        })
+      }
+
+      if (tiers.length > 0) {
+        return {
+          usageType: 'percent',
+          planName: 'Open Code',
+          lastUpdated: Date.now(),
+          tiers
+        }
+      }
+
+      return null
+    } catch (e) {
+      console.error('[OpenCode] 解析 JavaScript 响应失败:', e)
+      return null
+    }
+  }
+
+  // 如果是对象，尝试之前的格式
+  if (response && typeof response === 'object') {
+    // 格式 1: { usage: { used, total, remaining }, planName }
+    if (response.usage && typeof response.usage === 'object') {
+      const { used, total, remaining } = response.usage
+      if (typeof total === 'number' && total > 0) {
+        return {
+          usageType: 'token',
+          planName: response.planName || 'Open Code',
+          used: Number(used) || 0,
+          total: Number(total) || 0,
+          remaining: Number(remaining) || Math.max(0, total - (used || 0)),
+          percent: total > 0 ? Math.round(((used || 0) / total) * 10000) / 100 : 0,
+          lastUpdated: Date.now()
+        }
+      }
+    }
+
+    // 格式 2: { balance: number, currency: string }
+    if (typeof response.balance === 'number') {
+      return {
+        usageType: 'balance',
+        planName: response.planName || 'Open Code',
+        balance: response.balance,
+        currency: response.currency || 'USD',
+        lastUpdated: Date.now()
+      }
+    }
+
+    // 格式 3: { total, used, remaining } 直接在顶层
+    if (typeof response.total === 'number' && response.total > 0) {
+      return {
+        usageType: 'token',
+        planName: response.planName || 'Open Code',
+        used: Number(response.used) || 0,
+        total: Number(response.total) || 0,
+        remaining: Number(response.remaining) || Math.max(0, response.total - (response.used || 0)),
+        percent: response.total > 0 ? Math.round(((response.used || 0) / response.total) * 10000) / 100 : 0,
+        lastUpdated: Date.now()
+      }
+    }
+
+    // 格式 4: 尝试 Kimi 风格的 limits/usage
+    const kimiStyleResult = parseKimiResponse(response)
+    if (kimiStyleResult) {
+      kimiStyleResult.planName = 'Open Code'
+      return kimiStyleResult
+    }
+  }
+
+  return null
+}
+
 // ── 通用入口 ──
 export function extractUsage(response: any, provider: string): ModelUsageStatus | null {
   console.log(`[${provider}] 原始响应:`, JSON.stringify(response, null, 2))
@@ -192,6 +318,9 @@ export function extractUsage(response: any, provider: string): ModelUsageStatus 
       break
     case 'deepseek':
       result = parseDeepSeekResponse(response)
+      break
+    case 'opencode':
+      result = parseOpenCodeResponse(response)
       break
     default:
       // 未知 provider 尝试通用解析
