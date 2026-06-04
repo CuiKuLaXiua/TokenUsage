@@ -44,6 +44,7 @@ const detailRef = ref<HTMLElement | null>(null);
 const enabledModels = computed(() => store.models.filter((m) => m.enabled));
 let unsubCfg: (() => void) | null = null;
 let unsubThemeChanged: (() => void) | null = null;
+let onWindowFocus: (() => void) | null = null;
 
 // ── Hover bridge ──
 // 通过 IPC 通知主进程，主进程再广播给主悬浮窗
@@ -98,12 +99,23 @@ onMounted(async () => {
     theme.value = t.mode;
     accent.value = t.accent;
   });
+  // 每次窗口显示时滚动到顶部
+  onWindowFocus = () => {
+    detailRef.value?.scrollTo(0, 0);
+  };
+  window.addEventListener("focus", onWindowFocus);
+
+  // 通知主进程详情窗口已完成渲染，避免首次闪烁
+  nextTick(() => {
+    window.electronAPI.detailReady();
+  });
 });
 
 onUnmounted(() => {
   store.stopSubscription();
   unsubCfg?.();
   unsubThemeChanged?.();
+  if (onWindowFocus) window.removeEventListener("focus", onWindowFocus);
 });
 
 // 模型列表变化时自动调整窗口高度

@@ -1,5 +1,8 @@
 <template>
+  <!-- 占位层：ready 前用不透明背景遮挡，防止透明窗口透出主页面内容 -->
+  <div v-if="!ready" class="ctx-menu-placeholder"></div>
   <div
+    v-else
     class="ctx-menu-page"
     :data-theme="theme"
     :data-accent="accent"
@@ -51,6 +54,7 @@ const modelId = ref<string | null>(null)
 const modelName = ref<string | null>(null)
 const layoutMode = ref('list')
 const alwaysOnTop = ref(true)
+const ready = ref(false)
 
 let unsubCfg: (() => void) | null = null
 
@@ -74,6 +78,9 @@ onMounted(async () => {
     layoutMode.value = config.layoutMode
     alwaysOnTop.value = config.alwaysOnTop
   })
+
+  // 数据就绪后才渲染菜单，避免透明窗口透出主页面内容闪烁
+  ready.value = true
 })
 
 onUnmounted(() => {
@@ -100,6 +107,13 @@ html, body {
   padding: 0;
   background: transparent !important;
   overflow: hidden;
+}
+
+/* 占位层：ready 前覆盖不透明背景，防止透明窗口透出主页面内容 */
+.ctx-menu-placeholder {
+  width: 100vw;
+  height: 100vh;
+  background: #1a1a2e;
 }
 </style>
 

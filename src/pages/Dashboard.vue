@@ -337,9 +337,24 @@
                 </div>
               </template>
 
-              <!-- No Data -->
+              <!-- No Data or Error -->
               <div v-else class="card-body empty-type">
+                <!-- 错误状态 -->
+                <div v-if="getUsage(model.id)?.usageType === 'error'" class="error-card-content">
+                  <div class="error-info">
+                    <span class="error-label">{{ getUsage(model.id)?.error?.includes('Cookie') ? 'Cookie 过期' : '错误' }}</span>
+                    <span class="error-detail">{{ getUsage(model.id)?.error || '未知错误' }}</span>
+                  </div>
+                  <button
+                    class="btn-relogin"
+                    @click="handleErrorAction(model)"
+                  >
+                    <span>{{ getUsage(model.id)?.error?.includes('Cookie') ? '重新登录' : '查看详情' }}</span>
+                  </button>
+                </div>
+                <!-- 无数据状态 -->
                 <button
+                  v-else
                   class="btn-fetch"
                   @click="fetchUsage(model)"
                   :disabled="store.fetching[model.id]"
@@ -440,6 +455,33 @@ async function fetchUsage(model: ModelConfig) {
     });
   } catch {
     ElMessage.error({ message: "数据解析失败", duration: 2500 });
+  }
+}
+
+async function handleErrorAction(model: ModelConfig) {
+  const usage = getUsage(model.id);
+  if (!usage?.error) return;
+
+  // Cookie 过期 - 打开登录窗口
+  if (usage.error.includes('Cookie')) {
+    try {
+      if (model.provider === 'opencode') {
+        await store.startOpenCodeLogin(model.id);
+        ElMessage.success({ message: '登录成功，正在刷新额度...', duration: 2000 });
+        await fetchUsage(model);
+      } else {
+        await store.startMimoLogin(model.id);
+        ElMessage.success({ message: '登录成功，正在刷新额度...', duration: 2000 });
+        await fetchUsage(model);
+      }
+    } catch (error) {
+      console.error('登录失败:', error);
+    }
+  }
+  // API key 失效 - 跳转到配置页面让用户修改
+  else if (usage.error.includes('API key')) {
+    ElMessage.warning({ message: '请在配置中更新 API key', duration: 3000 });
+    // 这里可以跳转到配置页面或打开编辑对话框
   }
 }
 
@@ -1123,6 +1165,60 @@ async function refreshAll() {
   justify-content: center;
   align-items: center;
   min-height: 80px;
+}
+
+.error-card-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 0;
+}
+
+.error-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.error-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--danger);
+}
+
+.error-detail {
+  font-size: 11px;
+  color: var(--text-secondary);
+  max-width: 180px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.btn-relogin {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 20px;
+  border-radius: 8px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all var(--duration-normal) var(--ease-smooth);
+}
+
+.btn-relogin:hover {
+  background: var(--glass-bg-strong);
+  border-color: var(--accent);
+  box-shadow: 0 0 12px var(--accent-glow);
+  transform: translateY(-1px);
 }
 
 .btn-fetch {

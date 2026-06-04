@@ -57,8 +57,24 @@
                 </td>
                 <td>
                   <div v-if="store.modelUsageMap[model.id]" class="usage-cell">
+                    <!-- 错误状态 -->
+                    <template v-if="store.modelUsageMap[model.id].usageType === 'error'">
+                      <div class="error-usage-cell">
+                        <span class="error-text">未获取</span>
+                        <span
+                          class="error-reason-tag"
+                          :class="{
+                            'cookie-expired': store.modelUsageMap[model.id].error?.includes('Cookie'),
+                            'api-key-invalid': store.modelUsageMap[model.id].error?.includes('API key')
+                          }"
+                          @click="handleErrorAction(model)"
+                        >
+                          {{ store.modelUsageMap[model.id].error || '未知错误' }}
+                        </span>
+                      </div>
+                    </template>
                     <!-- 多层级额度 (Kimi / OpenCode / percent) -->
-                    <template v-if="store.modelUsageMap[model.id].usageType === 'percent' && store.modelUsageMap[model.id].tiers?.length">
+                    <template v-else-if="store.modelUsageMap[model.id].usageType === 'percent' && store.modelUsageMap[model.id].tiers?.length">
                       <div v-for="tier in store.modelUsageMap[model.id].tiers" :key="tier.name" class="tier-row">
                         <div class="tier-row-header">
                           <div class="tier-label">{{ tier.label }}</div>
@@ -361,7 +377,8 @@ import {
   Clock,
   Setting,
   View,
-  Hide
+  Hide,
+  Key
 } from '@element-plus/icons-vue'
 import type { ModelConfig } from '@/stores/app'
 import { useAppStore } from '@/stores/app'
@@ -540,6 +557,33 @@ async function fetchUsage(model: ModelConfig) {
     else {
       ElMessage.error({ message: `${model.name} 数据解析失败`, duration: 2500 })
     }
+  }
+}
+
+async function handleErrorAction(model: ModelConfig) {
+  const usage = store.modelUsageMap[model.id]
+  if (!usage?.error) return
+
+  // Cookie 过期 - 打开登录窗口
+  if (usage.error.includes('Cookie')) {
+    try {
+      if (model.provider === 'opencode') {
+        await store.startOpenCodeLogin(model.id)
+        ElMessage.success({ message: '登录成功，正在刷新额度...', duration: 2000 })
+        await fetchUsage(model)
+      } else {
+        await store.startMimoLogin(model.id)
+        ElMessage.success({ message: '登录成功，正在刷新额度...', duration: 2000 })
+        await fetchUsage(model)
+      }
+    } catch (error) {
+      console.error('登录失败:', error)
+    }
+  }
+  // API key 失效 - 跳转到配置页面让用户修改
+  else if (usage.error.includes('API key')) {
+    ElMessage.warning({ message: '请在配置中更新 API key', duration: 3000 })
+    // 这里可以跳转到配置页面或打开编辑对话框
   }
 }
 </script>
@@ -782,6 +826,57 @@ async function fetchUsage(model: ModelConfig) {
 .no-data {
   color: var(--text-placeholder);
   font-size: 12px;
+}
+
+/* ── Error Usage Cell ── */
+.error-usage-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.error-text {
+  font-size: 12px;
+  color: var(--text-placeholder);
+  font-weight: 500;
+}
+
+.error-reason-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-smooth);
+  border: 1px solid transparent;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.error-reason-tag.cookie-expired {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.error-reason-tag.cookie-expired:hover {
+  background: rgba(245, 158, 11, 0.2);
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.2);
+  transform: translateY(-1px);
+}
+
+.error-reason-tag.api-key-invalid {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.error-reason-tag.api-key-invalid:hover {
+  background: rgba(239, 68, 68, 0.2);
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.2);
+  transform: translateY(-1px);
 }
 
 /* ── Status dot ── */

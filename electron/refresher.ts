@@ -336,12 +336,15 @@ function extractUsage(response: any, provider: string): ModelUsageStatus | null 
 
 // ── 主进程刷新管理器 ──
 
+const LOGIN_NEEDED_COOLDOWN_MS = 5 * 60 * 1000 // 5 minutes
+
 export class UsageRefresher {
   private modelUsageMap: Map<string, ModelUsageStatus> = new Map()
   private timers: Map<string, ReturnType<typeof setInterval>> = new Map()
   private configPath: string
   private models: ModelConfig[] = []
   private fetchInProgress: Set<string> = new Set()
+  private loginNeededCooldown: Map<string, number> = new Map()
 
   constructor(configPath: string) {
     this.configPath = configPath
@@ -419,7 +422,7 @@ export class UsageRefresher {
       // 检测 cookie 过期（MiMo 和 OpenCode）
       if ((model.provider === 'mimo' || model.provider === 'opencode') && this.isCookieExpired(error)) {
         console.log('[Refresher] 检测到 Cookie 过期，广播 login-needed')
-        this.broadcastLoginNeeded()
+        this.broadcastLoginNeeded(model.id)
       }
 
       // 检测 API key 失效（Kimi、DeepSeek 等）
@@ -643,11 +646,20 @@ export class UsageRefresher {
     }
   }
 
-  private broadcastLoginNeeded(): void {
+  private broadcastLoginNeeded(modelId: string): void {
+    // 冷却检查：同一模型 5 分钟内不重复广播
+    const lastSent = this.loginNeededCooldown.get(modelId)
+    const now = Date.now()
+    if (lastSent && (now - lastSent) < LOGIN_NEEDED_COOLDOWN_MS) {
+      console.log(`[Refresher] login-needed 冷却中，跳过模型 ${modelId}`)
+      return
+    }
+    this.loginNeededCooldown.set(modelId, now)
+
     const windows = BrowserWindow.getAllWindows()
     for (const win of windows) {
       if (!win.isDestroyed()) {
-        win.webContents.send('login-needed')
+        win.webContents.send('login-needed', { modelId })
       }
     }
   }

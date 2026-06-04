@@ -33,6 +33,8 @@ let mainWindow: BrowserWindow | null = null;
 let floatWindow: BrowserWindow | null = null;
 let floatStripWindow: BrowserWindow | null = null;
 let detailWindow: BrowserWindow | null = null;
+let detailWindowReady = false;
+let detailWindowReadyResolve: (() => void) | null = null;
 let ctxMenuWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
@@ -488,6 +490,9 @@ function createFloatWindow() {
       mainWindow.webContents.send("float-window-closed");
     }
   });
+
+  // 预创建详情窗口，避免首次触发时的加载延迟
+  createDetailWindow();
 }
 
 function createDetailWindow() {
@@ -516,6 +521,10 @@ function createDetailWindow() {
     },
     icon: getIconPath(),
   });
+
+  // 重置 ready 状态，等待渲染进程 IPC 通知
+  detailWindowReady = false;
+  detailWindowReadyResolve = null;
 
   // 确保详情窗口在主窗口之上
   detailWindow.setAlwaysOnTop(true, "pop-up-menu");
@@ -854,6 +863,7 @@ ipcMain.handle("get-data-path", () => {
 ipcMain.handle("open-float-window", () => {
   if (!floatWindow) {
     createFloatWindow();
+    ensureCtxMenuWindow(); // 预创建右键菜单窗口，避免首次触发时等待加载
   } else if (floatWindow.isVisible()) {
     floatWindow.close();
     return false;
@@ -909,7 +919,7 @@ ipcMain.handle("focus-float-window", () => {
 
 ipcMain.handle(
   "show-float-detail",
-  (
+  async (
     _,
     options: {
       anchorX: number;
@@ -931,6 +941,12 @@ ipcMain.handle(
     win.setPosition(x, y);
 
     if (!win.isVisible()) {
+      // 首次显示：等待渲染进程完成挂载后再显示窗口
+      if (!detailWindowReady) {
+        await new Promise<void>((resolve) => {
+          detailWindowReadyResolve = resolve;
+        });
+      }
       win.show();
       win.focus();
     }
@@ -938,6 +954,14 @@ ipcMain.handle(
     return true;
   },
 );
+
+ipcMain.on("detail-ready", () => {
+  detailWindowReady = true;
+  if (detailWindowReadyResolve) {
+    detailWindowReadyResolve();
+    detailWindowReadyResolve = null;
+  }
+});
 
 ipcMain.handle("hide-float-detail", () => {
   if (detailWindow && !detailWindow.isDestroyed()) {
@@ -1713,10 +1737,11 @@ ipcMain.handle(
 let loginInProgress = false;
 let loginPromise: Promise<string | null> | null = null;
 
-ipcMain.handle("open-mimo-login", async () => {
+ipcMain.handle("open-mimo-login", async (_, modelId?: string) => {
   console.log(
     "[Login] open-mimo-login handler 被调用, loginInProgress:",
     loginInProgress,
+    "modelId:", modelId,
   );
 
   // 如果已有登录在进行中，等待其完成
@@ -1733,9 +1758,14 @@ ipcMain.handle("open-mimo-login", async () => {
     try {
       if (existsSync(configPath)) {
         const config = JSON.parse(readFileSync(configPath, "utf-8"));
-        const mimoModel = config.models?.find(
-          (m: any) => m.provider === "mimo",
-        );
+        const mimoModel = modelId
+          ? config.models?.find((m: any) => m.id === modelId)
+          : config.models?.find((m: any) => m.provider === "mimo");
+        if (!mimoModel) {
+          console.error("[Login] 未找到 MIMO 模型, modelId:", modelId);
+          resolve(null);
+          return;
+        }
         if (mimoModel?.loginUrl) {
           loginUrl = mimoModel.loginUrl;
         }
@@ -1774,12 +1804,12 @@ ipcMain.handle("open-mimo-login", async () => {
                 /* 解析失败，继续登录流程 */
               }
               // cookie 无效，打开登录窗口
-              doLogin(loginUrl, resolve);
+              doLogin(loginUrl, resolve, mimoModel.id);
             });
           });
           testRequest.on("error", () => {
             // 请求失败，打开登录窗口
-            doLogin(loginUrl, resolve);
+            doLogin(loginUrl, resolve, mimoModel.id);
           });
           testRequest.end();
           return;
@@ -1790,7 +1820,18 @@ ipcMain.handle("open-mimo-login", async () => {
     }
 
     // 无 cookie，直接打开登录窗口
-    doLogin(loginUrl, resolve);
+    // 重新读取以获取 modelId（上面的 try 可能没找到模型）
+    let modelIdForLogin = modelId;
+    if (!modelIdForLogin) {
+      try {
+        if (existsSync(configPath)) {
+          const config = JSON.parse(readFileSync(configPath, "utf-8"));
+          const mimoModel = config.models?.find((m: any) => m.provider === "mimo");
+          modelIdForLogin = mimoModel?.id;
+        }
+      } catch {}
+    }
+    doLogin(loginUrl, resolve, modelIdForLogin);
   });
 
   // 登录完成后重置状态
@@ -1805,6 +1846,7 @@ ipcMain.handle("open-mimo-login", async () => {
 async function doLogin(
   loginUrl: string,
   resolve: (value: string | null) => void,
+  modelId?: string,
 ): Promise<void> {
   console.log("[Login] 打开登录窗口:", loginUrl);
   await loginManager.openLoginWindow(loginUrl, mainWindow || undefined);
@@ -1814,17 +1856,17 @@ async function doLogin(
       // 打印 cookie 完整信息
       console.log("[Login] Cookie 完整值:", cookies);
 
-      // 将 cookies 保存到 config
+      // 将 cookies 保存到 config（按 modelId 精确查找）
       try {
         if (existsSync(configPath)) {
           const config = JSON.parse(readFileSync(configPath, "utf-8"));
-          const mimoModel = config.models?.find(
-            (m: any) => m.provider === "mimo",
-          );
+          const mimoModel = modelId
+            ? config.models?.find((m: any) => m.id === modelId)
+            : config.models?.find((m: any) => m.provider === "mimo");
           if (mimoModel) {
             mimoModel.cookies = cookies;
             writeFileSync(configPath, JSON.stringify(config, null, 2));
-            console.log("[Login] Cookies 已保存到 config");
+            console.log("[Login] Cookies 已保存到 config, modelId:", mimoModel.id);
           }
         }
       } catch (error) {
@@ -2069,10 +2111,11 @@ let openCodeLoginPromise: Promise<{
   baseUrl: string | null;
 }> | null = null;
 
-ipcMain.handle("open-opencode-login", async () => {
+ipcMain.handle("open-opencode-login", async (_, modelId?: string) => {
   console.log(
     "[OpenCodeLogin] open-opencode-login handler 被调用, loginInProgress:",
     openCodeLoginInProgress,
+    "modelId:", modelId,
   );
 
   // 如果已有登录在进行中，等待其完成
@@ -2093,9 +2136,14 @@ ipcMain.handle("open-opencode-login", async () => {
     // 如果已有 cookie，先验证是否有效
     if (existsSync(configPath)) {
       const config = JSON.parse(readFileSync(configPath, "utf-8"));
-      const opencodeModel = config.models?.find(
-        (m: any) => m.provider === "opencode",
-      );
+      const opencodeModel = modelId
+        ? config.models?.find((m: any) => m.id === modelId)
+        : config.models?.find((m: any) => m.provider === "opencode");
+      if (!opencodeModel) {
+        console.error("[OpenCodeLogin] 未找到 OpenCode 模型, modelId:", modelId);
+        resolvePromise({ cookies: null, baseUrl: null });
+        return;
+      }
       if (opencodeModel?.cookies && opencodeModel?.baseUrl) {
         // 尝试用已有 cookie 做一次 API 请求验证
         const testHeaders: Record<string, string> = {
@@ -2128,12 +2176,12 @@ ipcMain.handle("open-opencode-login", async () => {
               return;
             }
             // cookie 无效，打开登录窗口
-            doOpenCodeLogin(loginUrl, resolvePromise);
+            doOpenCodeLogin(loginUrl, resolvePromise, opencodeModel.id);
           });
         });
         testRequest.on("error", () => {
           // 请求失败，打开登录窗口
-          doOpenCodeLogin(loginUrl, resolvePromise);
+          doOpenCodeLogin(loginUrl, resolvePromise, opencodeModel.id);
         });
         testRequest.end();
         return;
@@ -2141,7 +2189,17 @@ ipcMain.handle("open-opencode-login", async () => {
     }
 
     // 无 cookie，直接打开登录窗口
-    doOpenCodeLogin(loginUrl, resolvePromise);
+    let modelIdForLogin = modelId;
+    if (!modelIdForLogin) {
+      try {
+        if (existsSync(configPath)) {
+          const config = JSON.parse(readFileSync(configPath, "utf-8"));
+          const opencodeModel = config.models?.find((m: any) => m.provider === "opencode");
+          modelIdForLogin = opencodeModel?.id;
+        }
+      } catch {}
+    }
+    doOpenCodeLogin(loginUrl, resolvePromise, modelIdForLogin);
   });
 
   // 登录完成后重置状态
@@ -2159,6 +2217,7 @@ async function doOpenCodeLogin(
     cookies: string | null;
     baseUrl: string | null;
   }) => void,
+  modelId?: string,
 ): Promise<void> {
   console.log("[OpenCodeLogin] 打开登录窗口:", loginUrl);
   await openCodeLoginManager.openLoginWindow(loginUrl, mainWindow || undefined);
@@ -2177,20 +2236,20 @@ async function doOpenCodeLogin(
 
       const baseUrl = data.apiUrl;
 
-      // 保存到 config
+      // 保存到 config（按 modelId 精确查找）
       try {
         if (existsSync(configPath)) {
           const config = JSON.parse(readFileSync(configPath, "utf-8"));
-          const opencodeModel = config.models?.find(
-            (m: any) => m.provider === "opencode",
-          );
+          const opencodeModel = modelId
+            ? config.models?.find((m: any) => m.id === modelId)
+            : config.models?.find((m: any) => m.provider === "opencode");
           if (opencodeModel) {
             opencodeModel.cookies = data.cookies;
             if (baseUrl) {
               opencodeModel.baseUrl = baseUrl;
             }
             writeFileSync(configPath, JSON.stringify(config, null, 2));
-            console.log("[OpenCodeLogin] 已保存到 config");
+            console.log("[OpenCodeLogin] 已保存到 config, modelId:", opencodeModel.id);
           }
         }
       } catch (error) {

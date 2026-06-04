@@ -80,7 +80,7 @@ function handleClick() {
   if (loginState.value === 'logging-in') {
     return
   }
-  store.startMimoLogin()
+  store.startMimoLogin(props.modelId)
 }
 
 async function handlePaste() {
@@ -88,8 +88,8 @@ async function handlePaste() {
     ElMessage.warning('请输入 cookies')
     return
   }
-  
-  await store.setMimoCookies(cookiesInput.value.trim())
+
+  await store.setMimoCookies(props.modelId, cookiesInput.value.trim())
   showPasteDialog.value = false
   cookiesInput.value = ''
   ElMessage.success('Cookies 已保存')

@@ -54,6 +54,8 @@ export interface ElectronAPI {
   // 详情悬浮窗 hover 状态同步
   notifyDetailHover: (state: 'enter' | 'leave') => Promise<void>
   onDetailHoverChanged: (callback: (state: 'enter' | 'leave') => void) => () => void
+  // 详情窗口就绪信号
+  detailReady: () => void
   // 右键菜单弹出窗
   showCtxMenu: (options: {
     screenX: number
@@ -136,10 +138,10 @@ const electronAPI: ElectronAPI = {
       ipcRenderer.removeListener('config-updated', wrapper)
     }
   },
-  openMimoLogin: () => ipcRenderer.invoke('open-mimo-login'),
-  openOpencodeLogin: () => ipcRenderer.invoke('open-opencode-login'),
-  onLoginNeeded: (callback) => {
-    const wrapper = () => callback()
+  openMimoLogin: (modelId?: string) => ipcRenderer.invoke('open-mimo-login', modelId),
+  openOpencodeLogin: (modelId?: string) => ipcRenderer.invoke('open-opencode-login', modelId),
+  onLoginNeeded: (callback: (data: { modelId: string }) => void) => {
+    const wrapper = (_: any, data: { modelId: string }) => callback(data)
     ipcRenderer.on('login-needed', wrapper)
     return () => {
       ipcRenderer.removeListener('login-needed', wrapper)
@@ -182,6 +184,8 @@ const electronAPI: ElectronAPI = {
       ipcRenderer.removeListener('detail-hover-changed', wrapper)
     }
   },
+  // 详情窗口就绪信号
+  detailReady: () => ipcRenderer.send('detail-ready'),
   // 右键菜单弹出窗
   showCtxMenu: (options) => ipcRenderer.invoke('show-ctx-menu', options),
   hideCtxMenu: () => ipcRenderer.invoke('hide-ctx-menu'),

@@ -61,9 +61,9 @@ export interface ElectronAPI {
   hideFloatDetail: () => Promise<boolean>
   resizeDetailWindow: (width: number, height: number) => Promise<boolean>
   getFloatWindowBounds: () => Promise<{ x: number; y: number; width: number; height: number } | null>
-  openMimoLogin: () => Promise<string | null>
-  openOpencodeLogin: () => Promise<{ cookies: string | null, baseUrl: string | null }>
-  onLoginNeeded: (callback: () => void) => () => void
+  openMimoLogin: (modelId?: string) => Promise<string | null>
+  openOpencodeLogin: (modelId?: string) => Promise<{ cookies: string | null, baseUrl: string | null }>
+  onLoginNeeded: (callback: (data: { modelId: string }) => void) => () => void
   onConfigUpdated: (callback: () => void) => () => void
   windowMinimize: () => Promise<void>
   windowMaximize: () => Promise<void>
@@ -77,6 +77,8 @@ export interface ElectronAPI {
   // 详情悬浮窗 hover 状态同步
   notifyDetailHover: (state: 'enter' | 'leave') => Promise<void>
   onDetailHoverChanged: (callback: (state: 'enter' | 'leave') => void) => () => void
+  // 详情窗口就绪信号
+  detailReady: () => void
   // 右键菜单弹出窗
   showCtxMenu: (options: {
     screenX: number
