@@ -13,268 +13,439 @@
     <!-- 正常内容（贴边时隐藏，拖拽时显示） -->
     <template v-if="!isDocked || isDragging">
       <!-- Empty -->
-    <div v-if="enabledModels.length === 0" class="float-empty">
-      <div class="empty-icon-wrap">
-        <el-icon :size="20" class="empty-float"><DataAnalysis /></el-icon>
-      </div>
-      <span>右键菜单添加模型</span>
-    </div>
-
-    <!-- List mode (compact overview) -->
-    <template v-else-if="layoutMode === 'list'">
-      <div class="compact-wrap">
-        <div class="compact-card" :data-model-id="'__overview__'">
-          <div class="ov-row">
-            <div class="ov-ring" style="width:40px;height:40px">
-              <svg class="ring-svg" viewBox="0 0 40 40">
-                <circle class="ring-track" cx="20" cy="20" :r="ringData(agg.mainRing.value.percent,40).r" fill="none" :stroke-width="ringData(agg.mainRing.value.percent,40).sw" />
-                <circle class="ring-fill" cx="20" cy="20" :r="ringData(agg.mainRing.value.percent,40).r" fill="none" :stroke-width="ringData(agg.mainRing.value.percent,40).sw" :stroke-dasharray="ringData(agg.mainRing.value.percent,40).circ" :stroke-dashoffset="ringData(agg.mainRing.value.percent,40).offset" :stroke="ringData(agg.mainRing.value.percent,40).color" />
-                <circle class="ring-glow" cx="20" cy="20" :r="ringData(agg.mainRing.value.percent,40).r" fill="none" :stroke-width="ringData(agg.mainRing.value.percent,40).sw * 2" :stroke-dasharray="ringData(agg.mainRing.value.percent,40).circ" :stroke-dashoffset="ringData(agg.mainRing.value.percent,40).offset" :stroke="ringData(agg.mainRing.value.percent,40).color" opacity="0.2" filter="url(#ringGlow)" />
-                <defs><filter id="ringGlow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-              </svg>
-              <div class="ov-ring-inner">
-                <span class="ov-pct">{{ agg.mainRing.value.source !== "none" ? agg.mainRing.value.percent.toFixed(0) : "—" }}</span>
-                <span class="ov-pct-u">{{ agg.mainRing.value.source !== "none" ? "%" : "" }}</span>
-              </div>
-            </div>
-            <div class="ov-nums">
-              <div class="ov-n" v-if="agg.tokenAgg.value">
-                <span class="ov-nv"
-                  >{{ fmtLg(agg.tokenAgg.value.used) }}/{{
-                    fmtLg(agg.tokenAgg.value.total)
-                  }}</span
-                >
-                <span class="ov-nl"
-                  >Token {{ agg.tokenAgg.value.percent.toFixed(0) }}%</span
-                >
-              </div>
-              <div class="ov-n" v-if="agg.percentAgg.value">
-                <span class="ov-nv warn"
-                  >{{ agg.percentAgg.value.worstLabel }}
-                  {{ agg.percentAgg.value.worstPercent.toFixed(0) }}%</span
-                >
-                <span class="ov-nl">时间窗口</span>
-              </div>
-              <div class="ov-n" v-if="agg.balanceAgg.value">
-                <span class="ov-nv ok"
-                  >{{
-                    agg.balanceAgg.value.currency === "CNY"
-                      ? "¥"
-                      : agg.balanceAgg.value.currency
-                  }}{{ agg.balanceAgg.value.totalBalance.toFixed(0) }}</span
-                >
-                <span class="ov-nl">余额</span>
-              </div>
-            </div>
-          </div>
-          <div class="ov-types" v-if="agg.hasAnyData.value">
-            <span class="ov-type-tag t"
-              >T:{{ agg.typeCounts.value.token }}</span
-            >
-            <span class="ov-type-tag p"
-              >P:{{ agg.typeCounts.value.percent }}</span
-            >
-            <span class="ov-type-tag b"
-              >B:{{ agg.typeCounts.value.balance }}</span
-            >
-          </div>
+      <div v-if="enabledModels.length === 0" class="float-empty">
+        <div class="empty-icon-wrap">
+          <el-icon :size="20" class="empty-float"><DataAnalysis /></el-icon>
         </div>
+        <span>右键菜单添加模型</span>
       </div>
-    </template>
 
-    <!-- Carousel mode -->
-    <template v-else>
-      <div class="carousel-wrap" @wheel.prevent="onWheel">
-        <div
-          ref="carouselRef"
-          class="carousel-track"
-          @scroll="onScroll"
-          @mousedown="onDragStart"
-          @mousemove="onDragMove"
-          @mouseup="onDragEnd"
-          @mouseleave="onDragEnd"
-        >
-          <!-- Overview slide -->
-          <div class="cslide" :data-model-id="'__overview__'">
-            <div class="cslide-body ov-slide">
-              <div class="ov-ring-lg" style="width:58px;height:58px">
-                <svg class="ring-svg" viewBox="0 0 58 58">
-                  <circle class="ring-track" cx="29" cy="29" :r="ringData(agg.mainRing.value.percent,58).r" fill="none" :stroke-width="ringData(agg.mainRing.value.percent,58).sw" />
-                  <circle class="ring-fill" cx="29" cy="29" :r="ringData(agg.mainRing.value.percent,58).r" fill="none" :stroke-width="ringData(agg.mainRing.value.percent,58).sw" :stroke-dasharray="ringData(agg.mainRing.value.percent,58).circ" :stroke-dashoffset="ringData(agg.mainRing.value.percent,58).offset" :stroke="ringData(agg.mainRing.value.percent,58).color" />
-                  <circle class="ring-glow" cx="29" cy="29" :r="ringData(agg.mainRing.value.percent,58).r" fill="none" :stroke-width="ringData(agg.mainRing.value.percent,58).sw * 2" :stroke-dasharray="ringData(agg.mainRing.value.percent,58).circ" :stroke-dashoffset="ringData(agg.mainRing.value.percent,58).offset" :stroke="ringData(agg.mainRing.value.percent,58).color" opacity="0.2" filter="url(#ringGlow)" />
-                  <defs><filter id="ringGlow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+      <!-- List mode (compact overview) -->
+      <template v-else-if="layoutMode === 'list'">
+        <div class="compact-wrap">
+          <div class="compact-card" :data-model-id="'__overview__'">
+            <div class="ov-row">
+              <div class="ov-ring" style="width: 40px; height: 40px">
+                <svg class="ring-svg" viewBox="0 0 40 40">
+                  <circle
+                    class="ring-track"
+                    cx="20"
+                    cy="20"
+                    :r="ringData(agg.mainRing.value.percent, 40).r"
+                    fill="none"
+                    :stroke-width="ringData(agg.mainRing.value.percent, 40).sw"
+                  />
+                  <circle
+                    class="ring-fill"
+                    cx="20"
+                    cy="20"
+                    :r="ringData(agg.mainRing.value.percent, 40).r"
+                    fill="none"
+                    :stroke-width="ringData(agg.mainRing.value.percent, 40).sw"
+                    :stroke-dasharray="
+                      ringData(agg.mainRing.value.percent, 40).circ
+                    "
+                    :stroke-dashoffset="
+                      ringData(agg.mainRing.value.percent, 40).offset
+                    "
+                    :stroke="ringData(agg.mainRing.value.percent, 40).color"
+                  />
+                  <circle
+                    class="ring-glow"
+                    cx="20"
+                    cy="20"
+                    :r="ringData(agg.mainRing.value.percent, 40).r"
+                    fill="none"
+                    :stroke-width="
+                      ringData(agg.mainRing.value.percent, 40).sw * 2
+                    "
+                    :stroke-dasharray="
+                      ringData(agg.mainRing.value.percent, 40).circ
+                    "
+                    :stroke-dashoffset="
+                      ringData(agg.mainRing.value.percent, 40).offset
+                    "
+                    :stroke="ringData(agg.mainRing.value.percent, 40).color"
+                    opacity="0.2"
+                    filter="url(#ringGlow)"
+                  />
+                  <defs>
+                    <filter id="ringGlow">
+                      <feGaussianBlur stdDeviation="3" result="b" />
+                      <feMerge>
+                        <feMergeNode in="b" />
+                        <feMergeNode in="SourceGraphic" />
+                      </feMerge>
+                    </filter>
+                  </defs>
                 </svg>
-                <div class="ov-ring-lg-in">
-                  <span class="ov-pct-lg">{{ agg.mainRing.value.source !== "none" ? agg.mainRing.value.percent.toFixed(1) : "—" }}</span>
-                  <span class="ov-pct-u-lg">{{ agg.mainRing.value.source !== "none" ? "%" : "" }}</span>
+                <div class="ov-ring-inner">
+                  <span class="ov-pct">{{
+                    agg.mainRing.value.source !== "none"
+                      ? agg.mainRing.value.percent.toFixed(0)
+                      : "—"
+                  }}</span>
+                  <span class="ov-pct-u">{{
+                    agg.mainRing.value.source !== "none" ? "%" : ""
+                  }}</span>
                 </div>
               </div>
-              <div class="ov-stats">
-                <div class="ov-st" v-if="agg.tokenAgg.value">
-                  <span class="ov-stv"
+              <div class="ov-nums">
+                <div class="ov-n" v-if="agg.tokenAgg.value">
+                  <span class="ov-nv"
                     >{{ fmtLg(agg.tokenAgg.value.used) }}/{{
                       fmtLg(agg.tokenAgg.value.total)
                     }}</span
-                  ><span class="ov-stl"
+                  >
+                  <span class="ov-nl"
                     >Token {{ agg.tokenAgg.value.percent.toFixed(0) }}%</span
                   >
                 </div>
-                <div class="ov-st" v-if="agg.percentAgg.value">
-                  <span class="ov-stv warn"
+                <div class="ov-n" v-if="agg.percentAgg.value">
+                  <span class="ov-nv warn"
                     >{{ agg.percentAgg.value.worstLabel }}
                     {{ agg.percentAgg.value.worstPercent.toFixed(0) }}%</span
-                  ><span class="ov-stl">最紧张窗口</span>
+                  >
+                  <span class="ov-nl">时间窗口</span>
                 </div>
-                <div class="ov-st" v-if="agg.balanceAgg.value">
-                  <span class="ov-stv ok"
+                <div class="ov-n" v-if="agg.balanceAgg.value">
+                  <span class="ov-nv ok"
                     >{{
                       agg.balanceAgg.value.currency === "CNY"
                         ? "¥"
                         : agg.balanceAgg.value.currency
-                    }}{{ agg.balanceAgg.value.totalBalance.toFixed(2) }}</span
-                  ><span class="ov-stl">余额</span>
+                    }}{{ agg.balanceAgg.value.totalBalance.toFixed(0) }}</span
+                  >
+                  <span class="ov-nl">余额</span>
                 </div>
               </div>
-              <div class="ov-foot">
-                <span class="ov-cnt">{{ enabledModels.length }}</span
-                ><span class="ov-cntl">个模型</span>
-                <span class="ov-type-sep"></span>
-                <span class="ov-type-tag t"
-                  >T{{ agg.typeCounts.value.token }}</span
-                >
-                <span class="ov-type-tag p"
-                  >P{{ agg.typeCounts.value.percent }}</span
-                >
-                <span class="ov-type-tag b"
-                  >B{{ agg.typeCounts.value.balance }}</span
-                >
-              </div>
+            </div>
+            <div class="ov-types" v-if="agg.hasAnyData.value">
+              <span class="ov-type-tag t"
+                >T:{{ agg.typeCounts.value.token }}</span
+              >
+              <span class="ov-type-tag p"
+                >P:{{ agg.typeCounts.value.percent }}</span
+              >
+              <span class="ov-type-tag b"
+                >B:{{ agg.typeCounts.value.balance }}</span
+              >
             </div>
           </div>
+        </div>
+      </template>
 
-          <!-- Model slides -->
+      <!-- Carousel mode -->
+      <template v-else>
+        <div class="carousel-wrap" @wheel.prevent="onWheel">
           <div
-            v-for="model in enabledModels"
-            :key="model.id"
-            class="cslide"
-            :data-model-id="model.id"
+            ref="carouselRef"
+            class="carousel-track"
+            @scroll="onScroll"
+            @mousedown="onDragStart"
+            @mousemove="onDragMove"
+            @mouseup="onDragEnd"
+            @mouseleave="onDragEnd"
           >
-            <div class="cslide-body model-slide">
-              <div class="ms-hd">
-                <span class="ms-name">{{ model.name }}</span>
-                <span class="ms-badge" :class="model.provider">{{
-                  model.provider
-                }}</span>
-              </div>
-              <div class="ms-bd">
-                <template v-if="u(model.id)">
-                  <!-- token -->
-                  <template v-if="u(model.id).usageType === 'token'">
-                    <div class="ms-ring" style="width:44px;height:44px">
-                      <svg class="ring-svg" viewBox="0 0 44 44">
-                        <circle class="ring-track" cx="22" cy="22" :r="ringData(u(model.id).percent||0,44).r" fill="none" :stroke-width="ringData(u(model.id).percent||0,44).sw" />
-                        <circle class="ring-fill" cx="22" cy="22" :r="ringData(u(model.id).percent||0,44).r" fill="none" :stroke-width="ringData(u(model.id).percent||0,44).sw" :stroke-dasharray="ringData(u(model.id).percent||0,44).circ" :stroke-dashoffset="ringData(u(model.id).percent||0,44).offset" :stroke="ringData(u(model.id).percent||0,44).color" />
-                        <circle class="ring-glow" cx="22" cy="22" :r="ringData(u(model.id).percent||0,44).r" fill="none" :stroke-width="ringData(u(model.id).percent||0,44).sw * 2" :stroke-dasharray="ringData(u(model.id).percent||0,44).circ" :stroke-dashoffset="ringData(u(model.id).percent||0,44).offset" :stroke="ringData(u(model.id).percent||0,44).color" opacity="0.2" filter="url(#ringGlow)" />
-                        <defs><filter id="ringGlow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-                      </svg>
-                      <div class="ms-ring-in">
-                        <span class="ms-rv">{{ (u(model.id).percent || 0).toFixed(0) }}</span>
-                        <span class="ms-ru">%</span>
-                      </div>
-                    </div>
-                    <div class="ms-rows">
-                      <div class="ms-r">
-                        <span class="ms-k">套餐</span
-                        ><span class="ms-v">{{ u(model.id).planName }}</span>
-                      </div>
-                      <div class="ms-r">
-                        <span class="ms-k">已用</span
-                        ><span class="ms-v">{{ fmtTk(u(model.id).used) }}</span>
-                      </div>
-                      <div class="ms-r">
-                        <span class="ms-k">总计</span
-                        ><span class="ms-v">{{
-                          fmtTk(u(model.id).total)
-                        }}</span>
-                      </div>
-                      <div class="ms-r hl">
-                        <span class="ms-k">剩余</span
-                        ><span class="ms-v">{{
-                          fmtTk(u(model.id).remaining)
-                        }}</span>
-                      </div>
-                    </div>
-                  </template>
-                  <!-- percent -->
-                  <template v-else-if="u(model.id).usageType === 'percent'">
-                    <div
-                      v-for="tier in u(model.id).tiers"
-                      :key="tier.name"
-                      class="ms-tier"
+            <!-- Overview slide -->
+            <div class="cslide" :data-model-id="'__overview__'">
+              <div class="cslide-body ov-slide">
+                <div class="ov-ring-lg" style="width: 58px; height: 58px">
+                  <svg class="ring-svg" viewBox="0 0 58 58">
+                    <circle
+                      class="ring-track"
+                      cx="29"
+                      cy="29"
+                      :r="ringData(agg.mainRing.value.percent, 58).r"
+                      fill="none"
+                      :stroke-width="
+                        ringData(agg.mainRing.value.percent, 58).sw
+                      "
+                    />
+                    <circle
+                      class="ring-fill"
+                      cx="29"
+                      cy="29"
+                      :r="ringData(agg.mainRing.value.percent, 58).r"
+                      fill="none"
+                      :stroke-width="
+                        ringData(agg.mainRing.value.percent, 58).sw
+                      "
+                      :stroke-dasharray="
+                        ringData(agg.mainRing.value.percent, 58).circ
+                      "
+                      :stroke-dashoffset="
+                        ringData(agg.mainRing.value.percent, 58).offset
+                      "
+                      :stroke="ringData(agg.mainRing.value.percent, 58).color"
+                    />
+                    <circle
+                      class="ring-glow"
+                      cx="29"
+                      cy="29"
+                      :r="ringData(agg.mainRing.value.percent, 58).r"
+                      fill="none"
+                      :stroke-width="
+                        ringData(agg.mainRing.value.percent, 58).sw * 2
+                      "
+                      :stroke-dasharray="
+                        ringData(agg.mainRing.value.percent, 58).circ
+                      "
+                      :stroke-dashoffset="
+                        ringData(agg.mainRing.value.percent, 58).offset
+                      "
+                      :stroke="ringData(agg.mainRing.value.percent, 58).color"
+                      opacity="0.2"
+                      filter="url(#ringGlow)"
+                    />
+                    <defs>
+                      <filter id="ringGlow">
+                        <feGaussianBlur stdDeviation="3" result="b" />
+                        <feMerge>
+                          <feMergeNode in="b" />
+                          <feMergeNode in="SourceGraphic" />
+                        </feMerge>
+                      </filter>
+                    </defs>
+                  </svg>
+                  <div class="ov-ring-lg-in">
+                    <span class="ov-pct-lg">{{
+                      agg.mainRing.value.source !== "none"
+                        ? agg.mainRing.value.percent.toFixed(1)
+                        : "—"
+                    }}</span>
+                    <span class="ov-pct-u-lg">{{
+                      agg.mainRing.value.source !== "none" ? "%" : ""
+                    }}</span>
+                  </div>
+                </div>
+                <div class="ov-stats">
+                  <div class="ov-st" v-if="agg.tokenAgg.value">
+                    <span class="ov-stv"
+                      >{{ fmtLg(agg.tokenAgg.value.used) }}/{{
+                        fmtLg(agg.tokenAgg.value.total)
+                      }}</span
+                    ><span class="ov-stl"
+                      >Token {{ agg.tokenAgg.value.percent.toFixed(0) }}%</span
                     >
-                      <div class="ms-tier-hd">
-                        <span class="ms-tier-lb">{{ tier.label }}</span>
-                        <!-- 重置时间（右上角） -->
-                        <span v-if="tier.resetAt" class="ms-tier-reset-inline">
-                          <el-icon :size="10"><Clock /></el-icon>
-                          {{ fmtReset(tier.resetAt) }}
-                        </span>
-                      </div>
-                      <div class="ms-tier-track-row">
-                        <div class="ms-bar">
-                          <div
-                            class="ms-bar-f"
-                            :style="{
-                              width: '100%',
-                              background: 'var(--progress-gradient)',
-                              clipPath: `inset(0 calc(100% - ${tier.percent}%) 0 0)`,
-                            }"
-                          ></div>
-                        </div>
-                        <!-- 百分比（进度条右侧） -->
-                        <span class="ms-tier-pc"
-                          >{{ fmtPct(tier.percent) }}%</span
-                        >
-                      </div>
-                    </div>
-                  </template>
-                  <!-- balance -->
-                  <template v-else-if="u(model.id).usageType === 'balance'">
-                    <div class="ms-bal">
-                      <span class="ms-bal-c">¥</span
-                      ><span class="ms-bal-v">{{
-                        (u(model.id).balance || 0).toFixed(2)
-                      }}</span>
-                    </div>
-                  </template>
-                </template>
-                <template v-else>
-                  <button
-                    class="ms-btn"
-                    @click="fetchModel(model)"
-                    :disabled="store.fetching[model.id]"
+                  </div>
+                  <div class="ov-st" v-if="agg.percentAgg.value">
+                    <span class="ov-stv warn"
+                      >{{ agg.percentAgg.value.worstLabel }}
+                      {{ agg.percentAgg.value.worstPercent.toFixed(0) }}%</span
+                    ><span class="ov-stl">最紧张窗口</span>
+                  </div>
+                  <div class="ov-st" v-if="agg.balanceAgg.value">
+                    <span class="ov-stv ok"
+                      >{{
+                        agg.balanceAgg.value.currency === "CNY"
+                          ? "¥"
+                          : agg.balanceAgg.value.currency
+                      }}{{ agg.balanceAgg.value.totalBalance.toFixed(2) }}</span
+                    ><span class="ov-stl">余额</span>
+                  </div>
+                </div>
+                <div class="ov-foot">
+                  <span class="ov-cnt">{{ enabledModels.length }}</span
+                  ><span class="ov-cntl">个模型</span>
+                  <span class="ov-type-sep"></span>
+                  <span class="ov-type-tag t"
+                    >T{{ agg.typeCounts.value.token }}</span
                   >
-                    {{ store.fetching[model.id] ? "获取中..." : "获取额度" }}
-                  </button>
-                </template>
+                  <span class="ov-type-tag p"
+                    >P{{ agg.typeCounts.value.percent }}</span
+                  >
+                  <span class="ov-type-tag b"
+                    >B{{ agg.typeCounts.value.balance }}</span
+                  >
+                </div>
+              </div>
+            </div>
+
+            <!-- Model slides -->
+            <div
+              v-for="model in enabledModels"
+              :key="model.id"
+              class="cslide"
+              :data-model-id="model.id"
+            >
+              <div class="cslide-body model-slide">
+                <div class="ms-hd">
+                  <span class="ms-name">{{ model.name }}</span>
+                  <span class="ms-badge" :class="model.provider">{{
+                    model.provider
+                  }}</span>
+                </div>
+                <div class="ms-bd">
+                  <template v-if="u(model.id)">
+                    <!-- token -->
+                    <template v-if="u(model.id).usageType === 'token'">
+                      <div class="ms-ring" style="width: 44px; height: 44px">
+                        <svg class="ring-svg" viewBox="0 0 44 44">
+                          <circle
+                            class="ring-track"
+                            cx="22"
+                            cy="22"
+                            :r="ringData(u(model.id).percent || 0, 44).r"
+                            fill="none"
+                            :stroke-width="
+                              ringData(u(model.id).percent || 0, 44).sw
+                            "
+                          />
+                          <circle
+                            class="ring-fill"
+                            cx="22"
+                            cy="22"
+                            :r="ringData(u(model.id).percent || 0, 44).r"
+                            fill="none"
+                            :stroke-width="
+                              ringData(u(model.id).percent || 0, 44).sw
+                            "
+                            :stroke-dasharray="
+                              ringData(u(model.id).percent || 0, 44).circ
+                            "
+                            :stroke-dashoffset="
+                              ringData(u(model.id).percent || 0, 44).offset
+                            "
+                            :stroke="
+                              ringData(u(model.id).percent || 0, 44).color
+                            "
+                          />
+                          <circle
+                            class="ring-glow"
+                            cx="22"
+                            cy="22"
+                            :r="ringData(u(model.id).percent || 0, 44).r"
+                            fill="none"
+                            :stroke-width="
+                              ringData(u(model.id).percent || 0, 44).sw * 2
+                            "
+                            :stroke-dasharray="
+                              ringData(u(model.id).percent || 0, 44).circ
+                            "
+                            :stroke-dashoffset="
+                              ringData(u(model.id).percent || 0, 44).offset
+                            "
+                            :stroke="
+                              ringData(u(model.id).percent || 0, 44).color
+                            "
+                            opacity="0.2"
+                            filter="url(#ringGlow)"
+                          />
+                          <defs>
+                            <filter id="ringGlow">
+                              <feGaussianBlur stdDeviation="3" result="b" />
+                              <feMerge>
+                                <feMergeNode in="b" />
+                                <feMergeNode in="SourceGraphic" />
+                              </feMerge>
+                            </filter>
+                          </defs>
+                        </svg>
+                        <div class="ms-ring-in">
+                          <span class="ms-rv">{{
+                            (u(model.id).percent || 0).toFixed(0)
+                          }}</span>
+                          <span class="ms-ru">%</span>
+                        </div>
+                      </div>
+                      <div class="ms-rows">
+                        <div class="ms-r">
+                          <span class="ms-k">套餐</span
+                          ><span class="ms-v">{{ u(model.id).planName }}</span>
+                        </div>
+                        <div class="ms-r">
+                          <span class="ms-k">已用</span
+                          ><span class="ms-v">{{
+                            fmtTk(u(model.id).used)
+                          }}</span>
+                        </div>
+                        <div class="ms-r">
+                          <span class="ms-k">总计</span
+                          ><span class="ms-v">{{
+                            fmtTk(u(model.id).total)
+                          }}</span>
+                        </div>
+                        <div class="ms-r hl">
+                          <span class="ms-k">剩余</span
+                          ><span class="ms-v">{{
+                            fmtTk(u(model.id).remaining)
+                          }}</span>
+                        </div>
+                      </div>
+                    </template>
+                    <!-- percent -->
+                    <template v-else-if="u(model.id).usageType === 'percent'">
+                      <div
+                        v-for="tier in u(model.id).tiers"
+                        :key="tier.name"
+                        class="ms-tier"
+                      >
+                        <div class="ms-tier-hd">
+                          <span class="ms-tier-lb">{{ tier.label }}</span>
+                          <!-- 重置时间（右上角） -->
+                          <span
+                            v-if="tier.resetAt"
+                            class="ms-tier-reset-inline"
+                          >
+                            <el-icon :size="10"><Clock /></el-icon>
+                            {{ fmtReset(tier.resetAt) }}
+                          </span>
+                        </div>
+                        <div class="ms-tier-track-row">
+                          <div class="ms-bar">
+                            <div
+                              class="ms-bar-f"
+                              :style="{
+                                width: '100%',
+                                background: 'var(--progress-gradient)',
+                                clipPath: `inset(0 calc(100% - ${tier.percent}%) 0 0)`,
+                              }"
+                            ></div>
+                          </div>
+                          <!-- 百分比（进度条右侧） -->
+                          <span class="ms-tier-pc"
+                            >{{ fmtPct(tier.percent) }}%</span
+                          >
+                        </div>
+                      </div>
+                    </template>
+                    <!-- balance -->
+                    <template v-else-if="u(model.id).usageType === 'balance'">
+                      <div class="ms-bal">
+                        <span class="ms-bal-c">¥</span
+                        ><span class="ms-bal-v">{{
+                          (u(model.id).balance || 0).toFixed(2)
+                        }}</span>
+                      </div>
+                    </template>
+                  </template>
+                  <template v-else>
+                    <button
+                      class="ms-btn"
+                      @click="fetchModel(model)"
+                      :disabled="store.fetching[model.id]"
+                    >
+                      {{ store.fetching[model.id] ? "获取中..." : "获取额度" }}
+                    </button>
+                  </template>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <!-- Fixed dots -->
-        <div v-if="slideCount > 1" class="dots">
-          <i
-            v-for="n in slideCount"
-            :key="n"
-            class="dot"
-            :class="{ on: n - 1 === idx }"
-            @click="go(n - 1)"
-          ></i>
+          <!-- Fixed dots -->
+          <div v-if="slideCount > 1" class="dots">
+            <i
+              v-for="n in slideCount"
+              :key="n"
+              class="dot"
+              :class="{ on: n - 1 === idx }"
+              @click="go(n - 1)"
+            ></i>
+          </div>
         </div>
-      </div>
-    </template>
-
+      </template>
     </template>
 
     <!-- 全屏遮罩：拖拽时防止事件截断 -->
@@ -393,7 +564,7 @@ const ctxMenuOpen = ref(false);
 const ctxModel = ref<ModelConfig | null>(null);
 
 // Computed
-const enabledModels = computed(() => store.models.filter(m => m.enabled));
+const enabledModels = computed(() => store.models.filter((m) => m.enabled));
 const slideCount = computed(() => 1 + enabledModels.value.length);
 
 // Helpers
@@ -425,7 +596,15 @@ function ringData(pct: number, size: number) {
   const circ = 2 * Math.PI * r;
   const p = Math.min(100, Math.max(0, pct));
   const offset = circ * (1 - p / 100);
-  return { size, sw, cx: size / 2, r, circ, offset, color: getProgressColorSmooth(pct) };
+  return {
+    size,
+    sw,
+    cx: size / 2,
+    r,
+    circ,
+    offset,
+    color: getProgressColorSmooth(pct),
+  };
 }
 
 // Resize — now only used for carousel mode
@@ -495,9 +674,11 @@ async function showMenu(e: MouseEvent) {
   ctxMenuOpen.value = true;
 
   // 主进程统一管理菜单生命周期（复用窗口，show/hide）
+  // 将 CSS 像素转换为物理像素，与主进程 setPosition 的坐标系对齐
+  const dpr = window.devicePixelRatio || 1;
   window.electronAPI.showCtxMenu({
-    screenX: e.screenX,
-    screenY: e.screenY,
+    screenX: Math.round(e.screenX * dpr),
+    screenY: Math.round(e.screenY * dpr),
     modelId: ctxModel.value?.id ?? null,
     modelName: ctxModel.value?.name ?? null,
     theme: theme.value,
@@ -815,9 +996,10 @@ onMounted(async () => {
       // DOM 事件已处理过则跳过
       if (ctxMenuOpen.value) return;
       ctxMenuOpen.value = true;
+      const dpr2 = window.devicePixelRatio || 1;
       window.electronAPI.showCtxMenu({
-        screenX: pos.x,
-        screenY: pos.y,
+        screenX: Math.round(pos.x * dpr2),
+        screenY: Math.round(pos.y * dpr2),
         modelId: null,
         modelName: null,
         theme: theme.value,
@@ -1005,8 +1187,9 @@ watch(
 }
 .ring-fill {
   stroke-linecap: round;
-  transition: stroke-dashoffset 1.2s var(--ease-spring),
-              stroke 0.3s var(--ease-smooth);
+  transition:
+    stroke-dashoffset 1.2s var(--ease-spring),
+    stroke 0.3s var(--ease-smooth);
 }
 .ring-glow {
   stroke-linecap: round;
@@ -1452,5 +1635,4 @@ watch(
   background: var(--accent);
   opacity: 1;
 }
-
 </style>

@@ -31,82 +31,88 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, computed, watch, nextTick } from 'vue'
-import { DataAnalysis } from '@element-plus/icons-vue'
-import { useAppStore } from '@/stores/app'
-import type { ModelConfig } from '@/stores/app'
-import FloatModelCard from '@/components/FloatModelCard.vue'
+import { onMounted, onUnmounted, ref, computed, watch, nextTick } from "vue";
+import { DataAnalysis } from "@element-plus/icons-vue";
+import { useAppStore } from "@/stores/app";
+import type { ModelConfig } from "@/stores/app";
+import FloatModelCard from "@/components/FloatModelCard.vue";
 
-const store = useAppStore()
-const theme = ref('light')
-const accent = ref(localStorage.getItem('accent') || 'forest')
-const detailRef = ref<HTMLElement | null>(null)
-const enabledModels = computed(() => store.models.filter(m => m.enabled))
-let unsubCfg: (() => void) | null = null
-let unsubThemeChanged: (() => void) | null = null
+const store = useAppStore();
+const theme = ref("light");
+const accent = ref(localStorage.getItem("accent") || "forest");
+const detailRef = ref<HTMLElement | null>(null);
+const enabledModels = computed(() => store.models.filter((m) => m.enabled));
+let unsubCfg: (() => void) | null = null;
+let unsubThemeChanged: (() => void) | null = null;
 
 // ── Hover bridge ──
 // 通过 IPC 通知主进程，主进程再广播给主悬浮窗
-function broadcastHover(state: 'enter' | 'leave') {
-  window.electronAPI.notifyDetailHover(state)
+function broadcastHover(state: "enter" | "leave") {
+  window.electronAPI.notifyDetailHover(state);
 }
 
 function onDetailEnter() {
-  broadcastHover('enter')
+  broadcastHover("enter");
 }
 
 function onDetailLeave() {
-  broadcastHover('leave')
+  broadcastHover("leave");
 }
 
 // ── Fetch ──
 async function fetchModel(m: ModelConfig) {
-  await store.requestRefresh(m.id)
+  await store.requestRefresh(m.id);
 }
 
-const DETAIL_MAX_HEIGHT = 420
+const DETAIL_MAX_HEIGHT = 420;
 
 function fitHeight() {
   nextTick(() => {
-    const el = detailRef.value
-    if (!el) return
-    el.style.height = '0'
-    el.offsetHeight
-    const contentH = el.scrollHeight
-    el.style.height = ''
-    const targetH = Math.min(contentH + 4, DETAIL_MAX_HEIGHT)
-    window.electronAPI.resizeDetailWindow(window.innerWidth, targetH)
-  })
+    const el = detailRef.value;
+    if (!el) return;
+    el.style.height = "0";
+    el.offsetHeight;
+    const contentH = el.scrollHeight;
+    el.style.height = "";
+    const targetH = Math.min(contentH + 4, DETAIL_MAX_HEIGHT);
+    window.electronAPI.resizeDetailWindow(window.innerWidth, targetH);
+  });
 }
 
 // ── Lifecycle ──
 onMounted(async () => {
-  const s = localStorage.getItem('theme')
-  if (s) theme.value = s
+  const s = localStorage.getItem("theme");
+  if (s) theme.value = s;
   try {
-    await store.loadConfig()
+    await store.loadConfig();
   } catch {}
-  fitHeight()
+  fitHeight();
   unsubCfg = window.electronAPI.onConfigUpdated(() => {
-    store.loadConfig().then(() => fitHeight()).catch(() => {})
-  })
+    store
+      .loadConfig()
+      .then(() => fitHeight())
+      .catch(() => {});
+  });
   // 监听主题变化（主窗口切换主题时实时同步）
   unsubThemeChanged = window.electronAPI.onThemeChanged((t) => {
-    theme.value = t.mode
-    accent.value = t.accent
-  })
-})
+    theme.value = t.mode;
+    accent.value = t.accent;
+  });
+});
 
 onUnmounted(() => {
-  store.stopSubscription()
-  unsubCfg?.()
-  unsubThemeChanged?.()
-})
+  store.stopSubscription();
+  unsubCfg?.();
+  unsubThemeChanged?.();
+});
 
 // 模型列表变化时自动调整窗口高度
-watch(() => enabledModels.value.length, () => {
-  fitHeight()
-})
+watch(
+  () => enabledModels.value.length,
+  () => {
+    fitHeight();
+  },
+);
 </script>
 
 <style scoped>
@@ -161,7 +167,7 @@ watch(() => enabledModels.value.length, () => {
 
 /* ── Cards ── */
 .detail-card {
-  padding: 10px 12px;
+  padding: 5px 6px;
   border-bottom: 1px solid var(--border-light);
   transition:
     transform 0.25s var(--ease-spring),
@@ -227,7 +233,12 @@ watch(() => enabledModels.value.length, () => {
   animation: emptyPulse 3s ease-in-out infinite;
 }
 @keyframes emptyPulse {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 0.7; }
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.7;
+  }
 }
 </style>

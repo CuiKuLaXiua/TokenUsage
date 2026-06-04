@@ -96,7 +96,7 @@
     <aside class="sidebar" :class="{ collapsed: isCollapsed }">
       <div class="logo">
         <div class="logo-icon">
-          <img src="/logo.png" alt="Token Usage" class="logo-img" />
+          <img src="/logo_rounded.png" alt="Token Usage" class="logo-img" />
         </div>
         <Transition name="logo-text">
           <span v-show="!isCollapsed" class="logo-text">Token Usage</span>

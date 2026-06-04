@@ -1,0 +1,49 @@
+diff --git a/node_modules/app-builder-lib/templates/nsis/assistedInstaller.nsh b/node_modules/app-builder-lib/templates/nsis/assistedInstaller.nsh
+index b7f4752..8914c95 100644
+--- a/node_modules/app-builder-lib/templates/nsis/assistedInstaller.nsh
++++ b/node_modules/app-builder-lib/templates/nsis/assistedInstaller.nsh
+@@ -23,13 +23,27 @@
+     !include StrContains.nsh
+ 
+     !insertmacro skipPageIfUpdated
+-    !insertmacro MUI_PAGE_DIRECTORY
+ 
+-    # pageDirectory leave doesn't work (it seems because $INSTDIR is set after custom leave function)
+-    # so, we use instfiles pre
++    # sanitize the MUI_PAGE_DIRECTORY result to make sure it has a application name sub-folder
++    # try directory page leave first for instant visual feedback,
++    # with instfiles pre as fallback (in case $INSTDIR not yet set during leave)
++    !define MUI_PAGE_CUSTOMFUNCTION_LEAVE DirectoryPageLeave
++    !insertmacro MUI_PAGE_DIRECTORY
+     !define MUI_PAGE_CUSTOMFUNCTION_PRE instFilesPre
+ 
+-    # sanitize the MUI_PAGE_DIRECTORY result to make sure it has a application name sub-folder
++    Function DirectoryPageLeave
++      ${StrContains} $0 "${APP_FILENAME}" $INSTDIR
++      ${If} $0 == ""
++        StrCpy $INSTDIR "$INSTDIR\${APP_FILENAME}"
++        ; 同步更新目录文本框，让用户立即看到修正后的路径
++        FindWindow $1 "#32770" "" $HWNDPARENT
++        GetDlgItem $2 $1 1019
++        ${If} $2 != 0
++          SendMessage $2 0x000C 0 "STR:$INSTDIR"
++        ${EndIf}
++      ${EndIf}
++    FunctionEnd
++
+     Function instFilesPre
+       ${StrContains} $0 "${APP_FILENAME}" $INSTDIR
+       ${If} $0 == ""
+diff --git a/node_modules/app-builder-lib/templates/nsis/installSection.nsh b/node_modules/app-builder-lib/templates/nsis/installSection.nsh
+index 053772f..7301e82 100644
+--- a/node_modules/app-builder-lib/templates/nsis/installSection.nsh
++++ b/node_modules/app-builder-lib/templates/nsis/installSection.nsh
+@@ -3,7 +3,7 @@
+ InitPluginsDir
+ 
+ ${IfNot} ${Silent}
+-  SetDetailsPrint none
++  SetDetailsPrint listonly
+ ${endif}
+ 
+ StrCpy $appExe "$INSTDIR\${APP_EXECUTABLE_FILENAME}"

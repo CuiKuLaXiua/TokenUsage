@@ -97,6 +97,8 @@ export interface ElectronAPI {
   setCloseAction: (action: string | null) => Promise<boolean>
   closeActionChosen: (action: string, remember: boolean) => Promise<void>
   onShowCloseDialog: (callback: () => void) => () => void
+  // 托盘菜单事件
+  onTrayToggleTheme: (callback: () => void) => () => void
 }
 
 const electronAPI: ElectronAPI = {
@@ -230,6 +232,12 @@ const electronAPI: ElectronAPI = {
     const wrapper = () => callback()
     ipcRenderer.on('show-close-dialog', wrapper)
     return () => { ipcRenderer.removeListener('show-close-dialog', wrapper) }
+  },
+  // 托盘菜单事件
+  onTrayToggleTheme: (callback) => {
+    const wrapper = () => callback()
+    ipcRenderer.on('tray-toggle-theme', wrapper)
+    return () => { ipcRenderer.removeListener('tray-toggle-theme', wrapper) }
   }
 }
 

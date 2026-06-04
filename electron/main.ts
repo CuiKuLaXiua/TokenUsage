@@ -35,6 +35,8 @@ let floatStripWindow: BrowserWindow | null = null;
 let detailWindow: BrowserWindow | null = null;
 let ctxMenuWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
+let isQuitting = false;
+let currentThemeMode: 'dark' | 'light' = 'dark';
 const loginManager = new LoginWindowManager();
 const openCodeLoginManager = new OpenCodeLoginWindowManager();
 
@@ -161,15 +163,26 @@ function saveCloseActionToConfig(action: CloseAction | null) {
   } catch { /* ignore */ }
 }
 
+// ── 图标路径 ──
+// 窗口/侧边栏图标：256x256 圆角版本
+function getIconPath() {
+  if (isDev) {
+    return join(__dirname, "../public/logo_rounded.png");
+  }
+  return join(__dirname, "../dist/logo_rounded.png");
+}
+
+// 托盘图标：64x64 圆角版本（为 2x retina 准备，实际显示 ~32x32）
+function getTrayIconPath() {
+  if (isDev) {
+    return join(__dirname, "../public/logo_tray.png");
+  }
+  return join(__dirname, "../dist/logo_tray.png");
+}
+
 // ── 系统托盘 ──
-function createTray() {
-  const iconPath = join(__dirname, "../public/logo.png");
-  const icon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
-
-  tray = new Tray(icon);
-  tray.setToolTip("Token Usage");
-
-  const contextMenu = Menu.buildFromTemplate([
+function buildTrayMenu(): Menu {
+  return Menu.buildFromTemplate([
     {
       label: "显示主窗口",
       click: () => {
@@ -184,14 +197,45 @@ function createTray() {
     },
     { type: "separator" },
     {
+      label: currentThemeMode === 'dark' ? "切换浅色模式" : "切换深色模式",
+      click: () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send("tray-toggle-theme");
+        }
+      },
+    },
+    {
+      label: "刷新所有数据",
+      click: () => {
+        refresher.refreshAll();
+      },
+    },
+    { type: "separator" },
+    {
       label: "退出",
       click: () => {
+        isQuitting = true;
         app.quit();
       },
     },
   ]);
+}
 
-  tray.setContextMenu(contextMenu);
+function createTray() {
+  const iconPath = getTrayIconPath();
+  let icon = nativeImage.createFromPath(iconPath);
+  if (icon.isEmpty()) {
+    console.error("[Tray] 图标加载失败:", iconPath);
+    // 回退
+    const fallbackPath = join(process.resourcesPath, "app.asar.unpacked", "public", "logo_tray.png");
+    icon = nativeImage.createFromPath(fallbackPath);
+  }
+  // 托盘图标缩放到 32x32（Windows 托盘推荐尺寸）
+  icon = icon.resize({ width: 32, height: 32 });
+
+  tray = new Tray(icon);
+  tray.setToolTip("Token Usage");
+  tray.setContextMenu(buildTrayMenu());
 
   tray.on("double-click", () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -222,7 +266,7 @@ function createWindow() {
     ...(process.platform === "darwin"
       ? { trafficLightPosition: { x: 12, y: 16 } }
       : {}),
-    icon: join(__dirname, "../public/logo.png"),
+    icon: getIconPath(),
   });
 
   if (saved?.isMaximized) {
@@ -242,6 +286,9 @@ function createWindow() {
   mainWindow.on("close", (event) => {
     if (mainWindow && !mainWindow.isDestroyed()) saveWindowState(mainWindow);
 
+    // 真正退出时不拦截
+    if (isQuitting) return;
+
     // 关闭行为逻辑
     const closeAction = getCloseActionFromConfig();
     if (closeAction === 'minimize-to-tray') {
@@ -251,6 +298,7 @@ function createWindow() {
     }
     if (closeAction === 'quit') {
       // 允许关闭，退出应用
+      isQuitting = true;
       setTimeout(() => app.quit(), 0);
       return;
     }
@@ -293,8 +341,9 @@ const FLOAT_HEIGHT = 88;
 const DETAIL_WIDTH = 320;
 const DETAIL_HEIGHT = 420;
 const DETAIL_GAP = 8;
-const CTX_MENU_WIDTH = 200;
-const CTX_MENU_HEIGHT = 290;
+const CTX_MENU_WIDTH = 180;
+const CTX_MENU_HEIGHT_NO_MODEL = 235;
+const CTX_MENU_HEIGHT_WITH_MODEL = 295;
 
 // 缓存最近一次右键菜单配置，供渲染进程拉取
 let lastCtxMenuConfig: {
@@ -391,7 +440,7 @@ function createFloatWindow() {
       nodeIntegration: false,
       contextIsolation: true,
     },
-    icon: join(__dirname, "../public/logo.png"),
+    icon: getIconPath(),
   });
 
   if (isDev) {
@@ -465,7 +514,7 @@ function createDetailWindow() {
       nodeIntegration: false,
       contextIsolation: true,
     },
-    icon: join(__dirname, "../public/logo.png"),
+    icon: getIconPath(),
   });
 
   // 确保详情窗口在主窗口之上
@@ -493,7 +542,7 @@ function ensureCtxMenuWindow() {
 
   ctxMenuWindow = new BrowserWindow({
     width: CTX_MENU_WIDTH,
-    height: CTX_MENU_HEIGHT,
+    height: CTX_MENU_HEIGHT_NO_MODEL,
     resizable: false,
     alwaysOnTop: true,
     skipTaskbar: true,
@@ -566,7 +615,11 @@ function showCtxMenuWindow(options: {
 
   ctxMenuGen++;
 
-  const { x, y } = computeCtxMenuPosition(options.screenX, options.screenY);
+  const menuHeight = options.modelName
+    ? CTX_MENU_HEIGHT_WITH_MODEL
+    : CTX_MENU_HEIGHT_NO_MODEL;
+  const { x, y } = computeCtxMenuPosition(options.screenX, options.screenY, menuHeight);
+  win.setSize(CTX_MENU_WIDTH, menuHeight);
   win.setPosition(x, y);
 
   const config = {
@@ -662,12 +715,14 @@ function computeDetailPosition(
 function computeCtxMenuPosition(
   anchorX: number,
   anchorY: number,
+  menuH: number,
 ): { x: number; y: number } {
-  const { width: screenW, height: screenH } =
-    require("electron").screen.getPrimaryDisplay().workAreaSize;
+  const { screen } = require("electron");
+  const display = screen.getDisplayNearestPoint({ x: anchorX, y: anchorY });
+  const { width: screenW, height: screenH } = display.workAreaSize;
 
-  let x = anchorX;
-  let y = anchorY;
+  let x = anchorX + 2;
+  let y = anchorY + 2;
 
   // 右侧越界
   if (x + CTX_MENU_WIDTH > screenW - 10) {
@@ -675,8 +730,8 @@ function computeCtxMenuPosition(
   }
 
   // 底部越界：翻转到光标上方
-  if (y + CTX_MENU_HEIGHT > screenH - 10) {
-    y = Math.max(0, anchorY - CTX_MENU_HEIGHT);
+  if (y + menuH > screenH - 10) {
+    y = Math.max(0, anchorY - menuH + 2);
   }
 
   // 顶部安全边距
@@ -691,6 +746,14 @@ app.whenReady().then(() => {
   createWindow();
   refresher.start(); // 启动统一刷新
 
+  app.on("before-quit", () => {
+    isQuitting = true;
+    if (tray) {
+      tray.destroy();
+      tray = null;
+    }
+  });
+
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
@@ -699,8 +762,9 @@ app.whenReady().then(() => {
 });
 
 app.on("window-all-closed", () => {
-  // 有托盘时不自动退出（macOS 也不退出）
-  // 应用退出由托盘菜单或 close-action-chosen 的 quit 路径控制
+  if (process.platform !== "darwin") {
+    app.quit();
+  }
 });
 
 // IPC handlers for data storage
@@ -955,6 +1019,13 @@ ipcMain.handle("set-float-always-on-top", (_, value: boolean) => {
 ipcMain.handle(
   "notify-theme-changed",
   (_, theme: { mode: string; accent: string }) => {
+    // 更新缓存的模式并重建托盘菜单
+    if (theme.mode === 'dark' || theme.mode === 'light') {
+      currentThemeMode = theme.mode;
+      if (tray && !tray.isDestroyed()) {
+        tray.setContextMenu(buildTrayMenu());
+      }
+    }
     const targets = [floatWindow, detailWindow, ctxMenuWindow];
     for (const win of targets) {
       if (win && !win.isDestroyed()) {
@@ -1015,7 +1086,7 @@ interface EdgeDockState {
   originalY: number;
 }
 const edgeDockState = new Map<number, EdgeDockState>();
-const EDGE_THRESHOLD = 20; // 距离边缘 20px 内触发靠边隐藏
+const EDGE_THRESHOLD = 0; // 只有贴到边缘才触发靠边隐藏
 const DOCK_VISIBLE_WIDTH = 8; // 吸附后露出边缘的宽度
 const EDGE_MARGIN = 2; // 贴边条与屏幕边缘的间距
 
@@ -1802,6 +1873,7 @@ ipcMain.handle("close-action-chosen", (_, action: CloseAction, remember: boolean
   } else {
     // quit：保存窗口状态后直接退出
     if (mainWindow && !mainWindow.isDestroyed()) saveWindowState(mainWindow);
+    isQuitting = true;
     app.quit();
   }
 });

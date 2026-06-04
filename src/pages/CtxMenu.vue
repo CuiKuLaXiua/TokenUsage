@@ -5,40 +5,38 @@
     :data-accent="accent"
     @mouseleave="onMouseLeave"
   >
-    <div class="ctx-menu">
-      <!-- Model-specific header -->
-      <template v-if="modelName">
-        <div class="ctx-header">
-          <span class="ctx-header-name">{{ modelName }}</span>
-        </div>
-        <div class="ctx-item" @click="act('fetch-model')">
-          <el-icon :size="13"><Refresh /></el-icon><span>刷新额度</span>
-        </div>
-        <div class="ctx-sep"></div>
-      </template>
+    <!-- Model-specific header -->
+    <template v-if="modelName">
+      <div class="ctx-header">
+        <span class="ctx-header-name">{{ modelName }}</span>
+      </div>
+      <div class="ctx-item" @click="act('fetch-model')">
+        <el-icon :size="13"><Refresh /></el-icon><span>刷新额度</span>
+      </div>
+      <div class="ctx-sep"></div>
+    </template>
 
-      <!-- Global actions -->
-      <div class="ctx-item" @click="act('refresh-all')">
-        <el-icon :size="13"><Refresh /></el-icon><span>刷新全部</span>
-      </div>
-      <div class="ctx-sep"></div>
-      <div class="ctx-item" :class="{ active: layoutMode === 'list' }" @click="act('set-layout:list')">
-        <el-icon :size="13"><List /></el-icon><span>列表模式</span>
-        <el-icon v-if="layoutMode === 'list'" :size="12" class="ctx-check"><Check /></el-icon>
-      </div>
-      <div class="ctx-item" :class="{ active: layoutMode === 'carousel' }" @click="act('set-layout:carousel')">
-        <el-icon :size="13"><Grid /></el-icon><span>轮播模式</span>
-        <el-icon v-if="layoutMode === 'carousel'" :size="12" class="ctx-check"><Check /></el-icon>
-      </div>
-      <div class="ctx-sep"></div>
-      <div class="ctx-item" :class="{ active: alwaysOnTop }" @click="act('toggle-top')">
-        <el-icon :size="13"><Top /></el-icon><span>窗口置顶</span>
-        <el-icon v-if="alwaysOnTop" :size="12" class="ctx-check"><Check /></el-icon>
-      </div>
-      <div class="ctx-sep"></div>
-      <div class="ctx-item danger" @click="act('close-float')">
-        <el-icon :size="13"><Close /></el-icon><span>关闭悬浮窗</span>
-      </div>
+    <!-- Global actions -->
+    <div class="ctx-item" @click="act('refresh-all')">
+      <el-icon :size="13"><Refresh /></el-icon><span>刷新全部</span>
+    </div>
+    <div class="ctx-sep"></div>
+    <div class="ctx-item" :class="{ active: layoutMode === 'list' }" @click="act('set-layout:list')">
+      <el-icon :size="13"><List /></el-icon><span>列表模式</span>
+      <el-icon v-if="layoutMode === 'list'" :size="12" class="ctx-check"><Check /></el-icon>
+    </div>
+    <div class="ctx-item" :class="{ active: layoutMode === 'carousel' }" @click="act('set-layout:carousel')">
+      <el-icon :size="13"><Grid /></el-icon><span>轮播模式</span>
+      <el-icon v-if="layoutMode === 'carousel'" :size="12" class="ctx-check"><Check /></el-icon>
+    </div>
+    <div class="ctx-sep"></div>
+    <div class="ctx-item" :class="{ active: alwaysOnTop }" @click="act('toggle-top')">
+      <el-icon :size="13"><Top /></el-icon><span>窗口置顶</span>
+      <el-icon v-if="alwaysOnTop" :size="12" class="ctx-check"><Check /></el-icon>
+    </div>
+    <div class="ctx-sep"></div>
+    <div class="ctx-item danger" @click="act('close-float')">
+      <el-icon :size="13"><Close /></el-icon><span>关闭悬浮窗</span>
     </div>
   </div>
 </template>
@@ -107,24 +105,11 @@ html, body {
 
 <style scoped>
 .ctx-menu-page {
-  width: 100vw;
-  height: 100vh;
-  display: flex;
-  align-items: flex-start;
-  justify-content: flex-start;
-  background: transparent;
-}
-
-.ctx-menu {
-  min-width: 160px;
-  background: var(--glass-bg-strong);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  background: var(--bg-secondary);
   border: 1px solid var(--glass-border);
   border-radius: 12px;
   padding: 5px;
-  margin: 4px;
-  box-shadow: var(--glass-shadow);
+  box-sizing: border-box;
   animation: menuPop 0.22s cubic-bezier(0.34, 1.56, 0.64, 1) both;
   transform-origin: top left;
 }

@@ -18,16 +18,30 @@ import ApiKeyNotification from '@/components/ApiKeyNotification.vue'
 import { useThemeStore } from '@/stores/theme'
 import { useAppStore } from '@/stores/app'
 import { useRoute } from 'vue-router'
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, onUnmounted } from 'vue'
 
 const route = useRoute()
 const themeStore = useThemeStore()
 const appStore = useAppStore()
 const isFloatRoute = computed(() => route.path.startsWith('/float') || route.path === '/ctx-menu')
 
+let unsubTrayTheme: (() => void) | null = null
+
 onMounted(async () => {
   themeStore.initTheme()
   await appStore.loadConfig()
+
+  // 监听托盘菜单的"切换主题"点击
+  unsubTrayTheme = window.electronAPI.onTrayToggleTheme(() => {
+    themeStore.toggleTheme()
+  })
+})
+
+onUnmounted(() => {
+  if (unsubTrayTheme) {
+    unsubTrayTheme()
+    unsubTrayTheme = null
+  }
 })
 </script>
 
