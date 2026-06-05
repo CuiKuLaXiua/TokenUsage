@@ -674,11 +674,10 @@ async function showMenu(e: MouseEvent) {
   ctxMenuOpen.value = true;
 
   // 主进程统一管理菜单生命周期（复用窗口，show/hide）
-  // 将 CSS 像素转换为物理像素，与主进程 setPosition 的坐标系对齐
-  const dpr = window.devicePixelRatio || 1;
+  // e.screenX/Y 与 setPosition 使用相同的 DPI 感知坐标系，无需 DPR 转换
   window.electronAPI.showCtxMenu({
-    screenX: Math.round(e.screenX * dpr),
-    screenY: Math.round(e.screenY * dpr),
+    screenX: Math.round(e.screenX),
+    screenY: Math.round(e.screenY),
     modelId: ctxModel.value?.id ?? null,
     modelName: ctxModel.value?.name ?? null,
     theme: theme.value,
@@ -996,10 +995,10 @@ onMounted(async () => {
       // DOM 事件已处理过则跳过
       if (ctxMenuOpen.value) return;
       ctxMenuOpen.value = true;
-      const dpr2 = window.devicePixelRatio || 1;
+      // params.x/y 是窗口相对坐标，加上窗口屏幕位置转为绝对坐标
       window.electronAPI.showCtxMenu({
-        screenX: Math.round(pos.x * dpr2),
-        screenY: Math.round(pos.y * dpr2),
+        screenX: Math.round(window.screenX + pos.x),
+        screenY: Math.round(window.screenY + pos.y),
         modelId: null,
         modelName: null,
         theme: theme.value,
@@ -1024,6 +1023,10 @@ onMounted(async () => {
   unsubThemeChanged = window.electronAPI.onThemeChanged((t) => {
     theme.value = t.mode;
     accent.value = t.accent;
+  });
+  // 通知主进程悬浮窗已完成渲染，避免首次闪烁
+  nextTick(() => {
+    window.electronAPI.floatReady();
   });
 });
 onUnmounted(() => {

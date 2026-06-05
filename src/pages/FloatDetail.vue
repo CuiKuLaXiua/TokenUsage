@@ -76,7 +76,7 @@ function fitHeight() {
     const contentH = el.scrollHeight;
     el.style.height = "";
     const targetH = Math.min(contentH + 4, DETAIL_MAX_HEIGHT);
-    window.electronAPI.resizeDetailWindow(window.innerWidth, targetH);
+    window.electronAPI.resizeDetailWindow(window.outerWidth, targetH);
   });
 }
 

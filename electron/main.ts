@@ -35,6 +35,9 @@ let floatStripWindow: BrowserWindow | null = null;
 let detailWindow: BrowserWindow | null = null;
 let detailWindowReady = false;
 let detailWindowReadyResolve: (() => void) | null = null;
+let detailAnchorInfo: { x: number; anchorTop: number; anchorBottom: number } | null = null;
+let floatWindowReady = false;
+let floatWindowReadyResolve: (() => void) | null = null;
 let ctxMenuWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
@@ -437,6 +440,7 @@ function createFloatWindow() {
     skipTaskbar: true,
     frame: false,
     hasShadow: false,
+    show: false,
     webPreferences: {
       preload: join(__dirname, "preload.js"),
       nodeIntegration: false,
@@ -444,6 +448,10 @@ function createFloatWindow() {
     },
     icon: getIconPath(),
   });
+
+  // 重置 ready 状态，等待渲染进程 IPC 通知
+  floatWindowReady = false;
+  floatWindowReadyResolve = null;
 
   if (isDev) {
     floatWindow.loadURL(rendererUrl + "/#/float");
@@ -491,8 +499,22 @@ function createFloatWindow() {
     }
   });
 
-  // 预创建详情窗口，避免首次触发时的加载延迟
+  // 兜底：如果渲染进程 ready 信号延迟，1.5s 后强制标记就绪
+  floatWindow.webContents.on("did-finish-load", () => {
+    setTimeout(() => {
+      if (!floatWindowReady) {
+        floatWindowReady = true;
+        if (floatWindowReadyResolve) {
+          floatWindowReadyResolve();
+          floatWindowReadyResolve = null;
+        }
+      }
+    }, 1500);
+  });
+
+  // 预创建详情窗口和右键菜单，避免首次触发时的加载延迟
   createDetailWindow();
+  ensureCtxMenuWindow();
 }
 
 function createDetailWindow() {
@@ -602,6 +624,14 @@ function ensureCtxMenuWindow() {
   return ctxMenuWindow;
 }
 
+function ensureFloatWindow() {
+  if (floatWindow && !floatWindow.isDestroyed()) {
+    return floatWindow;
+  }
+  createFloatWindow();
+  return floatWindow;
+}
+
 // 右键菜单生命周期管理 — 复用同一窗口，仅 show/hide
 let ctxMenuGen = 0; // 每次 show 递增，blur 回调通过 generation 判断是否过期
 let ctxMenuClosing = false; // hideCtxMenu 主动关闭时为 true，抑制 blur
@@ -697,25 +727,40 @@ function computeDetailPosition(
   anchorY: number,
   anchorW: number,
   anchorH: number,
-): { x: number; y: number } {
-  const { width: screenW, height: screenH } =
-    require("electron").screen.getPrimaryDisplay().workAreaSize;
+): { x: number; anchorTop: number; anchorBottom: number } {
+  const { screen } = require("electron");
+  const display = screen.getDisplayNearestPoint({ x: anchorX, y: anchorY });
+  const { x: workX } = display.workArea;
+  const { width: workW } = display.workAreaSize;
 
-  // 默认在右侧
-  let x = anchorX + anchorW + DETAIL_GAP;
-  let y = anchorY;
+  // 默认与左侧对齐
+  let x = anchorX;
 
-  // 右侧空间不足，放左侧
-  if (x + DETAIL_WIDTH > screenW - 20) {
-    x = Math.max(0, anchorX - DETAIL_WIDTH - DETAIL_GAP);
+  // 右侧超出屏幕，改为与右侧对齐
+  if (x + DETAIL_WIDTH > workX + workW - 20) {
+    x = Math.max(workX, anchorX + anchorW - DETAIL_WIDTH);
   }
 
-  // 底部空间不足，向上对齐
-  if (y + DETAIL_HEIGHT > screenH - 20) {
-    y = Math.max(0, anchorY + anchorH - DETAIL_HEIGHT);
+  // y 方向由 resize-detail-window 根据实际高度计算
+  return { x: Math.round(x), anchorTop: anchorY, anchorBottom: anchorY + anchorH };
+}
+
+/** 根据锚点和实际窗口高度计算详情窗口的 y 坐标 */
+function computeDetailY(anchorTop: number, anchorBottom: number, actualHeight: number): number {
+  const { screen } = require("electron");
+  const display = screen.getDisplayNearestPoint({ x: 0, y: anchorTop });
+  const { y: workY } = display.workArea;
+  const { height: workH } = display.workAreaSize;
+
+  // 默认放在下方
+  let y = anchorBottom + DETAIL_GAP;
+
+  // 底部空间不足，放到上方（用实际高度，间隙精确）
+  if (y + actualHeight > workY + workH - 20) {
+    y = anchorTop - actualHeight - DETAIL_GAP;
   }
 
-  return { x: Math.round(x), y: Math.round(y) };
+  return Math.round(Math.max(workY, y));
 }
 
 /**
@@ -728,23 +773,23 @@ function computeCtxMenuPosition(
 ): { x: number; y: number } {
   const { screen } = require("electron");
   const display = screen.getDisplayNearestPoint({ x: anchorX, y: anchorY });
-  const { width: screenW, height: screenH } = display.workAreaSize;
+  const { x: workX, y: workY, width: workW, height: workH } = display.workArea;
 
   let x = anchorX + 2;
   let y = anchorY + 2;
 
   // 右侧越界
-  if (x + CTX_MENU_WIDTH > screenW - 10) {
-    x = Math.max(0, screenW - CTX_MENU_WIDTH - 10);
+  if (x + CTX_MENU_WIDTH > workX + workW - 10) {
+    x = Math.max(workX, workX + workW - CTX_MENU_WIDTH - 10);
   }
 
   // 底部越界：翻转到光标上方
-  if (y + menuH > screenH - 10) {
-    y = Math.max(0, anchorY - menuH + 2);
+  if (y + menuH > workY + workH - 10) {
+    y = Math.max(workY, anchorY - menuH);
   }
 
   // 顶部安全边距
-  if (y < 0) y = 10;
+  if (y < workY) y = workY;
 
   return { x: Math.round(x), y: Math.round(y) };
 }
@@ -753,6 +798,7 @@ app.whenReady().then(() => {
   ensureDataDir();
   createTray();
   createWindow();
+  ensureFloatWindow(); // 预创建悬浮窗，避免首次点击时等待加载
   refresher.start(); // 启动统一刷新
 
   app.on("before-quit", () => {
@@ -860,10 +906,20 @@ ipcMain.handle("get-data-path", () => {
   return dataDir;
 });
 
-ipcMain.handle("open-float-window", () => {
+ipcMain.handle("open-float-window", async () => {
   if (!floatWindow) {
     createFloatWindow();
-    ensureCtxMenuWindow(); // 预创建右键菜单窗口，避免首次触发时等待加载
+    // 等待渲染进程就绪再显示
+    if (!floatWindowReady) {
+      await new Promise<void>((resolve) => {
+        floatWindowReadyResolve = resolve;
+      });
+    }
+    const win = floatWindow as BrowserWindow | null;
+    if (win && !win.isDestroyed()) {
+      win.show();
+      win.focus();
+    }
   } else if (floatWindow.isVisible()) {
     floatWindow.close();
     return false;
@@ -883,7 +939,13 @@ ipcMain.handle("get-float-window-state", () => {
   if (!floatWindow || floatWindow.isDestroyed()) {
     return { active: false };
   }
-  // 存在即 active，无论可见还是边缘吸附
+  // 预创建但从未显示的窗口不算 active
+  if (!floatWindow.isVisible()) {
+    const id = floatWindow.id;
+    if (!edgeDockState.has(id)) {
+      return { active: false };
+    }
+  }
   return { active: true };
 });
 
@@ -931,14 +993,17 @@ ipcMain.handle(
     const win = createDetailWindow();
     if (!win) return false;
 
-    const { x, y } = computeDetailPosition(
+    const { x, anchorTop, anchorBottom } = computeDetailPosition(
       options.anchorX,
       options.anchorY,
       options.anchorW,
       options.anchorH,
     );
+    detailAnchorInfo = { x, anchorTop, anchorBottom };
 
-    win.setPosition(x, y);
+    // 初始 y 用最大高度估算，resize-detail-window 会用实际高度修正
+    const initialY = computeDetailY(anchorTop, anchorBottom, DETAIL_HEIGHT);
+    win.setBounds({ x, y: initialY, width: DETAIL_WIDTH, height: DETAIL_HEIGHT });
 
     if (!win.isVisible()) {
       // 首次显示：等待渲染进程完成挂载后再显示窗口
@@ -963,10 +1028,19 @@ ipcMain.on("detail-ready", () => {
   }
 });
 
+ipcMain.on("float-ready", () => {
+  floatWindowReady = true;
+  if (floatWindowReadyResolve) {
+    floatWindowReadyResolve();
+    floatWindowReadyResolve = null;
+  }
+});
+
 ipcMain.handle("hide-float-detail", () => {
   if (detailWindow && !detailWindow.isDestroyed()) {
     detailWindow.hide();
   }
+  detailAnchorInfo = null;
   return true;
 });
 
@@ -975,7 +1049,14 @@ ipcMain.handle("resize-detail-window", (_, width: number, height: number) => {
     const MIN_H = 120;
     const MAX_H = 620;
     const clamped = Math.round(Math.min(MAX_H, Math.max(MIN_H, height)));
-    detailWindow.setSize(Math.round(width), clamped);
+    const w = Math.round(width);
+    // 用实际高度重新计算 y，setBounds 原子操作避免中间帧跳动
+    if (detailAnchorInfo) {
+      const y = computeDetailY(detailAnchorInfo.anchorTop, detailAnchorInfo.anchorBottom, clamped);
+      detailWindow.setBounds({ x: detailAnchorInfo.x, y, width: w, height: clamped });
+    } else {
+      detailWindow.setSize(w, clamped);
+    }
   }
   return true;
 });
@@ -2100,6 +2181,86 @@ ipcMain.handle("fetch-mimo-usage", async (_, options) => {
       request.write(bodyStr);
     }
 
+    request.end();
+  });
+});
+
+// MiMo 用量明细 API
+ipcMain.handle("fetch-mimo-token-plan", async (_, options: { year: number; month: number; cookies: string }) => {
+  return new Promise((resolve, reject) => {
+    const { year, month, cookies } = options;
+
+    // 从 cookies 中提取 api-platform_ph 值作为查询参数
+    const phMatch = cookies.match(/api-platform_ph="?([^";]+)/);
+    const phValue = phMatch ? phMatch[1] : "";
+    const baseUrl = "https://platform.xiaomimimo.com/api/v1/usage/token-plan/list";
+    const url = phValue ? `${baseUrl}?api-platform_ph=${encodeURIComponent(phValue)}` : baseUrl;
+
+    if (!isAllowedUrl(url)) {
+      reject(new Error("URL not allowed"));
+      return;
+    }
+
+    const requestHeaders: Record<string, string> = {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
+      "Content-Type": "application/json",
+      "Referer": "https://platform.xiaomimimo.com/",
+      "Origin": "https://platform.xiaomimimo.com",
+    };
+
+    if (cookies) {
+      requestHeaders["Cookie"] = cookies;
+    }
+
+    const request = net.request({
+      method: "POST",
+      url,
+      headers: requestHeaders,
+    });
+
+    let responseData = "";
+
+    request.on("response", (response) => {
+      response.on("data", (chunk) => {
+        responseData += chunk.toString();
+      });
+
+      response.on("end", () => {
+        try {
+          const data = JSON.parse(responseData);
+
+          // MiMo Cookie 过期检测
+          if (response.statusCode === 401 || response.statusCode === 403) {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send("login-needed");
+            }
+            const error = new Error("Cookie expired");
+            (error as any).code = "COOKIE_EXPIRED";
+            reject(error);
+            return;
+          }
+          if (data.loginUrl) {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send("login-needed");
+            }
+            const error = new Error("Cookie expired");
+            (error as any).code = "COOKIE_EXPIRED";
+            reject(error);
+            return;
+          }
+
+          resolve(data);
+        } catch {
+          reject(new Error("JSON解析失败"));
+        }
+      });
+    });
+
+    request.on("error", (error) => {
+      reject(error);
+    });
+
+    request.write(JSON.stringify({ year, month }));
     request.end();
   });
 });

@@ -41,12 +41,14 @@
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
     "dotenv": "^17.4.2",
+    "echarts": "^6.1.0",
     "element-plus": "^2.4.4",
     "oh-my-openagent": "^4.7.2",
     "oh-my-openagent-windows-x64": "^4.7.0",
     "pinia": "^2.1.7",
     "sortablejs": "^1.15.7",
     "vue": "^3.3.13",
+    "vue-echarts": "^8.0.1",
     "vue-router": "^4.2.5",
     "vuedraggable": "^4.1.0"
   }

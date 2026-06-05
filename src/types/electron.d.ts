@@ -24,6 +24,23 @@ export interface MimoApiResponse {
   data?: MimoResponseData
 }
 
+export interface MimoTokenPlanItem {
+  date: string
+  model: string
+  totalToken: number
+  inputHitToken: number
+  inputMissToken: number
+  outputToken: number
+  requestCount: number
+  inputAudioDuration: number
+}
+
+export interface MimoTokenPlanResponse {
+  code: number
+  message?: string
+  data?: MimoTokenPlanItem[]
+}
+
 export interface ElectronAPI {
   loadConfig: () => Promise<AppConfig>
   saveConfig: (config: AppConfig) => Promise<boolean>
@@ -38,6 +55,7 @@ export interface ElectronAPI {
     headers?: Record<string, string>
     body?: Record<string, unknown>
   }) => Promise<MimoApiResponse>
+  fetchMimoTokenPlan: (options: { year: number; month: number; cookies: string }) => Promise<MimoTokenPlanResponse>
   openFloatWindow: () => Promise<boolean>
   closeFloatWindow: () => Promise<boolean>
   getFloatWindowState: () => Promise<{ active: boolean }>
@@ -79,6 +97,8 @@ export interface ElectronAPI {
   onDetailHoverChanged: (callback: (state: 'enter' | 'leave') => void) => () => void
   // 详情窗口就绪信号
   detailReady: () => void
+  // 悬浮窗就绪信号
+  floatReady: () => void
   // 右键菜单弹出窗
   showCtxMenu: (options: {
     screenX: number

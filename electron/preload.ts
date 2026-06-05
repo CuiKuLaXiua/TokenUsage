@@ -14,6 +14,7 @@ export interface ElectronAPI {
     headers?: Record<string, string>
     body?: Record<string, unknown>
   }) => Promise<any>
+  fetchMimoTokenPlan: (options: { year: number; month: number; cookies: string }) => Promise<any>
   openFloatWindow: () => Promise<boolean>
   closeFloatWindow: () => Promise<boolean>
   getFloatWindowState: () => Promise<{ active: boolean }>
@@ -56,6 +57,8 @@ export interface ElectronAPI {
   onDetailHoverChanged: (callback: (state: 'enter' | 'leave') => void) => () => void
   // 详情窗口就绪信号
   detailReady: () => void
+  // 悬浮窗就绪信号
+  floatReady: () => void
   // 右键菜单弹出窗
   showCtxMenu: (options: {
     screenX: number
@@ -110,6 +113,7 @@ const electronAPI: ElectronAPI = {
   saveUsage: (month, data) => ipcRenderer.invoke('save-usage', month, data),
   getDataPath: () => ipcRenderer.invoke('get-data-path'),
   fetchMimoUsage: (options) => ipcRenderer.invoke('fetch-mimo-usage', options),
+  fetchMimoTokenPlan: (options) => ipcRenderer.invoke('fetch-mimo-token-plan', options),
   openFloatWindow: () => ipcRenderer.invoke('open-float-window'),
   closeFloatWindow: () => ipcRenderer.invoke('close-float-window'),
   getFloatWindowState: () => ipcRenderer.invoke('get-float-window-state'),
@@ -186,6 +190,8 @@ const electronAPI: ElectronAPI = {
   },
   // 详情窗口就绪信号
   detailReady: () => ipcRenderer.send('detail-ready'),
+  // 悬浮窗就绪信号
+  floatReady: () => ipcRenderer.send('float-ready'),
   // 右键菜单弹出窗
   showCtxMenu: (options) => ipcRenderer.invoke('show-ctx-menu', options),
   hideCtxMenu: () => ipcRenderer.invoke('hide-ctx-menu'),

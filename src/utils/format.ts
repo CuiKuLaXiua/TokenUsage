@@ -6,6 +6,17 @@ export function formatTokens(tokens: number | undefined | null): string {
   return tokens.toLocaleString('zh-CN')
 }
 
+export function formatTokensFull(tokens: number | undefined | null): string {
+  if (tokens == null || isNaN(tokens)) return '-'
+  return tokens.toLocaleString('zh-CN')
+}
+
+/** 仅用于图表坐标轴：最大单位为 K，不保留小数 */
+export function formatTokensAxis(tokens: number): string {
+  if (tokens >= 1000) return Math.floor(tokens / 1000) + 'K'
+  return String(tokens)
+}
+
 export function formatBalance(balance: number, currency: string = 'CNY'): string {
   const symbol = currency === 'CNY' ? '¥' : currency === 'USD' ? '$' : currency + ' '
   return symbol + balance.toFixed(2)

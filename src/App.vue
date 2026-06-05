@@ -257,6 +257,51 @@ body {
   color: var(--text-secondary);
 }
 
+/* date-picker / month-picker 面板 */
+[data-theme="dark"] .el-picker-panel {
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+[data-theme="dark"] .el-date-picker__header-label {
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .el-date-picker__header-label:hover {
+  color: var(--accent);
+}
+
+[data-theme="dark"] .el-month-table td .cell {
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .el-month-table td.current:not(.disabled) .cell {
+  color: var(--accent);
+}
+
+[data-theme="dark"] .el-month-table td .cell:hover {
+  background: var(--glass-bg);
+}
+
+[data-theme="dark"] .el-month-table td.disabled .cell {
+  background: transparent;
+  color: var(--text-placeholder);
+}
+
+[data-theme="dark"] .el-picker-panel__icon-btn {
+  color: var(--text-tertiary);
+}
+
+[data-theme="dark"] .el-picker-panel__icon-btn:hover {
+  color: var(--accent);
+}
+
+[data-theme="dark"] .el-popper.is-light .el-popper__arrow::before {
+  background: var(--glass-bg-strong);
+  border-color: var(--glass-border);
+}
+
 /* ── Element Plus glass overrides (both themes) ── */
 .el-dialog {
   background: var(--glass-bg-strong) !important;
