@@ -16,6 +16,13 @@ export interface ModelConfig {
   refreshInterval?: number  // 自动刷新间隔数值，0 或 undefined 表示关闭
   refreshUnit?: 'second' | 'minute' | 'hour'  // 刷新间隔单位，默认 minute
   enabled: boolean
+  // OpenCode 专用
+  serverId?: string              // API1 GET x-server-id（基础数据 + 刷新器）
+  serverInstance?: string        // API1 GET x-server-instance
+  dailyServerId?: string         // API2 POST x-server-id（日用量详情）
+  dailyServerInstance?: string   // API2 POST x-server-instance
+  recordsServerId?: string       // API3 POST x-server-id（调用记录）
+  recordsServerInstance?: string // API3 POST x-server-instance
 }
 
 export interface UsageTier {
@@ -364,28 +371,48 @@ export const useAppStore = defineStore('app', () => {
     try {
       console.log('[OpenCodeLogin] 调用 window.electronAPI.openOpencodeLogin()')
       const result = await window.electronAPI.openOpencodeLogin(modelId)
-      console.log('[OpenCodeLogin] openOpencodeLogin 返回:', result.cookies ? 'cookies 已获取' : 'cookies 为空')
+      console.log('[OpenCodeLogin] openOpencodeLogin 返回:', {
+        hasCookies: !!result.cookies,
+        hasBaseUrl: !!result.baseUrl,
+        api1Instance: result.api1Instance,
+        api2Instance: result.api2Instance,
+        api3Instance: result.api3Instance,
+      })
 
       if (result.cookies) {
         // 只更新指定模型的 cookies 和 baseUrl
         if (modelId) {
           const model = models.value.find(m => m.id === modelId)
+          console.log('[OpenCodeLogin] 按 modelId 查找模型:', modelId, '找到:', !!model)
           if (model) {
             model.cookies = result.cookies
-            if (result.baseUrl) {
-              model.baseUrl = result.baseUrl
-            }
+            if (result.baseUrl) model.baseUrl = result.baseUrl
+            if (result.api1ServerId) model.serverId = result.api1ServerId
+            if (result.api1Instance) model.serverInstance = result.api1Instance
+            if (result.api2ServerId) model.dailyServerId = result.api2ServerId
+            if (result.api2Instance) model.dailyServerInstance = result.api2Instance
+            if (result.api3ServerId) model.recordsServerId = result.api3ServerId
+            if (result.api3Instance) model.recordsServerInstance = result.api3Instance
+            console.log('[OpenCodeLogin] 模型已更新, API1 instance:', model.serverInstance, 'API2 instance:', model.dailyServerInstance, 'API3 instance:', model.recordsServerInstance)
           }
         } else {
           // 兼容：无 modelId 时更新所有 OpenCode 模型
+          let updated = 0
           for (const model of models.value) {
             if (model.provider === 'opencode') {
               model.cookies = result.cookies
-              if (result.baseUrl) {
-                model.baseUrl = result.baseUrl
-              }
+              if (result.baseUrl) model.baseUrl = result.baseUrl
+              if (result.api1ServerId) model.serverId = result.api1ServerId
+              if (result.api1Instance) model.serverInstance = result.api1Instance
+              if (result.api2ServerId) model.dailyServerId = result.api2ServerId
+              if (result.api2Instance) model.dailyServerInstance = result.api2Instance
+              if (result.api3ServerId) model.recordsServerId = result.api3ServerId
+              if (result.api3Instance) model.recordsServerInstance = result.api3Instance
+              updated++
+              console.log('[OpenCodeLogin] 模型已更新:', model.name)
             }
           }
+          console.log('[OpenCodeLogin] 共更新', updated, '个 OpenCode 模型')
         }
         await saveConfig()
         loginState.value = 'complete'

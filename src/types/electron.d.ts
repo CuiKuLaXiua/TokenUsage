@@ -41,6 +41,40 @@ export interface MimoTokenPlanResponse {
   data?: MimoTokenPlanItem[]
 }
 
+export interface OpenCodeUsageItem {
+  date: string
+  model: string
+  totalCost: number
+  keyId: string
+  plan: string
+}
+
+export interface OpenCodeKey {
+  id: string
+  displayName: string
+  deleted: boolean
+}
+
+export interface OpenCodeUsageDetailResponse {
+  usage: OpenCodeUsageItem[]
+  keys: OpenCodeKey[]
+}
+
+export interface OpenCodeUsageRecord {
+  id: string
+  model: string
+  provider: string
+  inputTokens: number
+  outputTokens: number
+  reasoningTokens: number
+  cacheReadTokens: number
+  cost: number
+  keyID: string
+  keyName?: string
+  timeCreated: string
+  plan: string
+}
+
 export interface ElectronAPI {
   loadConfig: () => Promise<AppConfig>
   saveConfig: (config: AppConfig) => Promise<boolean>
@@ -56,6 +90,8 @@ export interface ElectronAPI {
     body?: Record<string, unknown>
   }) => Promise<MimoApiResponse>
   fetchMimoTokenPlan: (options: { year: number; month: number; cookies: string }) => Promise<MimoTokenPlanResponse>
+  fetchOpenCodeUsageDetail: (options: { cookies: string; serverId: string; serverInstance: string; body: string }) => Promise<OpenCodeUsageDetailResponse>
+  fetchOpenCodeUsageRecords: (options: { cookies: string; serverId: string; serverInstance: string; body: string }) => Promise<{ records: OpenCodeUsageRecord[] }>
   openFloatWindow: () => Promise<boolean>
   closeFloatWindow: () => Promise<boolean>
   getFloatWindowState: () => Promise<{ active: boolean }>
@@ -80,7 +116,16 @@ export interface ElectronAPI {
   resizeDetailWindow: (width: number, height: number) => Promise<boolean>
   getFloatWindowBounds: () => Promise<{ x: number; y: number; width: number; height: number } | null>
   openMimoLogin: (modelId?: string) => Promise<string | null>
-  openOpencodeLogin: (modelId?: string) => Promise<{ cookies: string | null, baseUrl: string | null }>
+  openOpencodeLogin: (modelId?: string) => Promise<{
+    cookies: string | null
+    baseUrl: string | null
+    api1ServerId: string | null
+    api1Instance: string | null
+    api2ServerId: string | null
+    api2Instance: string | null
+    api3ServerId: string | null
+    api3Instance: string | null
+  }>
   onLoginNeeded: (callback: (data: { modelId: string }) => void) => () => void
   onConfigUpdated: (callback: () => void) => () => void
   windowMinimize: () => Promise<void>

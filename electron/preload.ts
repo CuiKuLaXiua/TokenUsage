@@ -15,6 +15,8 @@ export interface ElectronAPI {
     body?: Record<string, unknown>
   }) => Promise<any>
   fetchMimoTokenPlan: (options: { year: number; month: number; cookies: string }) => Promise<any>
+  fetchOpenCodeUsageDetail: (options: { cookies: string; serverId: string; serverInstance: string; body: string }) => Promise<any>
+  fetchOpenCodeUsageRecords: (options: { cookies: string; serverId: string; serverInstance: string; body: string }) => Promise<any>
   openFloatWindow: () => Promise<boolean>
   closeFloatWindow: () => Promise<boolean>
   getFloatWindowState: () => Promise<{ active: boolean }>
@@ -39,7 +41,16 @@ export interface ElectronAPI {
   getFloatWindowBounds: () => Promise<{ x: number; y: number; width: number; height: number } | null>
   onConfigUpdated: (callback: () => void) => () => void
   openMimoLogin: () => Promise<string | null>
-  openOpencodeLogin: () => Promise<{ cookies: string | null, baseUrl: string | null }>
+  openOpencodeLogin: (modelId?: string) => Promise<{
+    cookies: string | null
+    baseUrl: string | null
+    api1ServerId: string | null
+    api1Instance: string | null
+    api2ServerId: string | null
+    api2Instance: string | null
+    api3ServerId: string | null
+    api3Instance: string | null
+  }>
   onLoginNeeded: (callback: () => void) => () => void
   onApiKeyInvalid: (callback: (data: { modelId: string, modelName: string, provider: string }) => void) => () => void
   showMainWindow: () => Promise<boolean>
@@ -114,6 +125,8 @@ const electronAPI: ElectronAPI = {
   getDataPath: () => ipcRenderer.invoke('get-data-path'),
   fetchMimoUsage: (options) => ipcRenderer.invoke('fetch-mimo-usage', options),
   fetchMimoTokenPlan: (options) => ipcRenderer.invoke('fetch-mimo-token-plan', options),
+  fetchOpenCodeUsageDetail: (options) => ipcRenderer.invoke('fetch-opencode-usage-detail', options),
+  fetchOpenCodeUsageRecords: (options) => ipcRenderer.invoke('fetch-opencode-usage-records', options),
   openFloatWindow: () => ipcRenderer.invoke('open-float-window'),
   closeFloatWindow: () => ipcRenderer.invoke('close-float-window'),
   getFloatWindowState: () => ipcRenderer.invoke('get-float-window-state'),

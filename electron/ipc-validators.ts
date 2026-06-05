@@ -3,7 +3,8 @@ const MONTH_REGEX = /^\d{4}-\d{2}$/
 const ALLOWED_URL_PREFIXES = [
   'https://platform.xiaomimimo.com',
   'https://api.kimi.com',
-  'https://api.deepseek.com'
+  'https://api.deepseek.com',
+  'https://opencode.ai'
 ]
 
 export function isValidMonth(month: unknown): month is string {

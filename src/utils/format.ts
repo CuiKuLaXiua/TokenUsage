@@ -87,3 +87,16 @@ export function formatResetTime(timeStr: string): string {
     return timeStr
   }
 }
+
+/** OpenCode totalCost 格式化（单位待确认，暂按 1/100 分处理） */
+export function formatCost(value: number | undefined | null): string {
+  if (value == null || isNaN(value)) return '-'
+  return (value / 100).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+/** OpenCode 图表坐标轴花费格式化 */
+export function formatCostAxis(value: number): string {
+  if (value >= 100000) return (value / 100).toFixed(0)
+  if (value >= 10000) return (value / 100).toFixed(1)
+  return (value / 100).toFixed(2)
+}

@@ -13,6 +13,13 @@ interface ModelConfig {
   refreshInterval?: number
   refreshUnit?: 'second' | 'minute' | 'hour'
   enabled: boolean
+  // OpenCode 专用
+  serverId?: string              // API1 GET x-server-id（基础数据 + 刷新器）
+  serverInstance?: string        // API1 GET x-server-instance
+  dailyServerId?: string         // API2 POST x-server-id
+  dailyServerInstance?: string   // API2 POST x-server-instance
+  recordsServerId?: string       // API3 POST x-server-id
+  recordsServerInstance?: string // API3 POST x-server-instance
 }
 
 interface UsageTier {
@@ -526,8 +533,11 @@ export class UsageRefresher {
         method: 'GET',
         headers: {
           'Accept': '*/*',
-          'x-server-id': 'c7389bd0e731f80f49593e5ee53835475f4e28594dd6bd83eb229bab753498cd',
-          'x-server-instance': 'server-fn:1'
+          'x-server-id': model.serverId || '',
+          'x-server-instance': model.serverInstance
+            || (model as any).postServerInstance   // 旧配置兼容
+            || (model as any).getServerInstance
+            || ''
         }
       }
     } else {

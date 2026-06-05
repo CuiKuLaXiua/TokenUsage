@@ -29,7 +29,7 @@
 
     <!-- 不支持的 provider -->
     <div
-      v-if="!isMimo && selectedModelId"
+      v-if="!supportsDetail && selectedModelId"
       class="section-card glass-surface"
       style="animation-delay: 0ms"
     >
@@ -39,7 +39,7 @@
         </div>
         <p class="empty-text">暂不支持该模型</p>
         <p class="empty-hint">
-          当前仅支持 MiMo 模型的用量详情查询，其他模型后续迭代
+          当前仅支持 MiMo 和 OpenCode 模型的用量详情查询，其他模型后续迭代
         </p>
       </div>
     </div>
@@ -50,8 +50,8 @@
       class="section-card glass-surface"
       style="animation-delay: 60ms"
     >
-      <!-- 汇总卡片 -->
-      <div v-if="filteredItems.length" class="summary-row">
+      <!-- 汇总卡片 - MiMo -->
+      <div v-if="isMimo && filteredItems.length" class="summary-row">
         <div class="summary-item summary-item--token">
           <div class="summary-item__icon">
             <el-icon :size="18"><Coin /></el-icon>
@@ -96,9 +96,31 @@
         </div>
       </div>
 
+      <!-- 汇总卡片 - OpenCode -->
+      <div v-if="isOpenCode && filteredItems.length" class="summary-row summary-row--compact">
+        <div class="summary-item summary-item--cost">
+          <div class="summary-item__icon">
+            <el-icon :size="18"><Wallet /></el-icon>
+          </div>
+          <div class="summary-item__body">
+            <span class="summary-label">本月总花费</span>
+            <span class="summary-value">{{ formatCost(totalCost) }}</span>
+          </div>
+        </div>
+        <div class="summary-item summary-item--daily">
+          <div class="summary-item__icon">
+            <el-icon :size="18"><TrendCharts /></el-icon>
+          </div>
+          <div class="summary-item__body">
+            <span class="summary-label">日均花费</span>
+            <span class="summary-value">{{ formatCost(avgCost) }}</span>
+          </div>
+        </div>
+      </div>
+
       <!-- Section header + Level 2 筛选栏 -->
       <div class="section-header">
-        <h3 class="section-title">每日 Token 消耗</h3>
+        <h3 class="section-title">{{ isOpenCode ? '每日花费' : '每日 Token 消耗' }}</h3>
         <div class="chart-filters">
           <GlassMonthPicker
             v-model="selectedMonth"
@@ -115,8 +137,9 @@
             :options="dataModeOptions"
             @update:model-value="onDataModeChange"
           />
-          <ToggleGroup v-model="viewMode" :options="viewModeOptions" />
+          <ToggleGroup v-if="!isOpenCode" v-model="viewMode" :options="viewModeOptions" />
           <div
+            v-if="!isOpenCode"
             class="chart-filters__conditional"
             :class="{ 'is-active': viewMode === 'chart' }"
           >
@@ -139,11 +162,29 @@
               ></template>
             </GlassSelect>
           </div>
+          <div
+            v-if="isOpenCode && availableKeyOptions.length > 1"
+            class="chart-filters__conditional"
+            :class="{ 'is-active': true }"
+          >
+            <GlassSelect
+              v-model="filterKey"
+              :options="availableKeyOptions"
+              placeholder="全部 Key"
+              size="small"
+              :matchWidth="false"
+              class="chart-filters__model-select"
+            >
+              <template #prefix-icon
+                ><el-icon :size="14"><Filter /></el-icon
+              ></template>
+            </GlassSelect>
+          </div>
         </div>
       </div>
 
       <!-- 图表视图 -->
-      <div v-if="viewMode === 'chart'" class="chart-wrap">
+      <div v-if="isOpenCode || viewMode === 'chart'" class="chart-wrap">
         <v-chart
           v-if="filteredItems.length"
           :option="chartOption"
@@ -153,8 +194,8 @@
         <div v-else class="chart-empty">该模型本月无数据</div>
       </div>
 
-      <!-- 列表视图 -->
-      <div v-if="viewMode === 'table'" class="table-wrap">
+      <!-- 列表视图 (MiMo) -->
+      <div v-if="isMimo && viewMode === 'table'" class="table-wrap">
         <el-table
           :data="filteredItems"
           stripe
@@ -171,74 +212,166 @@
               <span class="model-badge">{{ row.model }}</span>
             </template>
           </el-table-column>
-          <el-table-column
-            label="总 Token"
-            min-width="130"
-            sortable
-            sort-by="totalToken"
-          >
+          <!-- MiMo 专属列 -->
+          <template v-if="isMimo">
+            <el-table-column
+              label="总 Token"
+              min-width="130"
+              sortable
+              sort-by="totalToken"
+            >
+              <template #default="{ row }">
+                <span class="cell-number">{{
+                  row.totalToken.toLocaleString()
+                }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              label="输入命中"
+              min-width="130"
+              sortable
+              sort-by="inputHitToken"
+            >
+              <template #default="{ row }">
+                <span class="cell-number hit">{{
+                  row.inputHitToken.toLocaleString()
+                }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              label="输入未命中"
+              min-width="130"
+              sortable
+              sort-by="inputMissToken"
+            >
+              <template #default="{ row }">
+                <span class="cell-number miss">{{
+                  row.inputMissToken.toLocaleString()
+                }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              label="输出"
+              min-width="110"
+              sortable
+              sort-by="outputToken"
+            >
+              <template #default="{ row }">
+                <span class="cell-number output">{{
+                  row.outputToken.toLocaleString()
+                }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              prop="requestCount"
+              label="请求数"
+              width="90"
+              sortable
+              align="right"
+            >
+              <template #default="{ row }">
+                <span class="cell-number">{{
+                  row.requestCount.toLocaleString()
+                }}</span>
+              </template>
+            </el-table-column>
+          </template>
+          <!-- OpenCode 专属列 -->
+          <template v-if="isOpenCode">
+            <el-table-column
+              label="总花费"
+              min-width="130"
+              sortable
+              sort-by="totalCost"
+            >
+              <template #default="{ row }">
+                <span class="cell-number cost">{{
+                  formatCost(row.totalCost)
+                }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              label="API Key"
+              min-width="200"
+              prop="keyName"
+            >
+              <template #default="{ row }">
+                <span class="cell-plan">{{ row.keyName }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              label="Plan"
+              min-width="80"
+              prop="plan"
+            >
+              <template #default="{ row }">
+                <span class="cell-plan">{{ row.plan }}</span>
+              </template>
+            </el-table-column>
+          </template>
+        </el-table>
+      </div>
+
+      <!-- 列表视图 (OpenCode - API3 逐条明细) -->
+      <div v-if="isOpenCode" class="table-wrap">
+        <el-table
+          :data="ocRecords"
+          stripe
+          style="width: 100%"
+          max-height="400"
+        >
+          <el-table-column label="时间" width="100">
             <template #default="{ row }">
-              <span class="cell-number">{{
-                row.totalToken.toLocaleString()
-              }}</span>
+              <span class="cell-date">{{ formatRecordTime(row.timeCreated) }}</span>
             </template>
           </el-table-column>
-          <el-table-column
-            label="输入命中"
-            min-width="130"
-            sortable
-            sort-by="inputHitToken"
-          >
+          <el-table-column prop="model" label="模型" min-width="140">
             <template #default="{ row }">
-              <span class="cell-number hit">{{
-                row.inputHitToken.toLocaleString()
-              }}</span>
+              <span class="model-badge">{{ row.model }}</span>
             </template>
           </el-table-column>
-          <el-table-column
-            label="输入未命中"
-            min-width="130"
-            sortable
-            sort-by="inputMissToken"
-          >
+          <el-table-column label="输入" width="90" sortable sort-by="inputTokens" align="right">
             <template #default="{ row }">
-              <span class="cell-number miss">{{
-                row.inputMissToken.toLocaleString()
-              }}</span>
+              <span class="cell-number">{{ formatTokensFull(row.inputTokens) }}</span>
             </template>
           </el-table-column>
-          <el-table-column
-            label="输出"
-            min-width="110"
-            sortable
-            sort-by="outputToken"
-          >
+          <el-table-column label="输出" width="90" sortable sort-by="outputTokens" align="right">
             <template #default="{ row }">
-              <span class="cell-number output">{{
-                row.outputToken.toLocaleString()
-              }}</span>
+              <span class="cell-number">{{ formatTokensFull(row.outputTokens) }}</span>
             </template>
           </el-table-column>
-          <el-table-column
-            prop="requestCount"
-            label="请求数"
-            width="90"
-            sortable
-            align="right"
-          >
+          <el-table-column label="推理" width="90" sortable sort-by="reasoningTokens" align="right">
             <template #default="{ row }">
-              <span class="cell-number">{{
-                row.requestCount.toLocaleString()
-              }}</span>
+              <span class="cell-number">{{ formatTokensFull(row.reasoningTokens) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="缓存读取" width="100" sortable sort-by="cacheReadTokens" align="right">
+            <template #default="{ row }">
+              <span class="cell-number">{{ formatTokensFull(row.cacheReadTokens) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="花费" width="100" sortable sort-by="cost" align="right">
+            <template #default="{ row }">
+              <span class="cell-number cost">{{ formatCost(row.cost) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="API Key" min-width="180">
+            <template #default="{ row }">
+              <span class="cell-plan">{{ row.keyName || row.keyID }}</span>
             </template>
           </el-table-column>
         </el-table>
+        <div v-if="ocRecordsLoading" class="table-loading">加载中...</div>
+        <div v-else-if="ocRecords.length" class="table-load-more">
+          <el-button size="small" @click="loadMoreRecords">加载更多</el-button>
+        </div>
+        <div v-else-if="fetched" class="chart-empty">暂无明细数据</div>
       </div>
     </div>
 
     <!-- 空态 -->
     <div
-      v-if="isMimo && !loading && !items.length && fetched"
+      v-if="supportsDetail && !loading && !items.length && fetched"
       class="section-card glass-surface"
       style="animation-delay: 0ms"
     >
@@ -247,7 +380,9 @@
           <el-icon :size="48"><TrendCharts /></el-icon>
         </div>
         <p class="empty-text">暂无用量数据</p>
-        <p class="empty-hint">该月份没有用量记录，请确认已登录 MiMo</p>
+        <p class="empty-hint">
+          该月份没有用量记录，请确认已登录 {{ isMimo ? 'MiMo' : 'OpenCode' }}
+        </p>
       </div>
     </div>
 
@@ -268,7 +403,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue";
 import { useAppStore } from "@/stores/app";
-import { formatTokensAxis, formatTokensFull } from "@/utils/format";
+import { formatTokensAxis, formatTokensFull, formatCost, formatCostAxis } from "@/utils/format";
 import {
   TrendCharts,
   Refresh,
@@ -279,6 +414,7 @@ import {
   Coin,
   DataAnalysis,
   Upload,
+  Wallet,
 } from "@element-plus/icons-vue";
 import VChart from "vue-echarts";
 import { use } from "echarts/core";
@@ -291,12 +427,31 @@ import {
   DataZoomComponent,
 } from "echarts/components";
 import { CanvasRenderer } from "echarts/renderers";
-import type { MimoTokenPlanItem } from "@/types/electron";
+import type { MimoTokenPlanItem, OpenCodeUsageItem } from "@/types/electron";
 import GlassSelect from "@/components/GlassSelect.vue";
 import GlassMonthPicker from "@/components/GlassMonthPicker.vue";
 import ToggleGroup from "@/components/ToggleGroup.vue";
 import IconButton from "@/components/IconButton.vue";
 import { useThemeStore } from "@/stores/theme";
+
+// 联合类型：支持 MiMo 和 OpenCode 两种数据格式
+interface DailyUsageItem {
+  date: string
+  model: string
+  provider: 'mimo' | 'opencode'
+  // MiMo 字段
+  totalToken?: number
+  inputHitToken?: number
+  inputMissToken?: number
+  outputToken?: number
+  requestCount?: number
+  inputAudioDuration?: number
+  // OpenCode 字段
+  totalCost?: number
+  keyId?: string
+  keyName?: string
+  plan?: string
+}
 
 use([
   BarChart,
@@ -322,7 +477,7 @@ const selectedMonth = ref(
   `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`,
 );
 const selectedModelId = ref<string>("");
-const items = ref<MimoTokenPlanItem[]>([]);
+const items = ref<DailyUsageItem[]>([]);
 const loading = ref(false);
 const fetched = ref(false);
 
@@ -330,11 +485,18 @@ const viewMode = ref<"chart" | "table">("chart");
 const dataMode = ref<"total" | "single">("total");
 const chartStyle = ref<"bar" | "area">("bar");
 const filterModel = ref<string>("");
+const filterKey = ref<string>("");
+const ocKeys = ref<{ id: string; displayName: string; deleted: boolean }[]>([]);
+const ocRecords = ref<any[]>([]);
+const ocRecordsPage = ref(1);
+const ocRecordsLoading = ref(false);
 
 const currentModel = computed(() =>
   store.models.find((m) => m.id === selectedModelId.value),
 );
 const isMimo = computed(() => currentModel.value?.provider === "mimo");
+const isOpenCode = computed(() => currentModel.value?.provider === "opencode");
+const supportsDetail = computed(() => isMimo.value || isOpenCode.value);
 
 const providerColors: Record<string, string> = {
   mimo: "#d4a855",
@@ -360,6 +522,12 @@ const availableModels = computed(() =>
 const availableModelOptions = computed(() =>
   availableModels.value.map((m) => ({ label: m, value: m })),
 );
+const availableKeyOptions = computed(() => [
+  { label: '全部 Key', value: '' },
+  ...ocKeys.value
+    .filter((k) => !k.deleted)
+    .map((k) => ({ label: k.displayName, value: k.id })),
+]);
 
 // -- ToggleGroup options --
 const dataModeOptions = [
@@ -376,10 +544,14 @@ const chartStyleOptions = [
 ];
 
 const filteredItems = computed(() => {
+  let result = items.value;
   if (dataMode.value === "single" && filterModel.value) {
-    return items.value.filter((i) => i.model === filterModel.value);
+    result = result.filter((i) => i.model === filterModel.value);
   }
-  return items.value;
+  if (isOpenCode.value && filterKey.value) {
+    result = result.filter((i) => i.keyId === filterKey.value);
+  }
+  return result;
 });
 
 const totalTokens = computed(() =>
@@ -396,6 +568,15 @@ const avgTokens = computed(() => {
   return days > 0 ? Math.round(totalTokens.value / days) : 0;
 });
 
+// OpenCode 汇总
+const totalCost = computed(() =>
+  filteredItems.value.reduce((s, i) => s + (i.totalCost ?? 0), 0),
+);
+const avgCost = computed(() => {
+  const days = new Set(filteredItems.value.map((i) => i.date)).size;
+  return days > 0 ? Math.round(totalCost.value / days) : 0;
+});
+
 function getMonthDays(yearMonth: string): string[] {
   const [y, m] = yearMonth.split("-").map(Number);
   const days = new Date(y, m, 0).getDate();
@@ -408,15 +589,15 @@ function getMonthDays(yearMonth: string): string[] {
 const chartOption = computed(() => {
   const allDays = getMonthDays(selectedMonth.value);
   const dayLabels = allDays.map((d) => d.slice(5));
-  const dataMap = new Map<string, MimoTokenPlanItem[]>();
+  const dataMap = new Map<string, DailyUsageItem[]>();
   for (const item of filteredItems.value) {
     const arr = dataMap.get(item.date) || [];
     arr.push(item);
     dataMap.set(item.date, arr);
   }
-  const sumField = (date: string, field: keyof MimoTokenPlanItem) => {
+  const sumField = (date: string, field: keyof DailyUsageItem) => {
     const arr = dataMap.get(date) || [];
-    return arr.reduce((s, i) => s + (i[field] as number), 0);
+    return arr.reduce((s, i) => s + ((i[field] as number) || 0), 0);
   };
 
   const isDark = themeStore.isDark;
@@ -432,29 +613,63 @@ const chartOption = computed(() => {
     ? "rgba(74,124,89,0.06)"
     : "rgba(74,124,89,0.08)";
 
-  const seriesDefs = [
-    {
-      name: "输入命中",
-      data: allDays.map((d) => sumField(d, "inputHitToken")),
-      topColor: "rgba(91,143,249,0.92)",
-      bottomColor: "rgba(91,143,249,0.35)",
-      fadeColor: "rgba(91,143,249,0.03)",
-    },
-    {
-      name: "输入未命中",
-      data: allDays.map((d) => sumField(d, "inputMissToken")),
-      topColor: "rgba(97,221,170,0.92)",
-      bottomColor: "rgba(97,221,170,0.35)",
-      fadeColor: "rgba(97,221,170,0.03)",
-    },
-    {
-      name: "输出",
-      data: allDays.map((d) => sumField(d, "outputToken")),
-      topColor: "rgba(246,144,61,0.92)",
-      bottomColor: "rgba(246,144,61,0.35)",
-      fadeColor: "rgba(246,144,61,0.03)",
-    },
+  const isOC = isOpenCode.value;
+
+  // OpenCode 模型色板
+  const ocModelColors = [
+    [139, 92, 246],   // 紫
+    [59, 130, 246],   // 蓝
+    [16, 185, 129],   // 绿
+    [245, 158, 11],   // 橙
+    [239, 68, 68],    // 红
+    [236, 72, 153],   // 粉
+    [20, 184, 166],   // 青
+    [168, 85, 247],   // 亮紫
   ];
+
+  const seriesDefs = isOC
+    ? (() => {
+        // 按模型聚合 totalCost
+        const models = [...new Set(filteredItems.value.map((i) => i.model))].sort();
+        return models.map((modelName, idx) => {
+          const rgb = ocModelColors[idx % ocModelColors.length];
+          const modelItems = filteredItems.value.filter((i) => i.model === modelName);
+          const dayCostMap = new Map<string, number>();
+          for (const item of modelItems) {
+            dayCostMap.set(item.date, (dayCostMap.get(item.date) || 0) + (item.totalCost || 0));
+          }
+          return {
+            name: modelName,
+            data: allDays.map((d) => dayCostMap.get(d) || 0),
+            topColor: `rgba(${rgb.join(",")},0.92)`,
+            bottomColor: `rgba(${rgb.join(",")},0.35)`,
+            fadeColor: `rgba(${rgb.join(",")},0.03)`,
+          };
+        });
+      })()
+    : [
+        {
+          name: "输入命中",
+          data: allDays.map((d) => sumField(d, "inputHitToken")),
+          topColor: "rgba(91,143,249,0.92)",
+          bottomColor: "rgba(91,143,249,0.35)",
+          fadeColor: "rgba(91,143,249,0.03)",
+        },
+        {
+          name: "输入未命中",
+          data: allDays.map((d) => sumField(d, "inputMissToken")),
+          topColor: "rgba(97,221,170,0.92)",
+          bottomColor: "rgba(97,221,170,0.35)",
+          fadeColor: "rgba(97,221,170,0.03)",
+        },
+        {
+          name: "输出",
+          data: allDays.map((d) => sumField(d, "outputToken")),
+          topColor: "rgba(246,144,61,0.92)",
+          bottomColor: "rgba(246,144,61,0.35)",
+          fadeColor: "rgba(246,144,61,0.03)",
+        },
+      ];
 
   const isArea = chartStyle.value === "area";
 
@@ -515,18 +730,26 @@ const chartOption = computed(() => {
         },
       },
       formatter(params: any[]) {
-        const colorMap: Record<string, string> = {
-          输入命中: "rgba(91,143,249,0.92)",
-          输入未命中: "rgba(97,221,170,0.92)",
-          输出: "rgba(246,144,61,0.92)",
-        };
+        const colorMap: Record<string, string> = isOC
+          ? {}
+          : {
+              输入命中: "rgba(91,143,249,0.92)",
+              输入未命中: "rgba(97,221,170,0.92)",
+              输出: "rgba(246,144,61,0.92)",
+            };
         const date = params[0]?.axisValue;
         const total = params.reduce((s: number, p: any) => s + p.value, 0);
         const lines = params.map((p: any) => {
           const dotColor = colorMap[p.seriesName] || p.color;
-          return `<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${dotColor};margin-right:6px"></span>${p.seriesName}: <b>${p.value.toLocaleString()}</b>`;
+          const val = isOC
+            ? formatCost(p.value)
+            : p.value.toLocaleString();
+          return `<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${dotColor};margin-right:6px"></span>${p.seriesName}: <b>${val}</b>`;
         });
-        return `<div style="font-weight:600;margin-bottom:6px;font-size:13px">${date}<span style="float:right;margin-left:16px;color:${axisColor}">${total.toLocaleString()}</span></div>${lines.join("<br/>")}`;
+        const totalStr = isOC
+          ? formatCost(total)
+          : total.toLocaleString();
+        return `<div style="font-weight:600;margin-bottom:6px;font-size:13px">${date}<span style="float:right;margin-left:16px;color:${axisColor}">${totalStr}</span></div>${lines.join("<br/>")}`;
       },
     },
     legend: {
@@ -562,7 +785,7 @@ const chartOption = computed(() => {
         color: axisColor,
         fontSize: 10,
         formatter(v: number) {
-          return formatTokensAxis(v);
+          return isOC ? formatCostAxis(v) : formatTokensAxis(v);
         },
       },
       splitLine: {
@@ -594,10 +817,85 @@ const chartOption = computed(() => {
   };
 });
 
+function formatRecordTime(isoStr: string): string {
+  if (!isoStr) return "-";
+  try {
+    const d = new Date(isoStr);
+    return d.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  } catch {
+    return isoStr;
+  }
+}
+
+async function fetchRecords(page: number, append = false) {
+  const model = currentModel.value;
+  if (!model || model.provider !== "opencode" || !model.cookies) return;
+
+  let workspaceId = "";
+  if (model.baseUrl) {
+    try {
+      const u = new URL(model.baseUrl);
+      const argsStr = u.searchParams.get("args") || "";
+      if (argsStr) {
+        const args = JSON.parse(argsStr);
+        workspaceId = args?.t?.a?.[0]?.s || "";
+      }
+    } catch {}
+  }
+  let serverId = model.recordsServerId || model.dailyServerId || model.serverId || "";
+  if (!serverId && model.baseUrl) {
+    try {
+      const u = new URL(model.baseUrl);
+      serverId = u.searchParams.get("id") || "";
+    } catch {}
+  }
+  if (!serverId || !workspaceId) return;
+
+  const body = JSON.stringify({
+    t: { t: 9, i: 0, l: 2, a: [{ t: 1, s: workspaceId }, { t: 0, s: page }], o: 0 },
+    f: 31,
+    m: [],
+  });
+
+  ocRecordsLoading.value = true;
+  try {
+    const res = await window.electronAPI.fetchOpenCodeUsageRecords({
+      cookies: model.cookies,
+      serverId,
+      serverInstance: model.recordsServerInstance || model.dailyServerInstance || model.serverInstance || "",
+      body,
+    });
+    const newRecords = (res.records ?? []).map((r: any) => ({
+      ...r,
+      keyName: ocKeys.value.find((k) => k.id === r.keyID)?.displayName || r.keyID,
+    }));
+    if (append) {
+      ocRecords.value = [...ocRecords.value, ...newRecords];
+    } else {
+      ocRecords.value = newRecords;
+    }
+  } catch (e: any) {
+    if (e?.code !== "COOKIE_EXPIRED") {
+      console.error("[Usage] OpenCode API3 error:", e);
+    }
+  } finally {
+    ocRecordsLoading.value = false;
+  }
+}
+
+function loadMoreRecords() {
+  ocRecordsPage.value++;
+  fetchRecords(ocRecordsPage.value, true);
+}
+
 function onModelChange() {
   items.value = [];
   fetched.value = false;
   filterModel.value = "";
+  filterKey.value = "";
+  ocKeys.value = [];
+  ocRecords.value = [];
+  ocRecordsPage.value = 1;
   dataMode.value = "total";
   fetchData();
 }
@@ -616,31 +914,151 @@ async function fetchData() {
   const model = currentModel.value;
   if (!model) return;
 
-  if (model.provider !== "mimo" || !model.cookies) {
-    items.value = [];
-    fetched.value = true;
-    return;
-  }
-
   const [yearStr, monthStr] = selectedMonth.value.split("-");
-  loading.value = true;
-  fetched.value = false;
-  try {
-    const res = await window.electronAPI.fetchMimoTokenPlan({
-      year: Number(yearStr),
-      month: Number(monthStr),
-      cookies: model.cookies,
-    });
-    items.value = res.code === 0 ? (res.data ?? []) : [];
-  } catch (e: any) {
-    if (e?.code === "COOKIE_EXPIRED") {
-      items.value = [];
-    } else {
-      console.error("[Usage] fetch error:", e);
-      items.value = [];
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+
+  console.log("[Usage] fetchData:", {
+    provider: model.provider,
+    hasCookies: !!model.cookies,
+    baseUrl: model.baseUrl?.substring(0, 60) + "...",
+    selectedMonth: selectedMonth.value,
+  });
+
+  if (model.provider === "mimo" && model.cookies) {
+    loading.value = true;
+    fetched.value = false;
+    try {
+      const res = await window.electronAPI.fetchMimoTokenPlan({
+        year,
+        month,
+        cookies: model.cookies,
+      });
+      items.value =
+        res.code === 0
+          ? (res.data ?? []).map((item) => ({
+              ...item,
+              provider: "mimo" as const,
+            }))
+          : [];
+    } catch (e: any) {
+      if (e?.code === "COOKIE_EXPIRED") {
+        items.value = [];
+      } else {
+        console.error("[Usage] fetch error:", e);
+        items.value = [];
+      }
+    } finally {
+      loading.value = false;
+      fetched.value = true;
     }
-  } finally {
-    loading.value = false;
+  } else if (model.provider === "opencode" && model.cookies) {
+    // 从 baseUrl 提取 workspaceId
+    let workspaceId = "";
+    if (model.baseUrl) {
+      try {
+        const u = new URL(model.baseUrl);
+        const argsStr = u.searchParams.get("args") || "";
+        if (argsStr) {
+          const args = JSON.parse(argsStr);
+          workspaceId = args?.t?.a?.[0]?.s || "";
+        }
+      } catch {}
+    }
+    // serverId: API2 使用 dailyServerId，fallback 到 serverId
+    let serverId = model.dailyServerId || model.serverId || "";
+    if (!serverId && model.baseUrl) {
+      try {
+        const u = new URL(model.baseUrl);
+        serverId = u.searchParams.get("id") || "";
+      } catch {}
+    }
+    console.log("[Usage] OpenCode serverId 来源:", {
+      dailyServerId: !!model.dailyServerId,
+      fallbackServerId: !model.dailyServerId && !!model.serverId,
+      fromBaseUrl: !model.dailyServerId && !model.serverId && !!serverId,
+      serverId: serverId ? serverId.substring(0, 16) + "..." : "empty",
+    });
+    if (!serverId || !workspaceId) {
+      console.warn("[Usage] OpenCode 缺少 serverId 或 workspaceId", { hasServerId: !!serverId, hasWorkspaceId: !!workspaceId });
+      items.value = [];
+      fetched.value = true;
+      return;
+    }
+    if (!model.dailyServerInstance && !model.serverInstance && !(model as any).postServerInstance) {
+      console.warn("[Usage] OpenCode 缺少 dailyServerInstance，请求可能失败");
+    }
+    // 动态构造时区偏移
+    const offsetMin = -new Date().getTimezoneOffset();
+    const sign = offsetMin >= 0 ? "+" : "-";
+    const absMin = Math.abs(offsetMin);
+    const tzH = String(Math.floor(absMin / 60)).padStart(2, "0");
+    const tzM = String(absMin % 60).padStart(2, "0");
+    const timezone = `${sign}${tzH}:${tzM}`;
+
+    const body = JSON.stringify({
+      t: {
+        t: 9,
+        i: 0,
+        l: 4,
+        a: [
+          { t: 1, s: workspaceId },
+          { t: 0, s: year },
+          { t: 0, s: month - 1 },
+          { t: 1, s: timezone },
+        ],
+        o: 0,
+      },
+      f: 31,
+      m: [],
+    });
+
+    console.log("[Usage] OpenCode 请求:", { serverId: serverId.substring(0, 16) + "...", workspaceId, year, month, timezone });
+    loading.value = true;
+    fetched.value = false;
+    try {
+      const res = await window.electronAPI.fetchOpenCodeUsageDetail({
+        cookies: model.cookies,
+        serverId,
+        serverInstance: model.dailyServerInstance || model.serverInstance || (model as any).postServerInstance || '',
+        body,
+      });
+      // 按月份过滤，保留每条记录（不过滤 keyId）
+      const monthPrefix = `${year}-${monthStr}`;
+      ocKeys.value = res.keys ?? [];
+      const monthItems: DailyUsageItem[] = [];
+      for (const item of res.usage ?? []) {
+        if (!item.date.startsWith(monthPrefix)) continue;
+        const keyInfo = ocKeys.value.find((k) => k.id === item.keyId);
+        monthItems.push({
+          date: item.date,
+          model: item.model,
+          provider: "opencode",
+          totalCost: item.totalCost,
+          keyId: item.keyId,
+          keyName: keyInfo?.displayName || item.keyId,
+          plan: item.plan,
+        });
+      }
+      items.value = monthItems.sort((a, b) =>
+        a.date.localeCompare(b.date),
+      );
+      // 同时加载 API3 逐条明细
+      ocRecordsPage.value = 1;
+      fetchRecords(1);
+    } catch (e: any) {
+      if (e?.code === "COOKIE_EXPIRED") {
+        items.value = [];
+      } else {
+        console.error("[Usage] OpenCode fetch error:", e);
+        items.value = [];
+      }
+    } finally {
+      loading.value = false;
+      fetched.value = true;
+    }
+  } else {
+    items.value = [];
     fetched.value = true;
   }
 }
@@ -836,6 +1254,21 @@ watch(
   background: var(--accent-glow, rgba(107, 158, 122, 0.08));
 }
 
+.summary-row--compact {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.summary-item--cost::before {
+  background: rgba(139, 92, 246, 0.8);
+}
+.summary-item--cost::after {
+  background: rgba(139, 92, 246, 1);
+}
+.summary-item--cost .summary-item__icon {
+  color: rgba(139, 92, 246, 0.9);
+  background: rgba(139, 92, 246, 0.08);
+}
+
 .summary-item__icon {
   flex-shrink: 0;
   width: 36px;
@@ -989,6 +1422,15 @@ watch(
   background: var(--bg-secondary);
 }
 
+.table-loading,
+.table-load-more {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0;
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+
 :deep(.el-table) {
   --el-table-bg-color: transparent;
   --el-table-tr-bg-color: transparent;
@@ -1106,6 +1548,22 @@ watch(
 }
 .cell-number.output {
   color: #f6903d;
+}
+
+.cell-number.cost {
+  color: #8b5cf6;
+}
+
+.cell-plan {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(139, 92, 246, 0.08);
+  border: 1px solid rgba(139, 92, 246, 0.15);
+  font-size: 11px;
+  color: #8b5cf6;
+  font-weight: 500;
+  text-transform: capitalize;
 }
 
 /* ── 空态 / 加载态 ── */

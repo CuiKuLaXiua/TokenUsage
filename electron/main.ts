@@ -1,4 +1,13 @@
-import { app, BrowserWindow, ipcMain, net, screen, Tray, Menu, nativeImage } from "electron";
+import {
+  app,
+  BrowserWindow,
+  ipcMain,
+  net,
+  screen,
+  Tray,
+  Menu,
+  nativeImage,
+} from "electron";
 import { join } from "path";
 
 const isDev = !app.isPackaged;
@@ -6,6 +15,7 @@ const rendererUrl =
   process.env.ELECTRON_RENDERER_URL || "http://localhost:3000";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { homedir } from "os";
+import vm from "vm";
 import { config as loadDotenv } from "dotenv";
 import {
   isValidMonth,
@@ -35,13 +45,17 @@ let floatStripWindow: BrowserWindow | null = null;
 let detailWindow: BrowserWindow | null = null;
 let detailWindowReady = false;
 let detailWindowReadyResolve: (() => void) | null = null;
-let detailAnchorInfo: { x: number; anchorTop: number; anchorBottom: number } | null = null;
+let detailAnchorInfo: {
+  x: number;
+  anchorTop: number;
+  anchorBottom: number;
+} | null = null;
 let floatWindowReady = false;
 let floatWindowReadyResolve: (() => void) | null = null;
 let ctxMenuWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
-let currentThemeMode: 'dark' | 'light' = 'dark';
+let currentThemeMode: "dark" | "light" = "dark";
 const loginManager = new LoginWindowManager();
 const openCodeLoginManager = new OpenCodeLoginWindowManager();
 
@@ -92,16 +106,24 @@ function loadWindowState(): WindowState | null {
   try {
     if (!existsSync(windowStatePath)) return null;
     const raw = JSON.parse(readFileSync(windowStatePath, "utf-8"));
-    if (!raw || typeof raw.width !== "number" || typeof raw.height !== "number") return null;
+    if (!raw || typeof raw.width !== "number" || typeof raw.height !== "number")
+      return null;
     // 验证位置是否在可见屏幕内
     if (raw.x !== undefined && raw.y !== undefined) {
       const displays = screen.getAllDisplays();
-      const visible = displays.some(d => {
+      const visible = displays.some((d) => {
         const { x, y, width, height } = d.bounds;
-        return raw.x >= x - 50 && raw.x < x + width - 50
-            && raw.y >= y - 50 && raw.y < y + height - 50;
+        return (
+          raw.x >= x - 50 &&
+          raw.x < x + width - 50 &&
+          raw.y >= y - 50 &&
+          raw.y < y + height - 50
+        );
       });
-      if (!visible) { raw.x = undefined; raw.y = undefined; }
+      if (!visible) {
+        raw.x = undefined;
+        raw.y = undefined;
+      }
     }
     return raw;
   } catch {
@@ -113,9 +135,17 @@ function saveWindowState(win: BrowserWindow) {
   try {
     const isMaximized = win.isMaximized();
     const bounds = isMaximized ? win.getNormalBounds() : win.getBounds();
-    const state: WindowState = { width: bounds.width, height: bounds.height, x: bounds.x, y: bounds.y, isMaximized };
+    const state: WindowState = {
+      width: bounds.width,
+      height: bounds.height,
+      x: bounds.x,
+      y: bounds.y,
+      isMaximized,
+    };
     writeFileSync(windowStatePath, JSON.stringify(state));
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 // ── 悬浮窗位置记忆 ──
@@ -126,10 +156,14 @@ function loadFloatPosition(): { x: number; y: number } | null {
     if (typeof raw.x !== "number" || typeof raw.y !== "number") return null;
     // 验证位置是否在可见屏幕内
     const displays = screen.getAllDisplays();
-    const visible = displays.some(d => {
+    const visible = displays.some((d) => {
       const { x, y, width, height } = d.workArea;
-      return raw.x >= x - 50 && raw.x < x + width - 50
-          && raw.y >= y - 50 && raw.y < y + height - 50;
+      return (
+        raw.x >= x - 50 &&
+        raw.x < x + width - 50 &&
+        raw.y >= y - 50 &&
+        raw.y < y + height - 50
+      );
     });
     return visible ? raw : null;
   } catch {
@@ -142,11 +176,13 @@ function saveFloatPosition() {
     if (!floatWindow || floatWindow.isDestroyed()) return;
     const [x, y] = floatWindow.getPosition();
     writeFileSync(floatWindowStatePath, JSON.stringify({ x, y }));
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 // ── 关闭行为管理 ──
-type CloseAction = 'minimize-to-tray' | 'quit'
+type CloseAction = "minimize-to-tray" | "quit";
 
 function getCloseActionFromConfig(): CloseAction | null {
   try {
@@ -154,7 +190,9 @@ function getCloseActionFromConfig(): CloseAction | null {
       const config = JSON.parse(readFileSync(configPath, "utf-8"));
       return config.closeAction ?? null;
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return null;
 }
 
@@ -165,7 +203,9 @@ function saveCloseActionToConfig(action: CloseAction | null) {
       config.closeAction = action;
       writeFileSync(configPath, JSON.stringify(config, null, 2));
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 // ── 图标路径 ──
@@ -202,7 +242,7 @@ function buildTrayMenu(): Menu {
     },
     { type: "separator" },
     {
-      label: currentThemeMode === 'dark' ? "切换浅色模式" : "切换深色模式",
+      label: currentThemeMode === "dark" ? "切换浅色模式" : "切换深色模式",
       click: () => {
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send("tray-toggle-theme");
@@ -232,7 +272,12 @@ function createTray() {
   if (icon.isEmpty()) {
     console.error("[Tray] 图标加载失败:", iconPath);
     // 回退
-    const fallbackPath = join(process.resourcesPath, "app.asar.unpacked", "public", "logo_tray.png");
+    const fallbackPath = join(
+      process.resourcesPath,
+      "app.asar.unpacked",
+      "public",
+      "logo_tray.png",
+    );
     icon = nativeImage.createFromPath(fallbackPath);
   }
   // 托盘图标缩放到 32x32（Windows 托盘推荐尺寸）
@@ -255,7 +300,12 @@ function createTray() {
 
 function createWindow() {
   const saved = loadWindowState();
-  const defaultOpts = { width: 1200, height: 800, minWidth: 1000, minHeight: 700 };
+  const defaultOpts = {
+    width: 1200,
+    height: 800,
+    minWidth: 1000,
+    minHeight: 700,
+  };
 
   mainWindow = new BrowserWindow({
     ...defaultOpts,
@@ -296,12 +346,12 @@ function createWindow() {
 
     // 关闭行为逻辑
     const closeAction = getCloseActionFromConfig();
-    if (closeAction === 'minimize-to-tray') {
+    if (closeAction === "minimize-to-tray") {
       event.preventDefault();
       mainWindow?.hide();
       return;
     }
-    if (closeAction === 'quit') {
+    if (closeAction === "quit") {
       // 允许关闭，退出应用
       isQuitting = true;
       setTimeout(() => app.quit(), 0);
@@ -359,7 +409,10 @@ let lastCtxMenuConfig: {
   alwaysOnTop: boolean;
 } | null = null;
 
-function positionStripWindow(edge: "left" | "right" | "top" | null, dockY: number) {
+function positionStripWindow(
+  edge: "left" | "right" | "top" | null,
+  dockY: number,
+) {
   if (!edge) return;
   if (!floatStripWindow || floatStripWindow.isDestroyed() || !floatWindow)
     return;
@@ -657,7 +710,11 @@ function showCtxMenuWindow(options: {
   const menuHeight = options.modelName
     ? CTX_MENU_HEIGHT_WITH_MODEL
     : CTX_MENU_HEIGHT_NO_MODEL;
-  const { x, y } = computeCtxMenuPosition(options.screenX, options.screenY, menuHeight);
+  const { x, y } = computeCtxMenuPosition(
+    options.screenX,
+    options.screenY,
+    menuHeight,
+  );
   win.setSize(CTX_MENU_WIDTH, menuHeight);
   win.setPosition(x, y);
 
@@ -742,11 +799,19 @@ function computeDetailPosition(
   }
 
   // y 方向由 resize-detail-window 根据实际高度计算
-  return { x: Math.round(x), anchorTop: anchorY, anchorBottom: anchorY + anchorH };
+  return {
+    x: Math.round(x),
+    anchorTop: anchorY,
+    anchorBottom: anchorY + anchorH,
+  };
 }
 
 /** 根据锚点和实际窗口高度计算详情窗口的 y 坐标 */
-function computeDetailY(anchorTop: number, anchorBottom: number, actualHeight: number): number {
+function computeDetailY(
+  anchorTop: number,
+  anchorBottom: number,
+  actualHeight: number,
+): number {
   const { screen } = require("electron");
   const display = screen.getDisplayNearestPoint({ x: 0, y: anchorTop });
   const { y: workY } = display.workArea;
@@ -848,7 +913,9 @@ ipcMain.handle("save-config", (_, config) => {
         const existing = JSON.parse(readFileSync(configPath, "utf-8"));
         fullConfig = { ...existing, ...config };
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     writeFileSync(configPath, JSON.stringify(fullConfig, null, 2));
 
     // 广播配置更新给所有窗口
@@ -1003,7 +1070,12 @@ ipcMain.handle(
 
     // 初始 y 用最大高度估算，resize-detail-window 会用实际高度修正
     const initialY = computeDetailY(anchorTop, anchorBottom, DETAIL_HEIGHT);
-    win.setBounds({ x, y: initialY, width: DETAIL_WIDTH, height: DETAIL_HEIGHT });
+    win.setBounds({
+      x,
+      y: initialY,
+      width: DETAIL_WIDTH,
+      height: DETAIL_HEIGHT,
+    });
 
     if (!win.isVisible()) {
       // 首次显示：等待渲染进程完成挂载后再显示窗口
@@ -1052,8 +1124,17 @@ ipcMain.handle("resize-detail-window", (_, width: number, height: number) => {
     const w = Math.round(width);
     // 用实际高度重新计算 y，setBounds 原子操作避免中间帧跳动
     if (detailAnchorInfo) {
-      const y = computeDetailY(detailAnchorInfo.anchorTop, detailAnchorInfo.anchorBottom, clamped);
-      detailWindow.setBounds({ x: detailAnchorInfo.x, y, width: w, height: clamped });
+      const y = computeDetailY(
+        detailAnchorInfo.anchorTop,
+        detailAnchorInfo.anchorBottom,
+        clamped,
+      );
+      detailWindow.setBounds({
+        x: detailAnchorInfo.x,
+        y,
+        width: w,
+        height: clamped,
+      });
     } else {
       detailWindow.setSize(w, clamped);
     }
@@ -1125,7 +1206,7 @@ ipcMain.handle(
   "notify-theme-changed",
   (_, theme: { mode: string; accent: string }) => {
     // 更新缓存的模式并重建托盘菜单
-    if (theme.mode === 'dark' || theme.mode === 'light') {
+    if (theme.mode === "dark" || theme.mode === "light") {
       currentThemeMode = theme.mode;
       if (tray && !tray.isDestroyed()) {
         tray.setContextMenu(buildTrayMenu());
@@ -1256,11 +1337,16 @@ ipcMain.handle(
       const cursor = screen.getCursorScreenPoint();
 
       // 检测鼠标是否静止（可能已释放按钮）
-      if (Math.abs(cursor.x - state.lastCursorX) <= 1 && Math.abs(cursor.y - state.lastCursorY) <= 1) {
+      if (
+        Math.abs(cursor.x - state.lastCursorX) <= 1 &&
+        Math.abs(cursor.y - state.lastCursorY) <= 1
+      ) {
         state.idleCount++;
         if (state.idleCount > DRAG_IDLE_THRESHOLD) {
           // 鼠标长时间静止，自动停止拖拽
-          console.log(`[Main] Drag auto-stopped: mouse idle for ${state.idleCount} frames`);
+          console.log(
+            `[Main] Drag auto-stopped: mouse idle for ${state.idleCount} frames`,
+          );
           stopDragForWindow(win.id);
           return;
         }
@@ -1327,8 +1413,12 @@ function stopDragForWindow(windowId: number) {
         createFloatStripWindow();
       }
       positionStripWindow(dockState.edge, dockState.dockY);
-      animateWindowPosition(win, dockState.dockX, dockState.dockY, 200, (p) =>
-        1 - Math.pow(1 - p, 3),
+      animateWindowPosition(
+        win,
+        dockState.dockX,
+        dockState.dockY,
+        200,
+        (p) => 1 - Math.pow(1 - p, 3),
       ).then(() => {
         if (win && !win.isDestroyed()) {
           win.hide();
@@ -1631,8 +1721,12 @@ function startHoverPolling() {
       }
     } else {
       // 检测是否应该收起
-      const { x: winX, y: winY, width: winW, height: winH } =
-        floatWindow.getBounds();
+      const {
+        x: winX,
+        y: winY,
+        width: winW,
+        height: winH,
+      } = floatWindow.getBounds();
       let shouldHide = false;
       switch (state.edge) {
         case "left":
@@ -1719,8 +1813,12 @@ ipcMain.handle(
       createFloatStripWindow();
     }
     positionStripWindow(edge, dockY);
-    await animateWindowPosition(floatWindow, dockX, dockY, 200, (p) =>
-      1 - Math.pow(1 - p, 3),
+    await animateWindowPosition(
+      floatWindow,
+      dockX,
+      dockY,
+      200,
+      (p) => 1 - Math.pow(1 - p, 3),
     );
     edgeDockState.set(floatWindow.id, dockState);
     floatWindow.hide();
@@ -1797,10 +1895,7 @@ ipcMain.handle(
       // ease-out cubic
       const t = 1 - Math.pow(1 - progress, 3);
       const curH = Math.round(startH + (targetH - startH) * t);
-      floatWindow!.setSize(
-        Math.round(startW + (targetW - startW) * t),
-        curH,
-      );
+      floatWindow!.setSize(Math.round(startW + (targetW - startW) * t), curH);
       // 同步 strip 窗口高度
       if (floatStripWindow && !floatStripWindow.isDestroyed()) {
         floatStripWindow.setSize(DOCK_VISIBLE_WIDTH, curH);
@@ -1822,7 +1917,8 @@ ipcMain.handle("open-mimo-login", async (_, modelId?: string) => {
   console.log(
     "[Login] open-mimo-login handler 被调用, loginInProgress:",
     loginInProgress,
-    "modelId:", modelId,
+    "modelId:",
+    modelId,
   );
 
   // 如果已有登录在进行中，等待其完成
@@ -1907,7 +2003,9 @@ ipcMain.handle("open-mimo-login", async (_, modelId?: string) => {
       try {
         if (existsSync(configPath)) {
           const config = JSON.parse(readFileSync(configPath, "utf-8"));
-          const mimoModel = config.models?.find((m: any) => m.provider === "mimo");
+          const mimoModel = config.models?.find(
+            (m: any) => m.provider === "mimo",
+          );
           modelIdForLogin = mimoModel?.id;
         }
       } catch {}
@@ -1947,7 +2045,10 @@ async function doLogin(
           if (mimoModel) {
             mimoModel.cookies = cookies;
             writeFileSync(configPath, JSON.stringify(config, null, 2));
-            console.log("[Login] Cookies 已保存到 config, modelId:", mimoModel.id);
+            console.log(
+              "[Login] Cookies 已保存到 config, modelId:",
+              mimoModel.id,
+            );
           }
         }
       } catch (error) {
@@ -1987,19 +2088,22 @@ ipcMain.handle("set-close-action", (_, action: CloseAction | null) => {
   return true;
 });
 
-ipcMain.handle("close-action-chosen", (_, action: CloseAction, remember: boolean) => {
-  if (remember) {
-    saveCloseActionToConfig(action);
-  }
-  if (action === 'minimize-to-tray') {
-    mainWindow?.hide();
-  } else {
-    // quit：保存窗口状态后直接退出
-    if (mainWindow && !mainWindow.isDestroyed()) saveWindowState(mainWindow);
-    isQuitting = true;
-    app.quit();
-  }
-});
+ipcMain.handle(
+  "close-action-chosen",
+  (_, action: CloseAction, remember: boolean) => {
+    if (remember) {
+      saveCloseActionToConfig(action);
+    }
+    if (action === "minimize-to-tray") {
+      mainWindow?.hide();
+    } else {
+      // quit：保存窗口状态后直接退出
+      if (mainWindow && !mainWindow.isDestroyed()) saveWindowState(mainWindow);
+      isQuitting = true;
+      app.quit();
+    }
+  },
+);
 
 ipcMain.handle("show-main-window", () => {
   if (!mainWindow || mainWindow.isDestroyed()) {
@@ -2186,97 +2290,412 @@ ipcMain.handle("fetch-mimo-usage", async (_, options) => {
 });
 
 // MiMo 用量明细 API
-ipcMain.handle("fetch-mimo-token-plan", async (_, options: { year: number; month: number; cookies: string }) => {
-  return new Promise((resolve, reject) => {
-    const { year, month, cookies } = options;
+ipcMain.handle(
+  "fetch-mimo-token-plan",
+  async (_, options: { year: number; month: number; cookies: string }) => {
+    return new Promise((resolve, reject) => {
+      const { year, month, cookies } = options;
 
-    // 从 cookies 中提取 api-platform_ph 值作为查询参数
-    const phMatch = cookies.match(/api-platform_ph="?([^";]+)/);
-    const phValue = phMatch ? phMatch[1] : "";
-    const baseUrl = "https://platform.xiaomimimo.com/api/v1/usage/token-plan/list";
-    const url = phValue ? `${baseUrl}?api-platform_ph=${encodeURIComponent(phValue)}` : baseUrl;
+      // 从 cookies 中提取 api-platform_ph 值作为查询参数
+      const phMatch = cookies.match(/api-platform_ph="?([^";]+)/);
+      const phValue = phMatch ? phMatch[1] : "";
+      const baseUrl =
+        "https://platform.xiaomimimo.com/api/v1/usage/token-plan/list";
+      const url = phValue
+        ? `${baseUrl}?api-platform_ph=${encodeURIComponent(phValue)}`
+        : baseUrl;
 
-    if (!isAllowedUrl(url)) {
-      reject(new Error("URL not allowed"));
-      return;
-    }
+      if (!isAllowedUrl(url)) {
+        reject(new Error("URL not allowed"));
+        return;
+      }
 
-    const requestHeaders: Record<string, string> = {
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
-      "Content-Type": "application/json",
-      "Referer": "https://platform.xiaomimimo.com/",
-      "Origin": "https://platform.xiaomimimo.com",
-    };
+      const requestHeaders: Record<string, string> = {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
+        "Content-Type": "application/json",
+        Referer: "https://platform.xiaomimimo.com/",
+        Origin: "https://platform.xiaomimimo.com",
+      };
 
-    if (cookies) {
-      requestHeaders["Cookie"] = cookies;
-    }
+      if (cookies) {
+        requestHeaders["Cookie"] = cookies;
+      }
 
-    const request = net.request({
-      method: "POST",
-      url,
-      headers: requestHeaders,
-    });
-
-    let responseData = "";
-
-    request.on("response", (response) => {
-      response.on("data", (chunk) => {
-        responseData += chunk.toString();
+      const request = net.request({
+        method: "POST",
+        url,
+        headers: requestHeaders,
       });
 
-      response.on("end", () => {
-        try {
-          const data = JSON.parse(responseData);
+      let responseData = "";
 
-          // MiMo Cookie 过期检测
+      request.on("response", (response) => {
+        response.on("data", (chunk) => {
+          responseData += chunk.toString();
+        });
+
+        response.on("end", () => {
+          try {
+            const data = JSON.parse(responseData);
+
+            // MiMo Cookie 过期检测
+            if (response.statusCode === 401 || response.statusCode === 403) {
+              if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send("login-needed");
+              }
+              const error = new Error("Cookie expired");
+              (error as any).code = "COOKIE_EXPIRED";
+              reject(error);
+              return;
+            }
+            if (data.loginUrl) {
+              if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send("login-needed");
+              }
+              const error = new Error("Cookie expired");
+              (error as any).code = "COOKIE_EXPIRED";
+              reject(error);
+              return;
+            }
+
+            resolve(data);
+          } catch {
+            reject(new Error("JSON解析失败"));
+          }
+        });
+      });
+
+      request.on("error", (error) => {
+        reject(error);
+      });
+
+      request.write(JSON.stringify({ year, month }));
+      request.end();
+    });
+  },
+);
+
+// OpenCode 日用量明细解析
+function parseOpenCodeDailyResponse(jsCode: string): {
+  usage: any[];
+  keys: any[];
+} {
+  try {
+    // 提取 JS 代码部分：从 ((self.$R 开始到末尾
+    const startIdx = jsCode.indexOf("((self.$R");
+    if (startIdx === -1) {
+      console.warn("[OpenCode] 响应不包含可解析的 JS 代码");
+      return { usage: [], keys: [] };
+    }
+
+    const code = jsCode.substring(startIdx);
+    const rObj: any = {};
+    const context: any = { self: { $R: rObj }, $R: rObj };
+    const script = new vm.Script(code);
+    script.runInNewContext(context);
+
+    // 遍历 $R 找到包含 usage 数据的项
+    const rData = context.$R;
+    let usage: any[] = [];
+    let keys: any[] = [];
+
+    for (const key of Object.keys(rData)) {
+      const entry = rData[key];
+      if (Array.isArray(entry) && entry.length > 0) {
+        const first = entry[0];
+        if (first && Array.isArray(first.usage)) {
+          usage = first.usage;
+          keys = first.keys || [];
+          break;
+        }
+      }
+    }
+
+    return { usage, keys };
+  } catch (e) {
+    console.error("[OpenCode] vm.Script 解析失败:", e);
+    return { usage: [], keys: [] };
+  }
+}
+
+// OpenCode 用量明细 API — 直接 net.request() POST
+ipcMain.handle(
+  "fetch-opencode-usage-detail",
+  async (
+    _,
+    options: {
+      cookies: string;
+      serverId: string;
+      serverInstance: string;
+      body: string;
+    },
+  ) => {
+    const { cookies, serverId, serverInstance, body } = options;
+
+    // 从 body 中提取 workspaceId 构建 Referer
+    let workspaceId = "";
+    try {
+      const bodyObj = JSON.parse(body);
+      workspaceId = bodyObj?.t?.a?.[0]?.s || "";
+    } catch {}
+
+    console.log("[OpenCode] 日明细请求(net.request):", {
+      serverId: serverId,
+      serverInstance,
+      workspaceId,
+      bodyLength: body?.length,
+      body: body,
+      cookieLength: cookies?.length,
+    });
+
+    const url = "https://opencode.ai/_server";
+    if (!isAllowedUrl(url)) {
+      throw new Error("URL not allowed");
+    }
+
+    return new Promise<any>((resolve, reject) => {
+      const requestHeaders: Record<string, string> = {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
+        "Content-Type": "application/json",
+        Accept: "*/*",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+        Origin: "https://opencode.ai",
+        Referer: workspaceId
+          ? `https://opencode.ai/workspace/${workspaceId}/usage`
+          : "https://opencode.ai/",
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "same-origin",
+        "X-Server-Id": serverId,
+        "X-Server-Instance": serverInstance || "server-fn:2",
+      };
+      if (cookies) {
+        requestHeaders["Cookie"] = cookies;
+      }
+
+      const request = net.request({
+        method: "POST",
+        url,
+        headers: requestHeaders,
+      });
+      let responseData = "";
+
+      request.on("response", (response) => {
+        response.on("data", (chunk: Buffer) => {
+          responseData += chunk.toString();
+        });
+        response.on("end", () => {
+          console.log(
+            "[OpenCode] 响应状态:",
+            response.statusCode,
+            "长度:",
+            responseData.length,
+          );
+          console.log("[OpenCode] 响应字符:", responseData);
+
           if (response.statusCode === 401 || response.statusCode === 403) {
             if (mainWindow && !mainWindow.isDestroyed()) {
               mainWindow.webContents.send("login-needed");
             }
-            const error = new Error("Cookie expired");
-            (error as any).code = "COOKIE_EXPIRED";
-            reject(error);
+            reject(
+              Object.assign(new Error("Cookie expired"), {
+                code: "COOKIE_EXPIRED",
+              }),
+            );
             return;
           }
-          if (data.loginUrl) {
+
+          const parsed = parseOpenCodeDailyResponse(responseData);
+          console.log(
+            "[OpenCode] 解析结果: usage",
+            parsed.usage.length,
+            "条, keys",
+            parsed.keys.length,
+            "条",
+          );
+          if (parsed.usage.length > 0) {
+            console.log(
+              "[OpenCode] 首条 usage:",
+              JSON.stringify(parsed.usage[0]),
+            );
+          }
+          console.log("[OpenCode] API2 解析结果: usage=" + parsed.usage.length + "条, keys=" + parsed.keys.length + "条");
+          console.log("[OpenCode] API2 usage:", JSON.stringify(parsed.usage, null, 2));
+          console.log("[OpenCode] API2 keys:", JSON.stringify(parsed.keys, null, 2));
+          resolve(parsed);
+        });
+      });
+
+      request.on("error", (error) => {
+        reject(error);
+      });
+      request.write(body);
+      request.end();
+    });
+  },
+);
+
+// OpenCode 逐条明细解析（API3）
+function parseOpenCodeRecordsResponse(jsCode: string): { records: any[] } {
+  try {
+    const startIdx = jsCode.indexOf("((self.$R");
+    if (startIdx === -1) {
+      console.warn("[OpenCode] API3 响应不包含可解析的 JS 代码");
+      return { records: [] };
+    }
+
+    const code = jsCode.substring(startIdx);
+    const rObj: any = {};
+    const context: any = { self: { $R: rObj }, $R: rObj, Date };
+    const script = new vm.Script(code);
+    script.runInNewContext(context);
+
+    // 遍历 $R 找到数组，提取包含 id/model/cost 的记录
+    const records: any[] = [];
+    for (const key of Object.keys(rObj)) {
+      const entry = rObj[key];
+      if (Array.isArray(entry)) {
+        for (const item of entry) {
+          if (item && typeof item === "object" && item.id && item.model && item.cost != null) {
+            records.push({
+              id: item.id,
+              model: item.model,
+              provider: item.provider || "",
+              inputTokens: item.inputTokens || 0,
+              outputTokens: item.outputTokens || 0,
+              reasoningTokens: item.reasoningTokens || 0,
+              cacheReadTokens: item.cacheReadTokens || 0,
+              cost: item.cost || 0,
+              keyID: item.keyID || "",
+              timeCreated: item.timeCreated instanceof Date ? item.timeCreated.toISOString() : String(item.timeCreated || ""),
+              plan: item.enrichment?.plan || "",
+            });
+          }
+        }
+      }
+    }
+
+    return { records };
+  } catch (e) {
+    console.error("[OpenCode] vm.Script API3 解析失败:", e);
+    return { records: [] };
+  }
+}
+
+// OpenCode 逐条明细 API（API3）
+ipcMain.handle(
+  "fetch-opencode-usage-records",
+  async (
+    _,
+    options: {
+      cookies: string;
+      serverId: string;
+      serverInstance: string;
+      body: string;
+    },
+  ) => {
+    const { cookies, serverId, serverInstance, body } = options;
+
+    let workspaceId = "";
+    try {
+      const bodyObj = JSON.parse(body);
+      workspaceId = bodyObj?.t?.a?.[0]?.s || "";
+    } catch {}
+
+    console.log("[OpenCode] API3 明细请求:", {
+      serverId: serverId?.substring(0, 16) + "...",
+      serverInstance,
+      workspaceId,
+      bodyLength: body?.length,
+    });
+
+    const url = "https://opencode.ai/_server";
+    if (!isAllowedUrl(url)) {
+      throw new Error("URL not allowed");
+    }
+
+    return new Promise<any>((resolve, reject) => {
+      const requestHeaders: Record<string, string> = {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
+        "Content-Type": "application/json",
+        Accept: "*/*",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+        Origin: "https://opencode.ai",
+        Referer: workspaceId
+          ? `https://opencode.ai/workspace/${workspaceId}/usage`
+          : "https://opencode.ai/",
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "same-origin",
+        "X-Server-Id": serverId,
+        "X-Server-Instance": serverInstance || "server-fn:2",
+      };
+      if (cookies) {
+        requestHeaders["Cookie"] = cookies;
+      }
+
+      const request = net.request({ method: "POST", url, headers: requestHeaders });
+      let responseData = "";
+
+      request.on("response", (response) => {
+        response.on("data", (chunk: Buffer) => {
+          responseData += chunk.toString();
+        });
+        response.on("end", () => {
+          console.log("[OpenCode] API3 响应状态:", response.statusCode, "长度:", responseData.length);
+
+          if (response.statusCode === 401 || response.statusCode === 403) {
             if (mainWindow && !mainWindow.isDestroyed()) {
               mainWindow.webContents.send("login-needed");
             }
-            const error = new Error("Cookie expired");
-            (error as any).code = "COOKIE_EXPIRED";
-            reject(error);
+            reject(
+              Object.assign(new Error("Cookie expired"), {
+                code: "COOKIE_EXPIRED",
+              }),
+            );
             return;
           }
 
-          resolve(data);
-        } catch {
-          reject(new Error("JSON解析失败"));
-        }
+          const parsed = parseOpenCodeRecordsResponse(responseData);
+          console.log("[OpenCode] API3 解析结果:", parsed.records.length, "条");
+          console.log("[OpenCode] API3 records:", JSON.stringify(parsed.records, null, 2));
+          resolve(parsed);
+        });
       });
-    });
 
-    request.on("error", (error) => {
-      reject(error);
+      request.on("error", (error) => {
+        reject(error);
+      });
+      request.write(body);
+      request.end();
     });
-
-    request.write(JSON.stringify({ year, month }));
-    request.end();
-  });
-});
+  },
+);
 
 // Open Code 登录窗口管理
 let openCodeLoginInProgress = false;
 let openCodeLoginPromise: Promise<{
   cookies: string | null;
   baseUrl: string | null;
+  api1ServerId: string | null;
+  api1Instance: string | null;
+  api2ServerId: string | null;
+  api2Instance: string | null;
+  api3ServerId: string | null;
+  api3Instance: string | null;
 }> | null = null;
 
 ipcMain.handle("open-opencode-login", async (_, modelId?: string) => {
   console.log(
     "[OpenCodeLogin] open-opencode-login handler 被调用, loginInProgress:",
     openCodeLoginInProgress,
-    "modelId:", modelId,
+    "modelId:",
+    modelId,
   );
 
   // 如果已有登录在进行中，等待其完成
@@ -2290,6 +2709,12 @@ ipcMain.handle("open-opencode-login", async (_, modelId?: string) => {
   openCodeLoginPromise = new Promise<{
     cookies: string | null;
     baseUrl: string | null;
+    api1ServerId: string | null;
+    api1Instance: string | null;
+    api2ServerId: string | null;
+    api2Instance: string | null;
+    api3ServerId: string | null;
+    api3Instance: string | null;
   }>((resolvePromise) => {
     // Open Code 的登录页面（包含登录按钮）
     const loginUrl = "https://opencode.ai/zh/go";
@@ -2301,8 +2726,10 @@ ipcMain.handle("open-opencode-login", async (_, modelId?: string) => {
         ? config.models?.find((m: any) => m.id === modelId)
         : config.models?.find((m: any) => m.provider === "opencode");
       if (!opencodeModel) {
-        console.error("[OpenCodeLogin] 未找到 OpenCode 模型, modelId:", modelId);
-        resolvePromise({ cookies: null, baseUrl: null });
+        console.log(
+          "[OpenCodeLogin] 未找到已有 OpenCode 模型, 直接打开登录窗口",
+        );
+        doOpenCodeLogin(loginUrl, resolvePromise, modelId);
         return;
       }
       if (opencodeModel?.cookies && opencodeModel?.baseUrl) {
@@ -2333,6 +2760,12 @@ ipcMain.handle("open-opencode-login", async (_, modelId?: string) => {
               resolvePromise({
                 cookies: opencodeModel.cookies,
                 baseUrl: opencodeModel.baseUrl,
+                api1ServerId: opencodeModel.serverId || null,
+                api1Instance: opencodeModel.serverInstance || null,
+                api2ServerId: opencodeModel.dailyServerId || null,
+                api2Instance: opencodeModel.dailyServerInstance || null,
+                api3ServerId: opencodeModel.recordsServerId || null,
+                api3Instance: opencodeModel.recordsServerInstance || null,
               });
               return;
             }
@@ -2355,7 +2788,9 @@ ipcMain.handle("open-opencode-login", async (_, modelId?: string) => {
       try {
         if (existsSync(configPath)) {
           const config = JSON.parse(readFileSync(configPath, "utf-8"));
-          const opencodeModel = config.models?.find((m: any) => m.provider === "opencode");
+          const opencodeModel = config.models?.find(
+            (m: any) => m.provider === "opencode",
+          );
           modelIdForLogin = opencodeModel?.id;
         }
       } catch {}
@@ -2377,6 +2812,12 @@ async function doOpenCodeLogin(
   resolvePromise: (value: {
     cookies: string | null;
     baseUrl: string | null;
+    api1ServerId: string | null;
+    api1Instance: string | null;
+    api2ServerId: string | null;
+    api2Instance: string | null;
+    api3ServerId: string | null;
+    api3Instance: string | null;
   }) => void,
   modelId?: string,
 ): Promise<void> {
@@ -2409,18 +2850,68 @@ async function doOpenCodeLogin(
             if (baseUrl) {
               opencodeModel.baseUrl = baseUrl;
             }
+            // API1 GET (基础数据 + 刷新器)
+            if (data.api1ServerId) {
+              opencodeModel.serverId = data.api1ServerId;
+            }
+            if (data.api1Instance) {
+              opencodeModel.serverInstance = data.api1Instance;
+            }
+            // API2 POST (日用量详情)
+            if (data.api2ServerId) {
+              opencodeModel.dailyServerId = data.api2ServerId;
+            }
+            if (data.api2Instance) {
+              opencodeModel.dailyServerInstance = data.api2Instance;
+            }
+            // API3 POST (调用记录)
+            if (data.api3ServerId) {
+              opencodeModel.recordsServerId = data.api3ServerId;
+            }
+            if (data.api3Instance) {
+              opencodeModel.recordsServerInstance = data.api3Instance;
+            }
             writeFileSync(configPath, JSON.stringify(config, null, 2));
-            console.log("[OpenCodeLogin] 已保存到 config, modelId:", opencodeModel.id);
+            console.log(
+              "[OpenCodeLogin] 已保存到 config, modelId:",
+              opencodeModel.id,
+            );
+            console.log(
+              "[OpenCodeLogin] API1 instance:",
+              data.api1Instance,
+              "API2 instance:",
+              data.api2Instance,
+              "API3 instance:",
+              data.api3Instance,
+            );
           }
         }
       } catch (error) {
         console.error("[OpenCodeLogin] 保存配置失败:", error);
       }
 
-      resolvePromise({ cookies: data.cookies, baseUrl });
+      resolvePromise({
+        cookies: data.cookies,
+        baseUrl,
+        api1ServerId: data.api1ServerId,
+        api1Instance: data.api1Instance,
+        api2ServerId: data.api2ServerId,
+        api2Instance: data.api2Instance,
+        api3ServerId: data.api3ServerId,
+        api3Instance: data.api3Instance,
+      });
     } else {
       console.warn("[OpenCodeLogin] 登录失败或已取消");
-      resolvePromise({ cookies: null, baseUrl: null });
+      resolvePromise({
+        cookies: null,
+        baseUrl: null,
+        api1ServerId: null,
+        api1Instance: null,
+        api2ServerId: null,
+        api2Instance: null,
+        api3ServerId: null,
+        api3Instance: null,
+      });
     }
   });
 }

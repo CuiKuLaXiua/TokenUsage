@@ -518,6 +518,24 @@ async function handleOpenCodeLogin() {
       if (result.baseUrl) {
         form.baseUrl = result.baseUrl
       }
+      if (result.api1ServerId) {
+        form.serverId = result.api1ServerId
+      }
+      if (result.api1Instance) {
+        form.serverInstance = result.api1Instance
+      }
+      if (result.api2ServerId) {
+        form.dailyServerId = result.api2ServerId
+      }
+      if (result.api2Instance) {
+        form.dailyServerInstance = result.api2Instance
+      }
+      if (result.api3ServerId) {
+        form.recordsServerId = result.api3ServerId
+      }
+      if (result.api3Instance) {
+        form.recordsServerInstance = result.api3Instance
+      }
       ElMessage.success('登录成功，Cookie 和 API URL 已自动获取')
     } else {
       ElMessage.warning('登录超时或已取消')
