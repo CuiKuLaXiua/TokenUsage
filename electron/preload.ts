@@ -21,6 +21,7 @@ export interface ElectronAPI {
   closeFloatWindow: () => Promise<boolean>
   getFloatWindowState: () => Promise<{ active: boolean }>
   onFloatWindowClosed: (callback: () => void) => () => void
+  onFloatWindowOpened: (callback: () => void) => () => void
   focusFloatWindow: () => Promise<boolean>
   setFloatAlwaysOnTop: (value: boolean) => Promise<boolean>
   resizeFloatWindow: (width: number, height: number) => Promise<boolean>
@@ -134,6 +135,11 @@ const electronAPI: ElectronAPI = {
     const handler = () => callback()
     ipcRenderer.on('float-window-closed', handler)
     return () => { ipcRenderer.removeListener('float-window-closed', handler) }
+  },
+  onFloatWindowOpened: (callback: () => void) => {
+    const handler = () => callback()
+    ipcRenderer.on('float-window-opened', handler)
+    return () => { ipcRenderer.removeListener('float-window-opened', handler) }
   },
   focusFloatWindow: () => ipcRenderer.invoke('focus-float-window'),
   setFloatAlwaysOnTop: (value) => ipcRenderer.invoke('set-float-always-on-top', value),

@@ -100,6 +100,7 @@ export interface ElectronAPI {
   closeFloatWindow: () => Promise<boolean>
   getFloatWindowState: () => Promise<{ active: boolean }>
   onFloatWindowClosed: (callback: () => void) => () => void
+  onFloatWindowOpened: (callback: () => void) => () => void
   focusFloatWindow: () => Promise<boolean>
   setFloatAlwaysOnTop: (value: boolean) => Promise<boolean>
   resizeFloatWindow: (width: number, height: number) => Promise<boolean>

@@ -225,11 +225,25 @@ function getTrayIconPath() {
   return join(__dirname, "../dist/logo_tray.png");
 }
 
+// 统一的悬浮窗状态检查函数（考虑边缘吸附状态）
+function isFloatWindowActive(): boolean {
+  if (!floatWindow || floatWindow.isDestroyed()) {
+    return false;
+  }
+  // 预创建但从未显示的窗口不算 active
+  if (!floatWindow.isVisible()) {
+    const id = floatWindow.id;
+    if (!edgeDockState.has(id)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 // ── 系统托盘 ──
 function buildTrayMenu(): Menu {
-  // 检查悬浮窗状态
-  const isFloatActive =
-    floatWindow && !floatWindow.isDestroyed() && floatWindow.isVisible();
+  // 检查悬浮窗状态（使用统一的检查函数）
+  const isFloatActive = isFloatWindowActive();
 
   return Menu.buildFromTemplate([
     {
@@ -248,13 +262,26 @@ function buildTrayMenu(): Menu {
     {
       label: isFloatActive ? "隐藏悬浮窗" : "显示悬浮窗",
       click: async () => {
-        if (
-          floatWindow &&
-          !floatWindow.isDestroyed() &&
-          floatWindow.isVisible()
-        ) {
+        if (isFloatWindowActive()) {
           // 关闭悬浮窗
-          floatWindow.close();
+          if (detailWindow && !detailWindow.isDestroyed()) {
+            detailWindow.close();
+            detailWindow = null;
+          }
+          destroyCtxMenu();
+          stopHoverPolling();
+          edgeDockState.delete(floatWindow?.id || -1);
+          if (floatStripWindow && !floatStripWindow.isDestroyed()) {
+            floatStripWindow.close();
+          }
+          if (floatWindow) {
+            floatWindow.close();
+            floatWindow = null;
+          }
+          // 通知主窗口悬浮窗已关闭
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send("float-window-closed");
+          }
         } else {
           // 打开悬浮窗
           if (!floatWindow) {
@@ -270,8 +297,18 @@ function buildTrayMenu(): Menu {
               win.focus();
             }
           } else {
-            floatWindow.show();
-            floatWindow.focus();
+            // 边缘吸附状态的窗口需要恢复
+            const state = edgeDockState.get(floatWindow.id);
+            if (state?.isDocked) {
+              revealFloatWindow();
+            } else {
+              floatWindow.show();
+              floatWindow.focus();
+            }
+          }
+          // 通知主窗口悬浮窗已打开
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send("float-window-opened");
           }
         }
         // 更新托盘菜单
@@ -588,6 +625,8 @@ function createFloatWindow() {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send("float-window-closed");
     }
+    // 更新托盘菜单状态
+    tray?.setContextMenu(buildTrayMenu());
   });
 
   // 兜底：如果渲染进程 ready 信号延迟，1.5s 后强制标记就绪
@@ -1027,31 +1066,27 @@ ipcMain.handle("open-float-window", async () => {
     }
   } else if (floatWindow.isVisible()) {
     floatWindow.close();
+    // 更新托盘菜单状态
+    tray?.setContextMenu(buildTrayMenu());
     return false;
   } else {
     // 边缘吸附等隐藏状态：视为已开启，再次点击则关闭
     if (edgeDockState.get(floatWindow.id)?.isDocked) {
       floatWindow.close();
+      // 更新托盘菜单状态
+      tray?.setContextMenu(buildTrayMenu());
       return false;
     }
     floatWindow.show();
     floatWindow.focus();
   }
+  // 更新托盘菜单状态
+  tray?.setContextMenu(buildTrayMenu());
   return true;
 });
 
 ipcMain.handle("get-float-window-state", () => {
-  if (!floatWindow || floatWindow.isDestroyed()) {
-    return { active: false };
-  }
-  // 预创建但从未显示的窗口不算 active
-  if (!floatWindow.isVisible()) {
-    const id = floatWindow.id;
-    if (!edgeDockState.has(id)) {
-      return { active: false };
-    }
-  }
-  return { active: true };
+  return { active: isFloatWindowActive() };
 });
 
 ipcMain.handle("close-float-window", () => {
@@ -1072,6 +1107,8 @@ ipcMain.handle("close-float-window", () => {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send("float-window-closed");
   }
+  // 更新托盘菜单状态
+  tray?.setContextMenu(buildTrayMenu());
   return true;
 });
 

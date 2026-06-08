@@ -235,6 +235,7 @@ function chooseCloseAction(action: CloseAction) {
 
 // 悬浮窗状态管理
 let unsubFloatClosed: (() => void) | undefined;
+let unsubFloatOpened: (() => void) | undefined;
 let unsubShowCloseDialog: (() => void) | undefined;
 onMounted(async () => {
   // 窗口从托盘恢复时，清除可能残留的对话框状态
@@ -247,6 +248,9 @@ onMounted(async () => {
   unsubFloatClosed = window.electronAPI.onFloatWindowClosed(() => {
     floatActive.value = false;
   });
+  unsubFloatOpened = window.electronAPI.onFloatWindowOpened(() => {
+    floatActive.value = true;
+  });
   // 监听主进程的关闭对话框请求
   unsubShowCloseDialog = window.electronAPI.onShowCloseDialog(() => {
     showCloseDialog.value = true;
@@ -254,6 +258,7 @@ onMounted(async () => {
 });
 onUnmounted(() => {
   unsubFloatClosed?.();
+  unsubFloatOpened?.();
   unsubShowCloseDialog?.();
 });
 
