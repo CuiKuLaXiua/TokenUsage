@@ -23,6 +23,7 @@ export interface ModelConfig {
   dailyServerInstance?: string   // API2 POST x-server-instance
   recordsServerId?: string       // API3 POST x-server-id（调用记录）
   recordsServerInstance?: string // API3 POST x-server-instance
+  postServerInstance?: string    // POST 请求的备用 server-instance
 }
 
 export interface UsageTier {

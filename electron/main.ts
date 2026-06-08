@@ -227,6 +227,10 @@ function getTrayIconPath() {
 
 // ── 系统托盘 ──
 function buildTrayMenu(): Menu {
+  // 检查悬浮窗状态
+  const isFloatActive =
+    floatWindow && !floatWindow.isDestroyed() && floatWindow.isVisible();
+
   return Menu.buildFromTemplate([
     {
       label: "显示主窗口",
@@ -238,6 +242,40 @@ function buildTrayMenu(): Menu {
         } else {
           createWindow();
         }
+      },
+    },
+    { type: "separator" },
+    {
+      label: isFloatActive ? "隐藏悬浮窗" : "显示悬浮窗",
+      click: async () => {
+        if (
+          floatWindow &&
+          !floatWindow.isDestroyed() &&
+          floatWindow.isVisible()
+        ) {
+          // 关闭悬浮窗
+          floatWindow.close();
+        } else {
+          // 打开悬浮窗
+          if (!floatWindow) {
+            createFloatWindow();
+            if (!floatWindowReady) {
+              await new Promise<void>((resolve) => {
+                floatWindowReadyResolve = resolve;
+              });
+            }
+            const win = floatWindow as BrowserWindow | null;
+            if (win && !win.isDestroyed()) {
+              win.show();
+              win.focus();
+            }
+          } else {
+            floatWindow.show();
+            floatWindow.focus();
+          }
+        }
+        // 更新托盘菜单
+        tray?.setContextMenu(buildTrayMenu());
       },
     },
     { type: "separator" },
@@ -2522,9 +2560,21 @@ ipcMain.handle(
               JSON.stringify(parsed.usage[0]),
             );
           }
-          console.log("[OpenCode] API2 解析结果: usage=" + parsed.usage.length + "条, keys=" + parsed.keys.length + "条");
-          console.log("[OpenCode] API2 usage:", JSON.stringify(parsed.usage, null, 2));
-          console.log("[OpenCode] API2 keys:", JSON.stringify(parsed.keys, null, 2));
+          console.log(
+            "[OpenCode] API2 解析结果: usage=" +
+              parsed.usage.length +
+              "条, keys=" +
+              parsed.keys.length +
+              "条",
+          );
+          // console.log(
+          //   "[OpenCode] API2 usage:",
+          //   JSON.stringify(parsed.usage, null, 2),
+          // );
+          // console.log(
+          //   "[OpenCode] API2 keys:",
+          //   JSON.stringify(parsed.keys, null, 2),
+          // );
           resolve(parsed);
         });
       });
@@ -2559,7 +2609,13 @@ function parseOpenCodeRecordsResponse(jsCode: string): { records: any[] } {
       const entry = rObj[key];
       if (Array.isArray(entry)) {
         for (const item of entry) {
-          if (item && typeof item === "object" && item.id && item.model && item.cost != null) {
+          if (
+            item &&
+            typeof item === "object" &&
+            item.id &&
+            item.model &&
+            item.cost != null
+          ) {
             records.push({
               id: item.id,
               model: item.model,
@@ -2570,7 +2626,10 @@ function parseOpenCodeRecordsResponse(jsCode: string): { records: any[] } {
               cacheReadTokens: item.cacheReadTokens || 0,
               cost: item.cost || 0,
               keyID: item.keyID || "",
-              timeCreated: item.timeCreated instanceof Date ? item.timeCreated.toISOString() : String(item.timeCreated || ""),
+              timeCreated:
+                item.timeCreated instanceof Date
+                  ? item.timeCreated.toISOString()
+                  : String(item.timeCreated || ""),
               plan: item.enrichment?.plan || "",
             });
           }
@@ -2639,7 +2698,11 @@ ipcMain.handle(
         requestHeaders["Cookie"] = cookies;
       }
 
-      const request = net.request({ method: "POST", url, headers: requestHeaders });
+      const request = net.request({
+        method: "POST",
+        url,
+        headers: requestHeaders,
+      });
       let responseData = "";
 
       request.on("response", (response) => {
@@ -2647,7 +2710,12 @@ ipcMain.handle(
           responseData += chunk.toString();
         });
         response.on("end", () => {
-          console.log("[OpenCode] API3 响应状态:", response.statusCode, "长度:", responseData.length);
+          console.log(
+            "[OpenCode] API3 响应状态:",
+            response.statusCode,
+            "长度:",
+            responseData.length,
+          );
 
           if (response.statusCode === 401 || response.statusCode === 403) {
             if (mainWindow && !mainWindow.isDestroyed()) {
@@ -2663,7 +2731,7 @@ ipcMain.handle(
 
           const parsed = parseOpenCodeRecordsResponse(responseData);
           console.log("[OpenCode] API3 解析结果:", parsed.records.length, "条");
-          console.log("[OpenCode] API3 records:", JSON.stringify(parsed.records, null, 2));
+          // console.log("[OpenCode] API3 records:", JSON.stringify(parsed.records, null, 2));
           resolve(parsed);
         });
       });

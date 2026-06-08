@@ -47,6 +47,10 @@ export interface OpenCodeUsageItem {
   totalCost: number
   keyId: string
   plan: string
+  inputTokens?: number
+  outputTokens?: number
+  reasoningTokens?: number
+  cacheReadTokens?: number
 }
 
 export interface OpenCodeKey {

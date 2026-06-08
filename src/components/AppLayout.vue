@@ -352,11 +352,7 @@ function close() {
 .title-bar-text {
   font-size: 13px;
   font-weight: 600;
-  color: var(--text-secondary);
-  background: var(--accent-gradient);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--accent);
 }
 
 .title-bar-controls {
@@ -623,10 +619,7 @@ function close() {
   font-size: 17px;
   font-weight: 700;
   white-space: nowrap;
-  background: var(--accent-gradient);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--accent);
 }
 
 .logo-text-enter-active {

@@ -151,10 +151,7 @@
 
 /* ── Sci-Fi Utility Classes ── */
 .neon-text {
-  background: var(--accent-gradient);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--accent);
 }
 
 .neon-border {

@@ -892,6 +892,9 @@ function stopDrag() {
     console.log("[FloatWindow] Calling stopWindowDrag");
     window.electronAPI.stopWindowDrag();
   }
+
+  // 重置移动状态，确保下次右键菜单能正常触发
+  hasMoved.value = false;
 }
 
 function cleanupDragListeners() {
@@ -909,6 +912,7 @@ function onWindowDragEnd() {
   if (hasMoved.value) {
     window.electronAPI.stopWindowDrag();
   }
+  hasMoved.value = false;
 }
 
 // 全屏遮罩，防止拖拽时事件被其他元素截断
@@ -1068,11 +1072,9 @@ watch(
   user-select: none;
   display: flex;
   flex-direction: column;
-  /* 顶部边缘微光 + 外阴影 */
+  /* 顶部边缘微光 */
   box-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.04),
-    0 6px 20px rgba(0, 0, 0, 0.12),
-    0 2px 6px rgba(0, 0, 0, 0.06);
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.04);
   position: relative;
 }
 
