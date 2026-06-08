@@ -16,5 +16,21 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vue-vendor': ['vue', 'vue-router', 'pinia'],
+          'echarts': ['echarts', 'vue-echarts'],
+          'element-plus': ['element-plus', '@element-plus/icons-vue'],
+        },
+      },
+      onwarn(warning, warn) {
+        if (warning.code === 'ANNOTATION_POSITION' && warning.message?.includes('#__PURE__')) {
+          return
+        }
+        warn(warning)
+      },
+    },
   },
 })
