@@ -97,7 +97,10 @@
       </div>
 
       <!-- 汇总卡片 - OpenCode -->
-      <div v-if="isOpenCode && filteredItems.length" class="summary-row summary-row--compact">
+      <div
+        v-if="isOpenCode && filteredItems.length"
+        class="summary-row summary-row--compact"
+      >
         <div class="summary-item summary-item--cost">
           <div class="summary-item__icon">
             <el-icon :size="18"><Wallet /></el-icon>
@@ -120,7 +123,9 @@
 
       <!-- Section header + Level 2 筛选栏 -->
       <div class="section-header">
-        <h3 class="section-title">{{ isOpenCode ? '每日花费' : '每日 Token 消耗' }}</h3>
+        <h3 class="section-title">
+          {{ isOpenCode ? "每日花费" : "每日 Token 消耗" }}
+        </h3>
         <div class="chart-filters">
           <GlassMonthPicker
             v-model="selectedMonth"
@@ -137,7 +142,11 @@
             :options="dataModeOptions"
             @update:model-value="onDataModeChange"
           />
-          <ToggleGroup v-if="!isOpenCode" v-model="viewMode" :options="viewModeOptions" />
+          <ToggleGroup
+            v-if="!isOpenCode"
+            v-model="viewMode"
+            :options="viewModeOptions"
+          />
           <div
             v-if="!isOpenCode"
             class="chart-filters__conditional"
@@ -202,12 +211,23 @@
           style="width: 100%"
           max-height="360"
         >
-          <el-table-column prop="date" label="日期" width="110" sortable>
+          <el-table-column
+            prop="date"
+            label="日期"
+            width="130"
+            sortable
+            align="center"
+          >
             <template #default="{ row }">
-              <span class="cell-date">{{ row.date.slice(5) }}</span>
+              <span class="cell-date">{{ row.date }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="model" label="模型" min-width="140">
+          <el-table-column
+            prop="model"
+            label="模型"
+            min-width="140"
+            align="center"
+          >
             <template #default="{ row }">
               <span class="model-badge">{{ row.model }}</span>
             </template>
@@ -219,6 +239,7 @@
               min-width="130"
               sortable
               sort-by="totalToken"
+              align="center"
             >
               <template #default="{ row }">
                 <span class="cell-number">{{
@@ -231,6 +252,7 @@
               min-width="130"
               sortable
               sort-by="inputHitToken"
+              align="center"
             >
               <template #default="{ row }">
                 <span class="cell-number hit">{{
@@ -243,6 +265,7 @@
               min-width="130"
               sortable
               sort-by="inputMissToken"
+              align="center"
             >
               <template #default="{ row }">
                 <span class="cell-number miss">{{
@@ -255,6 +278,7 @@
               min-width="110"
               sortable
               sort-by="outputToken"
+              align="center"
             >
               <template #default="{ row }">
                 <span class="cell-number output">{{
@@ -267,7 +291,7 @@
               label="请求数"
               width="90"
               sortable
-              align="right"
+              align="center"
             >
               <template #default="{ row }">
                 <span class="cell-number">{{
@@ -290,20 +314,12 @@
                 }}</span>
               </template>
             </el-table-column>
-            <el-table-column
-              label="API Key"
-              min-width="200"
-              prop="keyName"
-            >
+            <el-table-column label="API Key" min-width="200" prop="keyName">
               <template #default="{ row }">
                 <span class="cell-plan">{{ row.keyName }}</span>
               </template>
             </el-table-column>
-            <el-table-column
-              label="Plan"
-              min-width="80"
-              prop="plan"
-            >
+            <el-table-column label="Plan" min-width="80" prop="plan">
               <template #default="{ row }">
                 <span class="cell-plan">{{ row.plan }}</span>
               </template>
@@ -314,48 +330,88 @@
 
       <!-- 列表视图 (OpenCode - API3 逐条明细) -->
       <div v-if="isOpenCode" class="table-wrap">
-        <el-table
-          :data="ocRecords"
-          stripe
-          style="width: 100%"
-          max-height="400"
-        >
-          <el-table-column label="时间" width="100">
+        <el-table :data="ocRecords" stripe style="width: 100%" max-height="400">
+          <el-table-column label="时间" width="160" align="center">
             <template #default="{ row }">
-              <span class="cell-date">{{ formatRecordTime(row.timeCreated) }}</span>
+              <span class="cell-date">{{
+                formatRecordTime(row.timeCreated)
+              }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="model" label="模型" min-width="140">
+          <el-table-column
+            prop="model"
+            label="模型"
+            min-width="140"
+            align="center"
+          >
             <template #default="{ row }">
               <span class="model-badge">{{ row.model }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="输入" width="90" sortable sort-by="inputTokens" align="right">
+          <el-table-column
+            label="输入"
+            width="90"
+            sortable
+            sort-by="inputTokens"
+            align="center"
+          >
             <template #default="{ row }">
-              <span class="cell-number">{{ formatTokensFull(row.inputTokens) }}</span>
+              <span class="cell-number">{{
+                formatTokensFull(row.inputTokens)
+              }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="输出" width="90" sortable sort-by="outputTokens" align="right">
+          <el-table-column
+            label="输出"
+            width="90"
+            sortable
+            sort-by="outputTokens"
+            align="center"
+          >
             <template #default="{ row }">
-              <span class="cell-number">{{ formatTokensFull(row.outputTokens) }}</span>
+              <span class="cell-number">{{
+                formatTokensFull(row.outputTokens)
+              }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="推理" width="90" sortable sort-by="reasoningTokens" align="right">
+          <el-table-column
+            label="推理"
+            width="90"
+            sortable
+            sort-by="reasoningTokens"
+            align="center"
+          >
             <template #default="{ row }">
-              <span class="cell-number">{{ formatTokensFull(row.reasoningTokens) }}</span>
+              <span class="cell-number">{{
+                formatTokensFull(row.reasoningTokens)
+              }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="缓存读取" width="100" sortable sort-by="cacheReadTokens" align="right">
+          <el-table-column
+            label="缓存读取"
+            width="100"
+            sortable
+            sort-by="cacheReadTokens"
+            align="center"
+          >
             <template #default="{ row }">
-              <span class="cell-number">{{ formatTokensFull(row.cacheReadTokens) }}</span>
+              <span class="cell-number">{{
+                formatTokensFull(row.cacheReadTokens)
+              }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="花费" width="100" sortable sort-by="cost" align="right">
+          <el-table-column
+            label="花费"
+            width="100"
+            sortable
+            sort-by="cost"
+            align="center"
+          >
             <template #default="{ row }">
               <span class="cell-number cost">{{ formatCost(row.cost) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="API Key" min-width="180">
+          <el-table-column label="API Key" min-width="180" align="center">
             <template #default="{ row }">
               <span class="cell-plan">{{ row.keyName || row.keyID }}</span>
             </template>
@@ -381,7 +437,7 @@
         </div>
         <p class="empty-text">暂无用量数据</p>
         <p class="empty-hint">
-          该月份没有用量记录，请确认已登录 {{ isMimo ? 'MiMo' : 'OpenCode' }}
+          该月份没有用量记录，请确认已登录 {{ isMimo ? "MiMo" : "OpenCode" }}
         </p>
       </div>
     </div>
@@ -403,7 +459,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue";
 import { useAppStore } from "@/stores/app";
-import { formatTokensAxis, formatTokensFull, formatCost, formatCostAxis } from "@/utils/format";
+import {
+  formatTokensAxis,
+  formatTokensFull,
+  formatCost,
+  formatCostAxis,
+} from "@/utils/format";
 import {
   TrendCharts,
   Refresh,
@@ -436,21 +497,21 @@ import { useThemeStore } from "@/stores/theme";
 
 // 联合类型：支持 MiMo 和 OpenCode 两种数据格式
 interface DailyUsageItem {
-  date: string
-  model: string
-  provider: 'mimo' | 'opencode'
+  date: string;
+  model: string;
+  provider: "mimo" | "opencode";
   // MiMo 字段
-  totalToken?: number
-  inputHitToken?: number
-  inputMissToken?: number
-  outputToken?: number
-  requestCount?: number
-  inputAudioDuration?: number
+  totalToken?: number;
+  inputHitToken?: number;
+  inputMissToken?: number;
+  outputToken?: number;
+  requestCount?: number;
+  inputAudioDuration?: number;
   // OpenCode 字段
-  totalCost?: number
-  keyId?: string
-  keyName?: string
-  plan?: string
+  totalCost?: number;
+  keyId?: string;
+  keyName?: string;
+  plan?: string;
 }
 
 use([
@@ -488,7 +549,7 @@ const filterModel = ref<string>("");
 const filterKey = ref<string>("");
 const ocKeys = ref<{ id: string; displayName: string; deleted: boolean }[]>([]);
 const ocRecords = ref<any[]>([]);
-const ocRecordsPage = ref(1);
+const ocRecordsPage = ref(0);
 const ocRecordsLoading = ref(false);
 
 const currentModel = computed(() =>
@@ -523,7 +584,7 @@ const availableModelOptions = computed(() =>
   availableModels.value.map((m) => ({ label: m, value: m })),
 );
 const availableKeyOptions = computed(() => [
-  { label: '全部 Key', value: '' },
+  { label: "全部 Key", value: "" },
   ...ocKeys.value
     .filter((k) => !k.deleted)
     .map((k) => ({ label: k.displayName, value: k.id })),
@@ -617,26 +678,33 @@ const chartOption = computed(() => {
 
   // OpenCode 模型色板
   const ocModelColors = [
-    [139, 92, 246],   // 紫
-    [59, 130, 246],   // 蓝
-    [16, 185, 129],   // 绿
-    [245, 158, 11],   // 橙
-    [239, 68, 68],    // 红
-    [236, 72, 153],   // 粉
-    [20, 184, 166],   // 青
-    [168, 85, 247],   // 亮紫
+    [139, 92, 246], // 紫
+    [59, 130, 246], // 蓝
+    [16, 185, 129], // 绿
+    [245, 158, 11], // 橙
+    [239, 68, 68], // 红
+    [236, 72, 153], // 粉
+    [20, 184, 166], // 青
+    [168, 85, 247], // 亮紫
   ];
 
   const seriesDefs = isOC
     ? (() => {
         // 按模型聚合 totalCost
-        const models = [...new Set(filteredItems.value.map((i) => i.model))].sort();
+        const models = [
+          ...new Set(filteredItems.value.map((i) => i.model)),
+        ].sort();
         return models.map((modelName, idx) => {
           const rgb = ocModelColors[idx % ocModelColors.length];
-          const modelItems = filteredItems.value.filter((i) => i.model === modelName);
+          const modelItems = filteredItems.value.filter(
+            (i) => i.model === modelName,
+          );
           const dayCostMap = new Map<string, number>();
           for (const item of modelItems) {
-            dayCostMap.set(item.date, (dayCostMap.get(item.date) || 0) + (item.totalCost || 0));
+            dayCostMap.set(
+              item.date,
+              (dayCostMap.get(item.date) || 0) + (item.totalCost || 0),
+            );
           }
           return {
             name: modelName,
@@ -731,7 +799,9 @@ const chartOption = computed(() => {
       },
       formatter(params: any[]) {
         const colorMap: Record<string, string> = isOC
-          ? {}
+          ? Object.fromEntries(
+              seriesDefs.map((def) => [def.name, def.topColor]),
+            )
           : {
               输入命中: "rgba(91,143,249,0.92)",
               输入未命中: "rgba(97,221,170,0.92)",
@@ -741,14 +811,10 @@ const chartOption = computed(() => {
         const total = params.reduce((s: number, p: any) => s + p.value, 0);
         const lines = params.map((p: any) => {
           const dotColor = colorMap[p.seriesName] || p.color;
-          const val = isOC
-            ? formatCost(p.value)
-            : p.value.toLocaleString();
+          const val = isOC ? formatCost(p.value) : p.value.toLocaleString();
           return `<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${dotColor};margin-right:6px"></span>${p.seriesName}: <b>${val}</b>`;
         });
-        const totalStr = isOC
-          ? formatCost(total)
-          : total.toLocaleString();
+        const totalStr = isOC ? formatCost(total) : total.toLocaleString();
         return `<div style="font-weight:600;margin-bottom:6px;font-size:13px">${date}<span style="float:right;margin-left:16px;color:${axisColor}">${totalStr}</span></div>${lines.join("<br/>")}`;
       },
     },
@@ -821,7 +887,15 @@ function formatRecordTime(isoStr: string): string {
   if (!isoStr) return "-";
   try {
     const d = new Date(isoStr);
-    return d.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    return d.toLocaleTimeString("zh-CN", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    });
   } catch {
     return isoStr;
   }
@@ -842,7 +916,8 @@ async function fetchRecords(page: number, append = false) {
       }
     } catch {}
   }
-  let serverId = model.recordsServerId || model.dailyServerId || model.serverId || "";
+  let serverId =
+    model.recordsServerId || model.dailyServerId || model.serverId || "";
   if (!serverId && model.baseUrl) {
     try {
       const u = new URL(model.baseUrl);
@@ -852,7 +927,16 @@ async function fetchRecords(page: number, append = false) {
   if (!serverId || !workspaceId) return;
 
   const body = JSON.stringify({
-    t: { t: 9, i: 0, l: 2, a: [{ t: 1, s: workspaceId }, { t: 0, s: page }], o: 0 },
+    t: {
+      t: 9,
+      i: 0,
+      l: 2,
+      a: [
+        { t: 1, s: workspaceId },
+        { t: 0, s: page },
+      ],
+      o: 0,
+    },
     f: 31,
     m: [],
   });
@@ -862,12 +946,17 @@ async function fetchRecords(page: number, append = false) {
     const res = await window.electronAPI.fetchOpenCodeUsageRecords({
       cookies: model.cookies,
       serverId,
-      serverInstance: model.recordsServerInstance || model.dailyServerInstance || model.serverInstance || "",
+      serverInstance:
+        model.recordsServerInstance ||
+        model.dailyServerInstance ||
+        model.serverInstance ||
+        "",
       body,
     });
     const newRecords = (res.records ?? []).map((r: any) => ({
       ...r,
-      keyName: ocKeys.value.find((k) => k.id === r.keyID)?.displayName || r.keyID,
+      keyName:
+        ocKeys.value.find((k) => k.id === r.keyID)?.displayName || r.keyID,
     }));
     if (append) {
       ocRecords.value = [...ocRecords.value, ...newRecords];
@@ -895,7 +984,7 @@ function onModelChange() {
   filterKey.value = "";
   ocKeys.value = [];
   ocRecords.value = [];
-  ocRecordsPage.value = 1;
+  ocRecordsPage.value = 0;
   dataMode.value = "total";
   fetchData();
 }
@@ -980,12 +1069,19 @@ async function fetchData() {
       serverId: serverId ? serverId.substring(0, 16) + "..." : "empty",
     });
     if (!serverId || !workspaceId) {
-      console.warn("[Usage] OpenCode 缺少 serverId 或 workspaceId", { hasServerId: !!serverId, hasWorkspaceId: !!workspaceId });
+      console.warn("[Usage] OpenCode 缺少 serverId 或 workspaceId", {
+        hasServerId: !!serverId,
+        hasWorkspaceId: !!workspaceId,
+      });
       items.value = [];
       fetched.value = true;
       return;
     }
-    if (!model.dailyServerInstance && !model.serverInstance && !(model as any).postServerInstance) {
+    if (
+      !model.dailyServerInstance &&
+      !model.serverInstance &&
+      !(model as any).postServerInstance
+    ) {
       console.warn("[Usage] OpenCode 缺少 dailyServerInstance，请求可能失败");
     }
     // 动态构造时区偏移
@@ -1013,14 +1109,24 @@ async function fetchData() {
       m: [],
     });
 
-    console.log("[Usage] OpenCode 请求:", { serverId: serverId.substring(0, 16) + "...", workspaceId, year, month, timezone });
+    console.log("[Usage] OpenCode 请求:", {
+      serverId: serverId.substring(0, 16) + "...",
+      workspaceId,
+      year,
+      month,
+      timezone,
+    });
     loading.value = true;
     fetched.value = false;
     try {
       const res = await window.electronAPI.fetchOpenCodeUsageDetail({
         cookies: model.cookies,
         serverId,
-        serverInstance: model.dailyServerInstance || model.serverInstance || (model as any).postServerInstance || '',
+        serverInstance:
+          model.dailyServerInstance ||
+          model.serverInstance ||
+          (model as any).postServerInstance ||
+          "",
         body,
       });
       // 按月份过滤，保留每条记录（不过滤 keyId）
@@ -1040,12 +1146,10 @@ async function fetchData() {
           plan: item.plan,
         });
       }
-      items.value = monthItems.sort((a, b) =>
-        a.date.localeCompare(b.date),
-      );
+      items.value = monthItems.sort((a, b) => a.date.localeCompare(b.date));
       // 同时加载 API3 逐条明细
-      ocRecordsPage.value = 1;
-      fetchRecords(1);
+      ocRecordsPage.value = 0;
+      fetchRecords(0);
     } catch (e: any) {
       if (e?.code === "COOKIE_EXPIRED") {
         items.value = [];

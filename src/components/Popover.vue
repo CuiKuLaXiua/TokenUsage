@@ -60,6 +60,17 @@ function recalc() {
     popoverTop.value = rect.bottom + 4
   }
   positioned.value = true
+
+  // 右边界检查：确保弹出层不超出视口右侧
+  nextTick(() => {
+    if (!popoverRef.value) return
+    const renderedWidth = popoverRef.value.offsetWidth
+    const viewportPadding = 8
+    const overflow = popoverLeft.value + renderedWidth - window.innerWidth + viewportPadding
+    if (overflow > 0) {
+      popoverLeft.value = Math.max(viewportPadding, popoverLeft.value - overflow)
+    }
+  })
 }
 
 function close() {

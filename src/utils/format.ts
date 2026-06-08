@@ -88,15 +88,17 @@ export function formatResetTime(timeStr: string): string {
   }
 }
 
-/** OpenCode totalCost 格式化（单位待确认，暂按 1/100 分处理） */
+/** OpenCode totalCost 格式化（API 单位为 1e-8 美元） */
 export function formatCost(value: number | undefined | null): string {
   if (value == null || isNaN(value)) return '-'
-  return (value / 100).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const dollars = value / 1e8
+  return '$' + dollars.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })
 }
 
 /** OpenCode 图表坐标轴花费格式化 */
 export function formatCostAxis(value: number): string {
-  if (value >= 100000) return (value / 100).toFixed(0)
-  if (value >= 10000) return (value / 100).toFixed(1)
-  return (value / 100).toFixed(2)
+  const dollars = value / 1e8
+  if (dollars >= 1) return '$' + dollars.toFixed(0)
+  if (dollars >= 0.01) return '$' + dollars.toFixed(2)
+  return '$' + dollars.toFixed(4)
 }
