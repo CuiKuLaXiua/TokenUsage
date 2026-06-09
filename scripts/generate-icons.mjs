@@ -8,6 +8,7 @@
 import { createRequire } from 'module';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { writeFileSync } from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const _require = createRequire(import.meta.url);
@@ -43,7 +44,30 @@ async function generate() {
     .toFile(join(PUBLIC_DIR, 'logo_tray.png'));
   console.log('→ public/logo_tray.png     (64x64, r=14)');
 
-  // --- 安装包图标: 256x256 ---
+  // --- 安装包图标 PNG: 1024x1024 ---
+  await sharp(SRC)
+    .resize(1024, 1024, { fit: 'cover' })
+    .png()
+    .toFile(join(BUILD_DIR, 'icon.png'));
+  console.log('→ build/icon.png           (1024x1024, source: logo_full.png)');
+
+  // --- 安装包图标 ICO: 256x256 + 48x48 + 32x32 + 16x16 ---
+  const pngToIco = _require('png-to-ico');
+  const sizes = [256, 48, 32, 16];
+  const icoBuffers = [];
+  for (const size of sizes) {
+    const buf = await sharp(SRC)
+      .resize(size, size, { fit: 'cover' })
+      .png()
+      .toBuffer();
+    icoBuffers.push(buf);
+  }
+  const icoFn = pngToIco.default || pngToIco.imagesToIco || pngToIco;
+  const icoBuffer = await icoFn(icoBuffers);
+  writeFileSync(join(BUILD_DIR, 'icon.ico'), icoBuffer);
+  console.log('→ build/icon.ico           (256/48/32/16, source: logo_full.png)');
+
+  // --- 安装包圆角图标: 256x256 ---
   await sharp(SRC)
     .resize(256, 256, { fit: 'cover' })
     .composite([{ input: roundedRectSVG(256, 256, 50), blend: 'dest-in' }])
