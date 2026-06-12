@@ -56,6 +56,13 @@ export interface ModelUsageStatus {
 
   // error 型 — 当 cookie 过期或 API key 失效时
   error?: string
+
+  // MIMO 套餐详情（tokenPlan/detail）
+  planCode?: string
+  currentPeriodEnd?: string
+  expired?: boolean
+  enableAutoRenew?: boolean
+  hasAutoRenewSubscribed?: boolean
 }
 
 export interface UsageRecord {

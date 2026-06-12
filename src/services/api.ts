@@ -17,9 +17,20 @@ interface MimoResponseData {
   monthUsage?: { items?: MimoResponseItem[] }
 }
 
+interface MimoTokenPlanDetailData {
+  planCode: string
+  planName: string
+  currentPeriodEnd: string
+  expired: boolean
+  enableAutoRenew: boolean
+  autoRenewDiscount: number | null
+  hasAutoRenewSubscribed: boolean
+}
+
 interface MimoApiResponse {
   code: number
   data?: MimoResponseData
+  detail?: { code: number; data?: MimoTokenPlanDetailData }
 }
 
 function extractQuota(items?: MimoResponseItem[]) {
@@ -65,7 +76,13 @@ function parseMimoResponse(response: MimoApiResponse): ModelUsageStatus | null {
     }
   }
 
-  return {
+  // 解析套餐详情（tokenPlan/detail）
+  const detail = response.detail?.data
+  if (detail?.planName) {
+    planName = detail.planName
+  }
+
+  const result: ModelUsageStatus = {
     usageType: 'token',
     planName,
     used,
@@ -74,6 +91,16 @@ function parseMimoResponse(response: MimoApiResponse): ModelUsageStatus | null {
     percent,
     lastUpdated: Date.now()
   }
+
+  if (detail) {
+    result.planCode = detail.planCode
+    result.currentPeriodEnd = detail.currentPeriodEnd
+    result.expired = detail.expired
+    result.enableAutoRenew = detail.enableAutoRenew
+    result.hasAutoRenewSubscribed = detail.hasAutoRenewSubscribed
+  }
+
+  return result
 }
 
 // ── Kimi (Coding Plan) ──

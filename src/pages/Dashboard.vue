@@ -239,8 +239,16 @@
           <div class="empty-ring"></div>
           <el-icon :size="48" class="empty-icon"><Coin /></el-icon>
         </div>
-        <p class="empty-text">{{ store.models.length === 0 ? '暂无配置的模型' : '暂无启用的模型' }}</p>
-        <p class="empty-hint">{{ store.models.length === 0 ? '添加模型后即可监控 Token 使用情况' : '请在配置管理中启用模型' }}</p>
+        <p class="empty-text">
+          {{ store.models.length === 0 ? "暂无配置的模型" : "暂无启用的模型" }}
+        </p>
+        <p class="empty-hint">
+          {{
+            store.models.length === 0
+              ? "添加模型后即可监控 Token 使用情况"
+              : "请在配置管理中启用模型"
+          }}
+        </p>
         <button class="btn-primary" @click="$router.push('/config')">
           <el-icon :size="16"><Plus /></el-icon>
           添加模型
@@ -270,104 +278,141 @@
                   getProviderLabel(model.provider)
                 }}</span>
               </div>
-                <button
-                  class="card-refresh"
-                  @click="fetchUsage(model)"
-                  :disabled="store.fetching[model.id]"
-                  title="刷新"
-                >
-                  <el-icon :size="14" :class="{ spin: store.fetching[model.id] }">
-                    <component :is="store.fetching[model.id] ? Loading : Refresh" />
-                  </el-icon>
-                </button>
-              </div>
+              <button
+                class="card-refresh"
+                @click="fetchUsage(model)"
+                :disabled="store.fetching[model.id]"
+                title="刷新"
+              >
+                <el-icon :size="14" :class="{ spin: store.fetching[model.id] }">
+                  <component
+                    :is="store.fetching[model.id] ? Loading : Refresh"
+                  />
+                </el-icon>
+              </button>
+            </div>
 
-              <!-- Token Type -->
-              <template v-if="getUsage(model.id)?.usageType === 'token'">
-                <div class="card-body token-type">
-                  <div class="token-ring-section">
-                    <TokenRing
-                      :percent="getUsage(model.id)?.percent || 0"
-                      :size="90"
-                    />
-                  </div>
-                  <div class="token-details">
-                    <div class="detail-row">
-                      <span class="detail-key">套餐</span>
-                      <span class="detail-val">{{
-                        getUsage(model.id)?.planName
-                      }}</span>
-                    </div>
-                    <div class="detail-row">
-                      <span class="detail-key">已用</span>
-                      <span class="detail-val">{{
-                        formatFullNumber(getUsage(model.id)?.used || 0)
-                      }}</span>
-                    </div>
-                    <div class="detail-row">
-                      <span class="detail-key">总计</span>
-                      <span class="detail-val">{{
-                        formatFullNumber(getUsage(model.id)?.total || 0)
-                      }}</span>
-                    </div>
-                    <div class="detail-row highlight">
-                      <span class="detail-key">剩余</span>
-                      <span class="detail-val">{{
-                        formatFullNumber(getUsage(model.id)?.remaining || 0)
-                      }}</span>
-                    </div>
-                  </div>
-                </div>
-              </template>
-
-              <!-- Percent Type (Kimi) -->
-              <template v-else-if="getUsage(model.id)?.usageType === 'percent'">
-                <div class="card-body percent-type">
-                  <PercentBar :tiers="getUsage(model.id)?.tiers || []" />
-                </div>
-              </template>
-
-              <!-- Balance Type (DeepSeek) -->
-              <template v-else-if="getUsage(model.id)?.usageType === 'balance'">
-                <div class="card-body balance-type">
-                  <BalanceCard
-                    :balance="getUsage(model.id)?.balance || 0"
-                    :currency="getUsage(model.id)?.currency || 'CNY'"
+            <!-- Token Type -->
+            <template v-if="getUsage(model.id)?.usageType === 'token'">
+              <div class="card-body token-type">
+                <div class="token-ring-section">
+                  <TokenRing
+                    :percent="getUsage(model.id)?.percent || 0"
+                    :size="90"
                   />
                 </div>
-              </template>
-
-              <!-- No Data or Error -->
-              <div v-else class="card-body empty-type">
-                <!-- 错误状态 -->
-                <div v-if="getUsage(model.id)?.usageType === 'error'" class="error-card-content">
-                  <div class="error-info">
-                    <span class="error-label">{{ getUsage(model.id)?.error?.includes('Cookie') ? 'Cookie 过期' : '错误' }}</span>
-                    <span class="error-detail">{{ getUsage(model.id)?.error || '未知错误' }}</span>
+                <div class="token-details">
+                  <div class="detail-row">
+                    <span class="detail-key">套餐类型</span>
+                    <span class="detail-val">{{
+                      getUsage(model.id)?.planName
+                    }}</span>
                   </div>
-                  <button
-                    class="btn-relogin"
-                    @click="handleErrorAction(model)"
+                  <div
+                    v-if="getUsage(model.id)?.currentPeriodEnd"
+                    class="detail-row"
                   >
-                    <span>{{ getUsage(model.id)?.error?.includes('Cookie') ? '重新登录' : '查看详情' }}</span>
-                  </button>
+                    <span class="detail-key">到期时间</span>
+                    <span class="detail-val">{{
+                      getUsage(model.id)?.currentPeriodEnd?.slice(0, 10)
+                    }}</span>
+                  </div>
+                  <div
+                    v-if="getUsage(model.id)?.enableAutoRenew !== undefined"
+                    class="detail-row"
+                  >
+                    <span class="detail-key">自动续费</span>
+                    <el-tag
+                      :type="
+                        getUsage(model.id)?.enableAutoRenew ? 'success' : 'info'
+                      "
+                      size="small"
+                      effect="light"
+                      round
+                    >
+                      {{ getUsage(model.id)?.enableAutoRenew ? "ON" : "OFF" }}
+                    </el-tag>
+                  </div>
+                  <div class="detail-row">
+                    <span class="detail-key">总计额度</span>
+                    <span class="detail-val">{{
+                      formatFullNumber(getUsage(model.id)?.total || 0)
+                    }}</span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="detail-key">已用额度</span>
+                    <span class="detail-val">{{
+                      formatFullNumber(getUsage(model.id)?.used || 0)
+                    }}</span>
+                  </div>
+                  <div class="detail-row highlight">
+                    <span class="detail-key">剩余额度</span>
+                    <span class="detail-val">{{
+                      formatFullNumber(getUsage(model.id)?.remaining || 0)
+                    }}</span>
+                  </div>
                 </div>
-                <!-- 无数据状态 -->
-                <button
-                  v-else
-                  class="btn-fetch"
-                  @click="fetchUsage(model)"
-                  :disabled="store.fetching[model.id]"
-                >
-                  <el-icon v-if="store.fetching[model.id]" :size="14" class="spin"
-                    ><Loading
-                  /></el-icon>
+              </div>
+            </template>
+
+            <!-- Percent Type (Kimi) -->
+            <template v-else-if="getUsage(model.id)?.usageType === 'percent'">
+              <div class="card-body percent-type">
+                <PercentBar :tiers="getUsage(model.id)?.tiers || []" />
+              </div>
+            </template>
+
+            <!-- Balance Type (DeepSeek) -->
+            <template v-else-if="getUsage(model.id)?.usageType === 'balance'">
+              <div class="card-body balance-type">
+                <BalanceCard
+                  :balance="getUsage(model.id)?.balance || 0"
+                  :currency="getUsage(model.id)?.currency || 'CNY'"
+                />
+              </div>
+            </template>
+
+            <!-- No Data or Error -->
+            <div v-else class="card-body empty-type">
+              <!-- 错误状态 -->
+              <div
+                v-if="getUsage(model.id)?.usageType === 'error'"
+                class="error-card-content"
+              >
+                <div class="error-info">
+                  <span class="error-label">{{
+                    getUsage(model.id)?.error?.includes("Cookie")
+                      ? "Cookie 过期"
+                      : "错误"
+                  }}</span>
+                  <span class="error-detail">{{
+                    getUsage(model.id)?.error || "未知错误"
+                  }}</span>
+                </div>
+                <button class="btn-relogin" @click="handleErrorAction(model)">
                   <span>{{
-                    store.fetching[model.id] ? "获取中..." : "获取额度"
+                    getUsage(model.id)?.error?.includes("Cookie")
+                      ? "重新登录"
+                      : "查看详情"
                   }}</span>
                 </button>
               </div>
+              <!-- 无数据状态 -->
+              <button
+                v-else
+                class="btn-fetch"
+                @click="fetchUsage(model)"
+                :disabled="store.fetching[model.id]"
+              >
+                <el-icon v-if="store.fetching[model.id]" :size="14" class="spin"
+                  ><Loading
+                /></el-icon>
+                <span>{{
+                  store.fetching[model.id] ? "获取中..." : "获取额度"
+                }}</span>
+              </button>
             </div>
+          </div>
         </template>
       </draggable>
     </div>
@@ -410,7 +455,7 @@ const activeModels = computed(() => {
 });
 
 const enabledModels = computed(() => {
-  return store.models.filter(m => m.enabled);
+  return store.models.filter((m) => m.enabled);
 });
 
 function getUsage(modelId: string) {
@@ -463,24 +508,30 @@ async function handleErrorAction(model: ModelConfig) {
   if (!usage?.error) return;
 
   // Cookie 过期 - 打开登录窗口
-  if (usage.error.includes('Cookie')) {
+  if (usage.error.includes("Cookie")) {
     try {
-      if (model.provider === 'opencode') {
+      if (model.provider === "opencode") {
         await store.startOpenCodeLogin(model.id);
-        ElMessage.success({ message: '登录成功，正在刷新额度...', duration: 2000 });
+        ElMessage.success({
+          message: "登录成功，正在刷新额度...",
+          duration: 2000,
+        });
         await fetchUsage(model);
       } else {
         await store.startMimoLogin(model.id);
-        ElMessage.success({ message: '登录成功，正在刷新额度...', duration: 2000 });
+        ElMessage.success({
+          message: "登录成功，正在刷新额度...",
+          duration: 2000,
+        });
         await fetchUsage(model);
       }
     } catch (error) {
-      console.error('登录失败:', error);
+      console.error("登录失败:", error);
     }
   }
   // API key 失效 - 跳转到配置页面让用户修改
-  else if (usage.error.includes('API key')) {
-    ElMessage.warning({ message: '请在配置中更新 API key', duration: 3000 });
+  else if (usage.error.includes("API key")) {
+    ElMessage.warning({ message: "请在配置中更新 API key", duration: 3000 });
     // 这里可以跳转到配置页面或打开编辑对话框
   }
 }
