@@ -613,6 +613,10 @@ const FLOAT_LIST_HEIGHT = 88;
 const FLOAT_CAROUSEL_HEIGHT = 220;
 
 let resizeTimer: ReturnType<typeof setTimeout> | null = null;
+// 标记是否需要在 resize 完成后发送 ready 信号
+let shouldSendReadyAfterResize = false;
+// 安全定时器引用
+let readySafetyTimer: ReturnType<typeof setTimeout> | null = null;
 
 function resizeToFit() {
   // 取消上一次尚未执行的 resize，避免竞态
@@ -631,9 +635,23 @@ function resizeToFit() {
   resizeTimer = setTimeout(() => {
     resizeTimer = null;
     window.electronAPI.debugLog(
-      `resizeToFit: executing ${FLOAT_WIDTH}x${targetH}`,
+      `resizeToFit: executing ${FLOAT_WIDTH}x${targetH}, shouldSendReady=${shouldSendReadyAfterResize}`,
     );
     window.electronAPI.resizeFloatWindow(FLOAT_WIDTH, targetH);
+    // resize 完成后，如果需要发送 ready 信号则发送
+    if (shouldSendReadyAfterResize) {
+      shouldSendReadyAfterResize = false;
+      // 清除安全定时器
+      if (readySafetyTimer) {
+        clearTimeout(readySafetyTimer);
+        readySafetyTimer = null;
+      }
+      window.electronAPI.debugLog("[FloatWindow] resizeToFit: sending floatReady after resize");
+      // 使用 setTimeout 而不是 requestAnimationFrame，确保在窗口不可见时也能执行
+      setTimeout(() => {
+        window.electronAPI.floatReady();
+      }, 0);
+    }
   }, 50);
 }
 
@@ -947,10 +965,32 @@ async function fetchModel(m: ModelConfig) {
 onMounted(async () => {
   const s = localStorage.getItem("theme");
   if (s) theme.value = s;
+  // 标记需要在 resize 完成后发送 ready 信号
+  shouldSendReadyAfterResize = true;
+  window.electronAPI.debugLog("[FloatWindow] onMounted: start, shouldSendReady=true");
+
+  // 安全超时：确保即使 resize 流程出问题，ready 信号也会在 300ms 后发送
+  const readySafetyTimer = setTimeout(() => {
+    if (shouldSendReadyAfterResize) {
+      shouldSendReadyAfterResize = false;
+      window.electronAPI.debugLog("[FloatWindow] safety timer: sending floatReady");
+      window.electronAPI.floatReady();
+    }
+  }, 300);
+
   try {
     await store.loadConfig();
     resizeToFit();
-  } catch {}
+    window.electronAPI.debugLog("[FloatWindow] onMounted: resizeToFit called, resizeTimer=" + !!resizeTimer);
+  } catch {
+    // loadConfig 失败时，直接发送 ready
+    shouldSendReadyAfterResize = false;
+    clearTimeout(readySafetyTimer);
+    window.electronAPI.debugLog("[FloatWindow] onMounted: loadConfig failed, sending ready directly");
+    setTimeout(() => {
+      window.electronAPI.floatReady();
+    }, 0);
+  }
   if (layoutMode.value === "carousel") {
     nextTick(() => {
       idx.value = 0;
@@ -1028,10 +1068,22 @@ onMounted(async () => {
     theme.value = t.mode;
     accent.value = t.accent;
   });
-  // 通知主进程悬浮窗已完成渲染，避免首次闪烁
-  nextTick(() => {
-    window.electronAPI.floatReady();
-  });
+  // 如果 resize 已经完成（timer 为 null），直接发送 ready
+  if (shouldSendReadyAfterResize && !resizeTimer) {
+    shouldSendReadyAfterResize = false;
+    // 清除安全定时器
+    if (readySafetyTimer) {
+      clearTimeout(readySafetyTimer);
+      readySafetyTimer = null;
+    }
+    window.electronAPI.debugLog("[FloatWindow] onMounted end: resizeTimer is null, sending ready directly");
+    // 使用 setTimeout 而不是 requestAnimationFrame
+    setTimeout(() => {
+      window.electronAPI.floatReady();
+    }, 0);
+  } else {
+    window.electronAPI.debugLog("[FloatWindow] onMounted end: waiting for resize, resizeTimer=" + !!resizeTimer);
+  }
 });
 onUnmounted(() => {
   // 关闭详情窗口
@@ -1045,6 +1097,16 @@ onUnmounted(() => {
   unsubEdgeDock?.();
   unsubThemeChanged?.();
   cleanupDragListeners();
+  // 清理 resize 相关状态
+  if (resizeTimer) {
+    clearTimeout(resizeTimer);
+    resizeTimer = null;
+  }
+  if (readySafetyTimer) {
+    clearTimeout(readySafetyTimer);
+    readySafetyTimer = null;
+  }
+  shouldSendReadyAfterResize = false;
 });
 
 // Re-resize when layout mode or model count changes

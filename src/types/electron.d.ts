@@ -41,6 +41,22 @@ export interface MimoTokenPlanResponse {
   data?: MimoTokenPlanItem[]
 }
 
+export interface MimoTokenPlanDetailData {
+  planCode: string
+  planName: string
+  currentPeriodEnd: string
+  expired: boolean
+  enableAutoRenew: boolean
+  autoRenewDiscount: number | null
+  hasAutoRenewSubscribed: boolean
+}
+
+export interface MimoTokenPlanDetailResponse {
+  code: number
+  message?: string
+  data?: MimoTokenPlanDetailData
+}
+
 export interface OpenCodeUsageItem {
   date: string
   model: string
@@ -94,6 +110,7 @@ export interface ElectronAPI {
     body?: Record<string, unknown>
   }) => Promise<MimoApiResponse>
   fetchMimoTokenPlan: (options: { year: number; month: number; cookies: string }) => Promise<MimoTokenPlanResponse>
+  fetchMimoTokenPlanDetail: (options: { cookies: string }) => Promise<MimoTokenPlanDetailResponse>
   fetchOpenCodeUsageDetail: (options: { cookies: string; serverId: string; serverInstance: string; body: string }) => Promise<OpenCodeUsageDetailResponse>
   fetchOpenCodeUsageRecords: (options: { cookies: string; serverId: string; serverInstance: string; body: string }) => Promise<{ records: OpenCodeUsageRecord[] }>
   openFloatWindow: () => Promise<boolean>
@@ -191,7 +208,9 @@ export interface ElectronAPI {
   getCloseAction: () => Promise<CloseAction | null>
   setCloseAction: (action: CloseAction | null) => Promise<boolean>
   closeActionChosen: (action: CloseAction, remember: boolean) => Promise<void>
+  onCloseActionUpdated: (callback: (action: CloseAction | null) => void) => () => void
   onShowCloseDialog: (callback: () => void) => () => void
+  onResetCloseDialog: (callback: () => void) => () => void
 }
 
 declare global {

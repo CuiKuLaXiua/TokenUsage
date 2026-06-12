@@ -124,6 +124,21 @@
                         <span>{{ formatTokens(store.modelUsageMap[model.id].used) }} / {{ formatTokens(store.modelUsageMap[model.id].total) }}</span>
                         <span class="usage-remaining">余 {{ formatTokens(store.modelUsageMap[model.id].remaining) }}</span>
                       </div>
+                      <!-- MIMO 套餐详情 -->
+                      <div v-if="store.modelUsageMap[model.id].currentPeriodEnd || store.modelUsageMap[model.id].enableAutoRenew !== undefined" class="plan-detail">
+                        <span v-if="store.modelUsageMap[model.id].currentPeriodEnd" class="plan-detail-item">
+                          到期 {{ store.modelUsageMap[model.id].currentPeriodEnd?.slice(0, 10) }}
+                        </span>
+                        <el-tag
+                          v-if="store.modelUsageMap[model.id].enableAutoRenew !== undefined"
+                          :type="store.modelUsageMap[model.id].enableAutoRenew ? 'success' : 'info'"
+                          size="small"
+                          effect="light"
+                          round
+                        >
+                          {{ store.modelUsageMap[model.id].enableAutoRenew ? '自动续费 ON' : '自动续费 OFF' }}
+                        </el-tag>
+                      </div>
                     </template>
                   </div>
                   <span v-else class="no-data">未获取</span>
@@ -364,7 +379,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Plus,
@@ -396,11 +411,21 @@ const showApiKey = ref(false)
 
 // 关闭行为设置
 const closeActionModel = ref<CloseAction | null>(null)
+let unsubCloseActionUpdated: (() => void) | undefined
 
 onMounted(async () => {
   try {
     closeActionModel.value = await window.electronAPI.getCloseAction()
   } catch { /* ignore */ }
+
+  // 监听对话框中的配置更新
+  unsubCloseActionUpdated = window.electronAPI.onCloseActionUpdated((action) => {
+    closeActionModel.value = action
+  })
+})
+
+onUnmounted(() => {
+  unsubCloseActionUpdated?.()
 })
 
 async function onCloseActionChange() {
@@ -773,6 +798,22 @@ async function handleErrorAction(model: ModelConfig) {
 .usage-remaining {
   color: var(--success);
   font-weight: 600;
+}
+
+/* ── Plan detail (MIMO) ── */
+.plan-detail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.plan-detail-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
 }
 
 /* ── Tier rows ── */

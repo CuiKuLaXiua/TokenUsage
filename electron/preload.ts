@@ -15,6 +15,7 @@ export interface ElectronAPI {
     body?: Record<string, unknown>
   }) => Promise<any>
   fetchMimoTokenPlan: (options: { year: number; month: number; cookies: string }) => Promise<any>
+  fetchMimoTokenPlanDetail: (options: { cookies: string }) => Promise<any>
   fetchOpenCodeUsageDetail: (options: { cookies: string; serverId: string; serverInstance: string; body: string }) => Promise<any>
   fetchOpenCodeUsageRecords: (options: { cookies: string; serverId: string; serverInstance: string; body: string }) => Promise<any>
   openFloatWindow: () => Promise<boolean>
@@ -113,7 +114,9 @@ export interface ElectronAPI {
   getCloseAction: () => Promise<string | null>
   setCloseAction: (action: string | null) => Promise<boolean>
   closeActionChosen: (action: string, remember: boolean) => Promise<void>
+  onCloseActionUpdated: (callback: (action: string | null) => void) => () => void
   onShowCloseDialog: (callback: () => void) => () => void
+  onResetCloseDialog: (callback: () => void) => () => void
   // 托盘菜单事件
   onTrayToggleTheme: (callback: () => void) => () => void
 }
@@ -126,6 +129,7 @@ const electronAPI: ElectronAPI = {
   getDataPath: () => ipcRenderer.invoke('get-data-path'),
   fetchMimoUsage: (options) => ipcRenderer.invoke('fetch-mimo-usage', options),
   fetchMimoTokenPlan: (options) => ipcRenderer.invoke('fetch-mimo-token-plan', options),
+  fetchMimoTokenPlanDetail: (options) => ipcRenderer.invoke('fetch-mimo-token-plan-detail', options),
   fetchOpenCodeUsageDetail: (options) => ipcRenderer.invoke('fetch-opencode-usage-detail', options),
   fetchOpenCodeUsageRecords: (options) => ipcRenderer.invoke('fetch-opencode-usage-records', options),
   openFloatWindow: () => ipcRenderer.invoke('open-float-window'),
@@ -257,10 +261,20 @@ const electronAPI: ElectronAPI = {
   getCloseAction: () => ipcRenderer.invoke('get-close-action'),
   setCloseAction: (action) => ipcRenderer.invoke('set-close-action', action),
   closeActionChosen: (action, remember) => ipcRenderer.invoke('close-action-chosen', action, remember),
+  onCloseActionUpdated: (callback: (action: string | null) => void) => {
+    const wrapper = (_: any, action: string | null) => callback(action)
+    ipcRenderer.on('close-action-updated', wrapper)
+    return () => { ipcRenderer.removeListener('close-action-updated', wrapper) }
+  },
   onShowCloseDialog: (callback) => {
     const wrapper = () => callback()
     ipcRenderer.on('show-close-dialog', wrapper)
     return () => { ipcRenderer.removeListener('show-close-dialog', wrapper) }
+  },
+  onResetCloseDialog: (callback) => {
+    const wrapper = () => callback()
+    ipcRenderer.on('reset-close-dialog', wrapper)
+    return () => { ipcRenderer.removeListener('reset-close-dialog', wrapper) }
   },
   // 托盘菜单事件
   onTrayToggleTheme: (callback) => {

@@ -364,6 +364,8 @@ function createTray() {
 
   tray.on("double-click", () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
+      // 先重置可能残留的关闭对话框状态
+      mainWindow.webContents.send("reset-close-dialog");
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.show();
       mainWindow.focus();
@@ -569,6 +571,7 @@ function createFloatWindow() {
     frame: false,
     hasShadow: false,
     show: false,
+    backgroundColor: '#00000000', // 透明背景，避免窗口显示前的黑屏闪烁
     webPreferences: {
       preload: join(__dirname, "preload.js"),
       nodeIntegration: false,
@@ -665,6 +668,7 @@ function createDetailWindow() {
     frame: false,
     show: false,
     hasShadow: false,
+    backgroundColor: '#00000000', // 透明背景，避免窗口显示前的黑屏闪烁
     parent: floatWindow,
     webPreferences: {
       preload: join(__dirname, "preload.js"),
@@ -2168,6 +2172,8 @@ ipcMain.handle(
   (_, action: CloseAction, remember: boolean) => {
     if (remember) {
       saveCloseActionToConfig(action);
+      // 通知渲染进程配置已更新
+      mainWindow?.webContents.send("close-action-updated", action);
     }
     if (action === "minimize-to-tray") {
       mainWindow?.hide();
@@ -2184,6 +2190,8 @@ ipcMain.handle("show-main-window", () => {
   if (!mainWindow || mainWindow.isDestroyed()) {
     createWindow();
   } else {
+    // 先重置可能残留的关闭对话框状态
+    mainWindow.webContents.send("reset-close-dialog");
     if (mainWindow.isMinimized()) {
       mainWindow.restore();
     }
@@ -2451,6 +2459,84 @@ ipcMain.handle(
   },
 );
 
+// MiMo 套餐详情 API (tokenPlan/detail)
+ipcMain.handle(
+  "fetch-mimo-token-plan-detail",
+  async (_, options: { cookies: string }) => {
+    return new Promise((resolve, reject) => {
+      const { cookies } = options;
+      const url =
+        "https://platform.xiaomimimo.com/api/v1/tokenPlan/detail";
+
+      if (!isAllowedUrl(url)) {
+        reject(new Error("URL not allowed"));
+        return;
+      }
+
+      const requestHeaders: Record<string, string> = {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
+        Referer: "https://platform.xiaomimimo.com/",
+        Origin: "https://platform.xiaomimimo.com",
+      };
+
+      if (cookies) {
+        requestHeaders["Cookie"] = cookies;
+      }
+
+      const request = net.request({
+        method: "GET",
+        url,
+        headers: requestHeaders,
+      });
+
+      let responseData = "";
+
+      request.on("response", (response) => {
+        response.on("data", (chunk) => {
+          responseData += chunk.toString();
+        });
+
+        response.on("end", () => {
+          try {
+            const data = JSON.parse(responseData);
+
+            // MiMo Cookie 过期检测
+            if (response.statusCode === 401 || response.statusCode === 403) {
+              if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send("login-needed");
+              }
+              const error = new Error("Cookie expired");
+              (error as any).code = "COOKIE_EXPIRED";
+              reject(error);
+              return;
+            }
+            if (data.loginUrl) {
+              if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send("login-needed");
+              }
+              const error = new Error("Cookie expired");
+              (error as any).code = "COOKIE_EXPIRED";
+              reject(error);
+              return;
+            }
+
+            resolve(data);
+          } catch {
+            reject(new Error("JSON解析失败"));
+          }
+        });
+      });
+
+      request.on("error", (error) => {
+        reject(error);
+      });
+
+      request.end();
+    });
+  },
+);
+
 // OpenCode 日用量明细解析
 function parseOpenCodeDailyResponse(jsCode: string): {
   usage: any[];
@@ -2569,7 +2655,7 @@ ipcMain.handle(
             "长度:",
             responseData.length,
           );
-          console.log("[OpenCode] 响应字符:", responseData);
+          // console.log("[OpenCode] 响应字符:", responseData);
 
           if (response.statusCode === 401 || response.statusCode === 403) {
             if (mainWindow && !mainWindow.isDestroyed()) {

@@ -206,7 +206,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted, nextTick } from "vue";
 import { useRoute } from "vue-router";
 import {
   Sunny,
@@ -228,8 +228,11 @@ const floatActive = ref(false);
 const showCloseDialog = ref(false);
 const closeRemember = ref(true);
 
-function chooseCloseAction(action: CloseAction) {
+async function chooseCloseAction(action: CloseAction) {
   showCloseDialog.value = false;
+  // 等待 Transition 动画完成后再执行 IPC，避免窗口恢复时对话框闪现
+  await new Promise(resolve => setTimeout(resolve, 200));
+  await nextTick();
   window.electronAPI.closeActionChosen(action, closeRemember.value);
 }
 
@@ -237,6 +240,7 @@ function chooseCloseAction(action: CloseAction) {
 let unsubFloatClosed: (() => void) | undefined;
 let unsubFloatOpened: (() => void) | undefined;
 let unsubShowCloseDialog: (() => void) | undefined;
+let unsubResetCloseDialog: (() => void) | undefined;
 onMounted(async () => {
   // 窗口从托盘恢复时，清除可能残留的对话框状态
   showCloseDialog.value = false;
@@ -252,14 +256,26 @@ onMounted(async () => {
     floatActive.value = true;
   });
   // 监听主进程的关闭对话框请求
-  unsubShowCloseDialog = window.electronAPI.onShowCloseDialog(() => {
+  unsubShowCloseDialog = window.electronAPI.onShowCloseDialog(async () => {
+    // 从配置中读取当前状态，初始化"记住我的选择"复选框
+    try {
+      const savedAction = await window.electronAPI.getCloseAction();
+      closeRemember.value = savedAction !== null;
+    } catch {
+      closeRemember.value = true;
+    }
     showCloseDialog.value = true;
+  });
+  // 监听重置关闭对话框状态（窗口从托盘恢复时）
+  unsubResetCloseDialog = window.electronAPI.onResetCloseDialog(() => {
+    showCloseDialog.value = false;
   });
 });
 onUnmounted(() => {
   unsubFloatClosed?.();
   unsubFloatOpened?.();
   unsubShowCloseDialog?.();
+  unsubResetCloseDialog?.();
 });
 
 const accents: { name: AccentName; color: string; label: string }[] = [
