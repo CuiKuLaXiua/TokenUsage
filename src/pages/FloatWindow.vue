@@ -978,7 +978,7 @@ onMounted(async () => {
   );
 
   // 安全超时：确保即使 resize 流程出问题，ready 信号也会在 300ms 后发送
-  const readySafetyTimer = setTimeout(() => {
+  readySafetyTimer = setTimeout(() => {
     if (shouldSendReadyAfterResize) {
       shouldSendReadyAfterResize = false;
       window.electronAPI.debugLog(
