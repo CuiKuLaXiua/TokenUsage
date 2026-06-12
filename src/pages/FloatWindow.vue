@@ -421,12 +421,16 @@
                     </template>
                   </template>
                   <template v-else>
+                    <div v-if="store.fetching[model.id]" class="ms-loading">
+                      <el-icon :size="14" class="spin"><Loading /></el-icon>
+                      <span>加载中...</span>
+                    </div>
                     <button
+                      v-else
                       class="ms-btn"
                       @click="fetchModel(model)"
-                      :disabled="store.fetching[model.id]"
                     >
-                      {{ store.fetching[model.id] ? "获取中..." : "获取额度" }}
+                      获取额度
                     </button>
                   </template>
                 </div>
@@ -646,7 +650,9 @@ function resizeToFit() {
         clearTimeout(readySafetyTimer);
         readySafetyTimer = null;
       }
-      window.electronAPI.debugLog("[FloatWindow] resizeToFit: sending floatReady after resize");
+      window.electronAPI.debugLog(
+        "[FloatWindow] resizeToFit: sending floatReady after resize",
+      );
       // 使用 setTimeout 而不是 requestAnimationFrame，确保在窗口不可见时也能执行
       setTimeout(() => {
         window.electronAPI.floatReady();
@@ -967,13 +973,17 @@ onMounted(async () => {
   if (s) theme.value = s;
   // 标记需要在 resize 完成后发送 ready 信号
   shouldSendReadyAfterResize = true;
-  window.electronAPI.debugLog("[FloatWindow] onMounted: start, shouldSendReady=true");
+  window.electronAPI.debugLog(
+    "[FloatWindow] onMounted: start, shouldSendReady=true",
+  );
 
   // 安全超时：确保即使 resize 流程出问题，ready 信号也会在 300ms 后发送
   const readySafetyTimer = setTimeout(() => {
     if (shouldSendReadyAfterResize) {
       shouldSendReadyAfterResize = false;
-      window.electronAPI.debugLog("[FloatWindow] safety timer: sending floatReady");
+      window.electronAPI.debugLog(
+        "[FloatWindow] safety timer: sending floatReady",
+      );
       window.electronAPI.floatReady();
     }
   }, 300);
@@ -981,12 +991,17 @@ onMounted(async () => {
   try {
     await store.loadConfig();
     resizeToFit();
-    window.electronAPI.debugLog("[FloatWindow] onMounted: resizeToFit called, resizeTimer=" + !!resizeTimer);
+    window.electronAPI.debugLog(
+      "[FloatWindow] onMounted: resizeToFit called, resizeTimer=" +
+        !!resizeTimer,
+    );
   } catch {
     // loadConfig 失败时，直接发送 ready
     shouldSendReadyAfterResize = false;
     clearTimeout(readySafetyTimer);
-    window.electronAPI.debugLog("[FloatWindow] onMounted: loadConfig failed, sending ready directly");
+    window.electronAPI.debugLog(
+      "[FloatWindow] onMounted: loadConfig failed, sending ready directly",
+    );
     setTimeout(() => {
       window.electronAPI.floatReady();
     }, 0);
@@ -1076,13 +1091,18 @@ onMounted(async () => {
       clearTimeout(readySafetyTimer);
       readySafetyTimer = null;
     }
-    window.electronAPI.debugLog("[FloatWindow] onMounted end: resizeTimer is null, sending ready directly");
+    window.electronAPI.debugLog(
+      "[FloatWindow] onMounted end: resizeTimer is null, sending ready directly",
+    );
     // 使用 setTimeout 而不是 requestAnimationFrame
     setTimeout(() => {
       window.electronAPI.floatReady();
     }, 0);
   } else {
-    window.electronAPI.debugLog("[FloatWindow] onMounted end: waiting for resize, resizeTimer=" + !!resizeTimer);
+    window.electronAPI.debugLog(
+      "[FloatWindow] onMounted end: waiting for resize, resizeTimer=" +
+        !!resizeTimer,
+    );
   }
 });
 onUnmounted(() => {
@@ -1135,8 +1155,7 @@ watch(
   display: flex;
   flex-direction: column;
   /* 顶部边缘微光 */
-  box-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.04);
   position: relative;
 }
 
@@ -1196,7 +1215,7 @@ watch(
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 0 0 1px;
+  padding: 0 0 0 5px;
 }
 .compact-card {
   width: 100%;
@@ -1663,6 +1682,26 @@ watch(
 .ms-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.ms-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding: 8px 0;
+}
+
+.spin {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* dots — fixed at bottom of carousel */

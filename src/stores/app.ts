@@ -121,6 +121,12 @@ export const useAppStore = defineStore('app', () => {
 
       // 订阅后续更新
       initSubscription()
+
+      // 查询主进程中哪些模型仍在加载
+      const fetchingState = await window.electronAPI.getFetchingState()
+      for (const [modelId, isFetching] of Object.entries(fetchingState)) {
+        fetching[modelId] = isFetching
+      }
     } catch (error) {
       console.error('加载配置失败:', error)
       isConfigLoaded.value = true

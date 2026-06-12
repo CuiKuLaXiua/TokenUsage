@@ -397,19 +397,22 @@
                   }}</span>
                 </button>
               </div>
+              <!-- 加载中状态 -->
+              <div
+                v-else-if="store.fetching[model.id]"
+                class="loading-card-content"
+              >
+                <el-icon :size="20" class="spin"><Loading /></el-icon>
+                <span class="loading-text">加载中...</span>
+              </div>
+
               <!-- 无数据状态 -->
               <button
                 v-else
                 class="btn-fetch"
                 @click="fetchUsage(model)"
-                :disabled="store.fetching[model.id]"
               >
-                <el-icon v-if="store.fetching[model.id]" :size="14" class="spin"
-                  ><Loading
-                /></el-icon>
-                <span>{{
-                  store.fetching[model.id] ? "获取中..." : "获取额度"
-                }}</span>
+                <span>获取额度</span>
               </button>
             </div>
           </div>
@@ -959,6 +962,20 @@ async function refreshAll() {
   to {
     transform: rotate(360deg);
   }
+}
+
+.loading-card-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0;
+}
+
+.loading-text {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 500;
 }
 
 /* ── Empty State ── */

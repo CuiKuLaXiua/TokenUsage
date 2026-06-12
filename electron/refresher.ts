@@ -581,6 +581,17 @@ export class UsageRefresher {
   }
 
   /**
+   * 获取当前正在加载的模型状态（新窗口打开时用）
+   */
+  getFetchingState(): Record<string, boolean> {
+    const state: Record<string, boolean> = {};
+    for (const modelId of this.fetchInProgress) {
+      state[modelId] = true;
+    }
+    return state;
+  }
+
+  /**
    * 停止所有定时器
    */
   stopAll(): void {

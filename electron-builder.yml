@@ -7,8 +7,23 @@
   },
   "files": [
     "dist/**/*",
-    "dist-electron/**/*"
+    "dist-electron/**/*",
+    "!node_modules/**/*",
+    "!*.md",
+    "!*.ts",
+    "!*.json",
+    "!*.yml",
+    "!.git/**",
+    "!scripts/**",
+    "!electron/**"
   ],
+  "asar": true,
+  "asarUnpack": [
+    "node_modules/dotenv/**/*"
+  ],
+  "compression": "maximum",
+  "removePackageScripts": true,
+  "removePackageKeywords": true,
   "mac": {
     "category": "public.app-category.developer-tools",
     "artifactName": "${productName}-${version}-mac.${ext}",

@@ -155,6 +155,7 @@ export interface ElectronAPI {
   windowClose: () => Promise<void>
   // 统一刷新相关
   getCachedUsage: () => Promise<Record<string, ModelUsageStatus>>
+  getFetchingState: () => Promise<Record<string, boolean>>
   refreshAllModels: () => Promise<boolean>
   refreshModel: (modelId: string) => Promise<boolean>
   onUsageUpdated: (callback: (data: { modelId: string, data: ModelUsageStatus }) => void) => () => void

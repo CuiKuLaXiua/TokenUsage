@@ -1,14 +1,16 @@
 <template>
-  <AppLayout v-if="!isFloatRoute">
-    <router-view v-slot="{ Component }">
-      <keep-alive>
-        <component :is="Component" />
-      </keep-alive>
-    </router-view>
-    <LoginNotification />
-    <ApiKeyNotification />
-  </AppLayout>
-  <router-view v-else />
+  <el-config-provider :locale="zhCn">
+    <AppLayout v-if="!isFloatRoute">
+      <router-view v-slot="{ Component }">
+        <keep-alive>
+          <component :is="Component" />
+        </keep-alive>
+      </router-view>
+      <LoginNotification />
+      <ApiKeyNotification />
+    </AppLayout>
+    <router-view v-else />
+  </el-config-provider>
 </template>
 
 <script setup lang="ts">
@@ -19,6 +21,7 @@ import { useThemeStore } from '@/stores/theme'
 import { useAppStore } from '@/stores/app'
 import { useRoute } from 'vue-router'
 import { computed, onMounted, onUnmounted } from 'vue'
+import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
 
 const route = useRoute()
 const themeStore = useThemeStore()

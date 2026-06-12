@@ -112,12 +112,12 @@
     </template>
 
     <template v-else>
-      <button
-        class="fetch-btn"
-        @click="emit('fetch')"
-        :disabled="store.fetching[model.id]"
-      >
-        {{ store.fetching[model.id] ? "获取中..." : "获取额度" }}
+      <div v-if="store.fetching[model.id]" class="card-loading">
+        <el-icon :size="14" class="spin"><Loading /></el-icon>
+        <span>加载中...</span>
+      </div>
+      <button v-else class="fetch-btn" @click="emit('fetch')">
+        获取额度
       </button>
     </template>
   </div>
@@ -125,7 +125,7 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
-import { Timer, Clock } from "@element-plus/icons-vue";
+import { Timer, Clock, Loading } from "@element-plus/icons-vue";
 import { useAppStore } from "@/stores/app";
 import type { ModelConfig } from "@/stores/app";
 import { formatTokens, formatPercent, formatResetTime } from "@/utils/format";
@@ -442,5 +442,25 @@ const usage = computed(() => store.modelUsageMap[props.model.id]);
 .fetch-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.card-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.spin {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

@@ -61,6 +61,7 @@ export interface ElectronAPI {
   windowClose: () => Promise<void>
   // 新增：统一刷新相关
   getCachedUsage: () => Promise<Record<string, any>>
+  getFetchingState: () => Promise<Record<string, boolean>>
   refreshAllModels: () => Promise<boolean>
   refreshModel: (modelId: string) => Promise<boolean>
   onUsageUpdated: (callback: (data: { modelId: string, data: any }) => void) => () => void
@@ -187,6 +188,7 @@ const electronAPI: ElectronAPI = {
   windowClose: () => ipcRenderer.invoke('window-close'),
   // 统一刷新相关
   getCachedUsage: () => ipcRenderer.invoke('get-cached-usage'),
+  getFetchingState: () => ipcRenderer.invoke('get-fetching-state'),
   refreshAllModels: () => ipcRenderer.invoke('refresh-all-models'),
   refreshModel: (modelId) => ipcRenderer.invoke('refresh-model', modelId),
   onUsageUpdated: (callback) => {

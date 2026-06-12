@@ -2206,6 +2206,10 @@ ipcMain.handle("get-cached-usage", () => {
   return refresher.getCachedData();
 });
 
+ipcMain.handle("get-fetching-state", () => {
+  return refresher.getFetchingState();
+});
+
 ipcMain.handle("refresh-all-models", async () => {
   await refresher.refreshAll();
   return true;
