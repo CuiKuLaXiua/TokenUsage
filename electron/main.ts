@@ -1,6 +1,7 @@
 import {
   app,
   BrowserWindow,
+  dialog,
   ipcMain,
   net,
   screen,
@@ -571,7 +572,7 @@ function createFloatWindow() {
     frame: false,
     hasShadow: false,
     show: false,
-    backgroundColor: '#00000000', // 透明背景，避免窗口显示前的黑屏闪烁
+    backgroundColor: "#00000000", // 透明背景，避免窗口显示前的黑屏闪烁
     webPreferences: {
       preload: join(__dirname, "preload.js"),
       nodeIntegration: false,
@@ -668,7 +669,7 @@ function createDetailWindow() {
     frame: false,
     show: false,
     hasShadow: false,
-    backgroundColor: '#00000000', // 透明背景，避免窗口显示前的黑屏闪烁
+    backgroundColor: "#00000000", // 透明背景，避免窗口显示前的黑屏闪烁
     parent: floatWindow,
     webPreferences: {
       preload: join(__dirname, "preload.js"),
@@ -2469,8 +2470,7 @@ ipcMain.handle(
   async (_, options: { cookies: string }) => {
     return new Promise((resolve, reject) => {
       const { cookies } = options;
-      const url =
-        "https://platform.xiaomimimo.com/api/v1/tokenPlan/detail";
+      const url = "https://platform.xiaomimimo.com/api/v1/tokenPlan/detail";
 
       if (!isAllowedUrl(url)) {
         reject(new Error("URL not allowed"));
@@ -3110,3 +3110,22 @@ async function doOpenCodeLogin(
     }
   });
 }
+
+// ── 数据导出：文件保存对话框 ──
+ipcMain.handle(
+  "show-save-dialog",
+  async (_, options: Electron.SaveDialogOptions) => {
+    if (!mainWindow) return { canceled: true, filePath: "" };
+    return dialog.showSaveDialog(mainWindow, options);
+  },
+);
+
+// ── 数据导出：写入文件 ──
+ipcMain.handle(
+  "save-file",
+  async (_, { filePath, content }: { filePath: string; content: string }) => {
+    const { writeFile } = await import("fs/promises");
+    await writeFile(filePath, content, "utf-8");
+    return true;
+  },
+);

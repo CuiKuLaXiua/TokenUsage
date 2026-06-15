@@ -44,7 +44,8 @@ function initParticles(width: number, height: number) {
   particles = Array.from({ length: count }, () => createParticle(width, height))
 }
 
-function draw(ctx: CanvasRenderingContext2D, width: number, height: number) {
+function draw(ctx: CanvasRenderingContext2D) {
+  const { width, height } = ctx.canvas
   ctx.clearRect(0, 0, width, height)
 
   for (const p of particles) {
@@ -62,7 +63,7 @@ function draw(ctx: CanvasRenderingContext2D, width: number, height: number) {
     ctx.fill()
   }
 
-  animationId = requestAnimationFrame(() => draw(ctx, width, height))
+  animationId = requestAnimationFrame(() => draw(ctx))
 }
 
 onMounted(() => {
@@ -80,7 +81,7 @@ onMounted(() => {
 
   resize()
   window.addEventListener('resize', resize)
-  draw(ctx, canvas.width, canvas.height)
+  draw(ctx)
 })
 
 onUnmounted(() => {

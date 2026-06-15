@@ -1,5 +1,11 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 
+// 主路由的懒加载函数（暴露出来用于预加载）
+const Dashboard = () => import('@/pages/Dashboard.vue')
+const Config = () => import('@/pages/Config.vue')
+const Usage = () => import('@/pages/Usage.vue')
+const Export = () => import('@/pages/Export.vue')
+
 const router = createRouter({
   history: createWebHashHistory(),
   routes: [
@@ -10,22 +16,22 @@ const router = createRouter({
     {
       path: '/dashboard',
       name: 'Dashboard',
-      component: () => import('@/pages/Dashboard.vue')
+      component: Dashboard
     },
     {
       path: '/config',
       name: 'Config',
-      component: () => import('@/pages/Config.vue')
+      component: Config
     },
     {
       path: '/usage',
       name: 'Usage',
-      component: () => import('@/pages/Usage.vue')
+      component: Usage
     },
     {
       path: '/export',
       name: 'Export',
-      component: () => import('@/pages/Export.vue')
+      component: Export
     },
     {
       path: '/float',
@@ -49,5 +55,16 @@ const router = createRouter({
     }
   ]
 })
+
+// 预加载非当前页的主路由 chunk，消除首次点击的延迟感
+export function preloadMainRoutes() {
+  // 用 setTimeout 0 让出主线程，不影响首屏渲染
+  setTimeout(() => {
+    Dashboard()
+    Config()
+    Usage()
+    Export()
+  }, 300)
+}
 
 export default router

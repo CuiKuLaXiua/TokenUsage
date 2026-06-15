@@ -298,7 +298,7 @@
                 <div class="token-ring-section">
                   <TokenRing
                     :percent="getUsage(model.id)?.percent || 0"
-                    :size="90"
+                    :size="110"
                   />
                 </div>
                 <div class="token-details">
@@ -407,11 +407,7 @@
               </div>
 
               <!-- 无数据状态 -->
-              <button
-                v-else
-                class="btn-fetch"
-                @click="fetchUsage(model)"
-              >
+              <button v-else class="btn-fetch" @click="fetchUsage(model)">
                 <span>获取额度</span>
               </button>
             </div>

@@ -120,6 +120,9 @@ export interface ElectronAPI {
   onResetCloseDialog: (callback: () => void) => () => void
   // 托盘菜单事件
   onTrayToggleTheme: (callback: () => void) => () => void
+  // 数据导出
+  showSaveDialog: (options: { title?: string; defaultPath?: string; filters?: { name: string; extensions: string[] }[] }) => Promise<{ canceled: boolean; filePath: string }>
+  saveFile: (options: { filePath: string; content: string }) => Promise<boolean>
 }
 
 const electronAPI: ElectronAPI = {
@@ -283,7 +286,10 @@ const electronAPI: ElectronAPI = {
     const wrapper = () => callback()
     ipcRenderer.on('tray-toggle-theme', wrapper)
     return () => { ipcRenderer.removeListener('tray-toggle-theme', wrapper) }
-  }
+  },
+  // 数据导出
+  showSaveDialog: (options) => ipcRenderer.invoke('show-save-dialog', options),
+  saveFile: (options) => ipcRenderer.invoke('save-file', options),
 }
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI)

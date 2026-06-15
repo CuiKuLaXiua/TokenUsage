@@ -212,6 +212,9 @@ export interface ElectronAPI {
   onCloseActionUpdated: (callback: (action: CloseAction | null) => void) => () => void
   onShowCloseDialog: (callback: () => void) => () => void
   onResetCloseDialog: (callback: () => void) => () => void
+  // 数据导出
+  showSaveDialog: (options: { title?: string; defaultPath?: string; filters?: { name: string; extensions: string[] }[] }) => Promise<{ canceled: boolean; filePath: string }>
+  saveFile: (options: { filePath: string; content: string }) => Promise<boolean>
 }
 
 declare global {

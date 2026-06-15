@@ -26,69 +26,22 @@
           <div class="compact-card" :data-model-id="'__overview__'">
             <div class="ov-row">
               <div class="ov-ring" style="width: 40px; height: 40px">
-                <svg class="ring-svg" viewBox="0 0 40 40">
-                  <circle
-                    class="ring-track"
-                    cx="20"
-                    cy="20"
-                    :r="ringData(agg.mainRing.value.percent, 40).r"
-                    fill="none"
-                    :stroke-width="ringData(agg.mainRing.value.percent, 40).sw"
-                  />
-                  <circle
-                    class="ring-fill"
-                    cx="20"
-                    cy="20"
-                    :r="ringData(agg.mainRing.value.percent, 40).r"
-                    fill="none"
-                    :stroke-width="ringData(agg.mainRing.value.percent, 40).sw"
-                    :stroke-dasharray="
-                      ringData(agg.mainRing.value.percent, 40).circ
-                    "
-                    :stroke-dashoffset="
-                      ringData(agg.mainRing.value.percent, 40).offset
-                    "
-                    :stroke="ringData(agg.mainRing.value.percent, 40).color"
-                  />
-                  <circle
-                    class="ring-glow"
-                    cx="20"
-                    cy="20"
-                    :r="ringData(agg.mainRing.value.percent, 40).r"
-                    fill="none"
-                    :stroke-width="
-                      ringData(agg.mainRing.value.percent, 40).sw * 2
-                    "
-                    :stroke-dasharray="
-                      ringData(agg.mainRing.value.percent, 40).circ
-                    "
-                    :stroke-dashoffset="
-                      ringData(agg.mainRing.value.percent, 40).offset
-                    "
-                    :stroke="ringData(agg.mainRing.value.percent, 40).color"
-                    opacity="0.2"
-                    filter="url(#ringGlow)"
-                  />
-                  <defs>
-                    <filter id="ringGlow">
-                      <feGaussianBlur stdDeviation="3" result="b" />
-                      <feMerge>
-                        <feMergeNode in="b" />
-                        <feMergeNode in="SourceGraphic" />
-                      </feMerge>
-                    </filter>
-                  </defs>
-                </svg>
-                <div class="ov-ring-inner">
-                  <span class="ov-pct">{{
-                    agg.mainRing.value.source !== "none"
-                      ? agg.mainRing.value.percent.toFixed(0)
-                      : "—"
-                  }}</span>
-                  <span class="ov-pct-u">{{
-                    agg.mainRing.value.source !== "none" ? "%" : ""
-                  }}</span>
-                </div>
+                <TokenRing
+                  :percent="agg.mainRing.value.percent"
+                  :size="40"
+                  :stroke="3"
+                >
+                  <div class="ov-ring-inner">
+                    <span class="ov-pct">{{
+                      agg.mainRing.value.source !== "none"
+                        ? agg.mainRing.value.percent.toFixed(0)
+                        : "—"
+                    }}</span>
+                    <span class="ov-pct-u">{{
+                      agg.mainRing.value.source !== "none" ? "%" : ""
+                    }}</span>
+                  </div>
+                </TokenRing>
               </div>
               <div class="ov-nums">
                 <div class="ov-n" v-if="agg.tokenAgg.value">
@@ -151,73 +104,22 @@
             <div class="cslide" :data-model-id="'__overview__'">
               <div class="cslide-body ov-slide">
                 <div class="ov-ring-lg" style="width: 58px; height: 58px">
-                  <svg class="ring-svg" viewBox="0 0 58 58">
-                    <circle
-                      class="ring-track"
-                      cx="29"
-                      cy="29"
-                      :r="ringData(agg.mainRing.value.percent, 58).r"
-                      fill="none"
-                      :stroke-width="
-                        ringData(agg.mainRing.value.percent, 58).sw
-                      "
-                    />
-                    <circle
-                      class="ring-fill"
-                      cx="29"
-                      cy="29"
-                      :r="ringData(agg.mainRing.value.percent, 58).r"
-                      fill="none"
-                      :stroke-width="
-                        ringData(agg.mainRing.value.percent, 58).sw
-                      "
-                      :stroke-dasharray="
-                        ringData(agg.mainRing.value.percent, 58).circ
-                      "
-                      :stroke-dashoffset="
-                        ringData(agg.mainRing.value.percent, 58).offset
-                      "
-                      :stroke="ringData(agg.mainRing.value.percent, 58).color"
-                    />
-                    <circle
-                      class="ring-glow"
-                      cx="29"
-                      cy="29"
-                      :r="ringData(agg.mainRing.value.percent, 58).r"
-                      fill="none"
-                      :stroke-width="
-                        ringData(agg.mainRing.value.percent, 58).sw * 2
-                      "
-                      :stroke-dasharray="
-                        ringData(agg.mainRing.value.percent, 58).circ
-                      "
-                      :stroke-dashoffset="
-                        ringData(agg.mainRing.value.percent, 58).offset
-                      "
-                      :stroke="ringData(agg.mainRing.value.percent, 58).color"
-                      opacity="0.2"
-                      filter="url(#ringGlow)"
-                    />
-                    <defs>
-                      <filter id="ringGlow">
-                        <feGaussianBlur stdDeviation="3" result="b" />
-                        <feMerge>
-                          <feMergeNode in="b" />
-                          <feMergeNode in="SourceGraphic" />
-                        </feMerge>
-                      </filter>
-                    </defs>
-                  </svg>
-                  <div class="ov-ring-lg-in">
-                    <span class="ov-pct-lg">{{
-                      agg.mainRing.value.source !== "none"
-                        ? agg.mainRing.value.percent.toFixed(1)
-                        : "—"
-                    }}</span>
-                    <span class="ov-pct-u-lg">{{
-                      agg.mainRing.value.source !== "none" ? "%" : ""
-                    }}</span>
-                  </div>
+                  <TokenRing
+                    :percent="agg.mainRing.value.percent"
+                    :size="58"
+                    :stroke="5"
+                  >
+                    <div class="ov-ring-lg-in">
+                      <span class="ov-pct-lg">{{
+                        agg.mainRing.value.source !== "none"
+                          ? agg.mainRing.value.percent.toFixed(1)
+                          : "—"
+                      }}</span>
+                      <span class="ov-pct-u-lg">{{
+                        agg.mainRing.value.source !== "none" ? "%" : ""
+                      }}</span>
+                    </div>
+                  </TokenRing>
                 </div>
                 <div class="ov-stats">
                   <div class="ov-st" v-if="agg.tokenAgg.value">
@@ -281,73 +183,18 @@
                     <!-- token -->
                     <template v-if="u(model.id).usageType === 'token'">
                       <div class="ms-ring" style="width: 44px; height: 44px">
-                        <svg class="ring-svg" viewBox="0 0 44 44">
-                          <circle
-                            class="ring-track"
-                            cx="22"
-                            cy="22"
-                            :r="ringData(u(model.id).percent || 0, 44).r"
-                            fill="none"
-                            :stroke-width="
-                              ringData(u(model.id).percent || 0, 44).sw
-                            "
-                          />
-                          <circle
-                            class="ring-fill"
-                            cx="22"
-                            cy="22"
-                            :r="ringData(u(model.id).percent || 0, 44).r"
-                            fill="none"
-                            :stroke-width="
-                              ringData(u(model.id).percent || 0, 44).sw
-                            "
-                            :stroke-dasharray="
-                              ringData(u(model.id).percent || 0, 44).circ
-                            "
-                            :stroke-dashoffset="
-                              ringData(u(model.id).percent || 0, 44).offset
-                            "
-                            :stroke="
-                              ringData(u(model.id).percent || 0, 44).color
-                            "
-                          />
-                          <circle
-                            class="ring-glow"
-                            cx="22"
-                            cy="22"
-                            :r="ringData(u(model.id).percent || 0, 44).r"
-                            fill="none"
-                            :stroke-width="
-                              ringData(u(model.id).percent || 0, 44).sw * 2
-                            "
-                            :stroke-dasharray="
-                              ringData(u(model.id).percent || 0, 44).circ
-                            "
-                            :stroke-dashoffset="
-                              ringData(u(model.id).percent || 0, 44).offset
-                            "
-                            :stroke="
-                              ringData(u(model.id).percent || 0, 44).color
-                            "
-                            opacity="0.2"
-                            filter="url(#ringGlow)"
-                          />
-                          <defs>
-                            <filter id="ringGlow">
-                              <feGaussianBlur stdDeviation="3" result="b" />
-                              <feMerge>
-                                <feMergeNode in="b" />
-                                <feMergeNode in="SourceGraphic" />
-                              </feMerge>
-                            </filter>
-                          </defs>
-                        </svg>
-                        <div class="ms-ring-in">
-                          <span class="ms-rv">{{
-                            (u(model.id).percent || 0).toFixed(0)
-                          }}</span>
-                          <span class="ms-ru">%</span>
-                        </div>
+                        <TokenRing
+                          :percent="u(model.id).percent || 0"
+                          :size="44"
+                          :stroke="4"
+                        >
+                          <div class="ms-ring-in">
+                            <span class="ms-rv">{{
+                              (u(model.id).percent || 0).toFixed(0)
+                            }}</span>
+                            <span class="ms-ru">%</span>
+                          </div>
+                        </TokenRing>
                       </div>
                       <div class="ms-rows">
                         <div class="ms-r">
@@ -425,11 +272,7 @@
                       <el-icon :size="14" class="spin"><Loading /></el-icon>
                       <span>加载中...</span>
                     </div>
-                    <button
-                      v-else
-                      class="ms-btn"
-                      @click="fetchModel(model)"
-                    >
+                    <button v-else class="ms-btn" @click="fetchModel(model)">
                       获取额度
                     </button>
                   </template>
@@ -445,6 +288,7 @@
               :key="n"
               class="dot"
               :class="{ on: n - 1 === idx }"
+              @mousedown.stop
               @click="go(n - 1)"
             ></i>
           </div>
@@ -462,14 +306,9 @@ import { computed, onMounted, onUnmounted, ref, nextTick, watch } from "vue";
 import { Clock, DataAnalysis } from "@element-plus/icons-vue";
 import { useAppStore } from "@/stores/app";
 import type { ModelConfig } from "@/stores/app";
-import {
-  formatTokens,
-  formatPercent,
-  getProgressColor,
-  getProgressColorSmooth,
-  formatResetTime,
-} from "@/utils/format";
+import { formatTokens, formatPercent, getProgressColor, formatResetTime } from "@/utils/format";
 import { useUsageAggregation } from "@/composables/useUsageAggregation";
+import TokenRing from "@/components/TokenRing.vue";
 
 type LayoutMode = "list" | "carousel";
 
@@ -594,25 +433,9 @@ function fmtLg(n: number) {
   if (n >= 1e3) return (n / 1e3).toFixed(2) + "K";
   return n.toFixed(2);
 }
-function ringData(pct: number, size: number) {
-  const sw = Math.max(3, Math.round(size * 0.08));
-  const r = (size - sw) / 2;
-  const circ = 2 * Math.PI * r;
-  const p = Math.min(100, Math.max(0, pct));
-  const offset = circ * (1 - p / 100);
-  return {
-    size,
-    sw,
-    cx: size / 2,
-    r,
-    circ,
-    offset,
-    color: getProgressColorSmooth(pct),
-  };
-}
 
 // Resize — now only used for carousel mode
-const FLOAT_WIDTH = 240;
+const FLOAT_WIDTH = 260;
 const FLOAT_LIST_HEIGHT = 88;
 const FLOAT_CAROUSEL_HEIGHT = 220;
 
@@ -790,6 +613,7 @@ let dragging = false;
 function onDragStart(e: MouseEvent) {
   const el = carouselRef.value;
   if (!el) return;
+  e.stopPropagation();
   dragging = true;
   dragStartX = e.pageX;
   dragScrollLeft = el.scrollLeft;
@@ -1215,7 +1039,7 @@ watch(
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 0 0 5px;
+  padding: 0 6px;
 }
 .compact-card {
   width: 100%;
@@ -1256,49 +1080,31 @@ watch(
   font-weight: 600;
 }
 
-/* ── SVG 进度环 ── */
-.ov-ring,
-.ov-ring-lg,
-.ms-ring {
-  position: relative;
-}
-.ring-svg {
-  width: 100%;
-  height: 100%;
-  transform: rotate(-90deg);
-  display: block;
-}
-.ring-track {
-  stroke: var(--border-light);
-}
-.ring-fill {
-  stroke-linecap: round;
-  transition:
-    stroke-dashoffset 1.2s var(--ease-spring),
-    stroke 0.3s var(--ease-smooth);
-}
-.ring-glow {
-  stroke-linecap: round;
-  transition: stroke-dashoffset 1.2s var(--ease-spring);
-}
+/* ── 进度环容器 ── */
 
 .ov-nums {
   flex: 1;
   display: flex;
-  gap: 6px;
+  gap: 4px;
 }
 .ov-n {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1px;
-  flex: 1;
+  justify-content: center;
+  gap: 2px;
+  flex: 1 1 auto;
+  background: var(--glass-bg);
+  border-radius: 6px;
+  padding: 4px 6px;
+  min-width: 48px;
 }
 .ov-nv {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .ov-nv.warn {
   color: var(--warning);
@@ -1309,6 +1115,7 @@ watch(
 .ov-nl {
   font-size: 9px;
   color: var(--text-secondary);
+  white-space: nowrap;
 }
 
 /* ── type distribution row ── */
@@ -1443,19 +1250,28 @@ watch(
 }
 .ov-stats {
   display: flex;
-  gap: 10px;
+  gap: 6px;
+  width: 100%;
+  padding: 0 4px;
 }
 .ov-st {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  justify-content: center;
+  gap: 3px;
+  flex: 1 1 auto;
+  background: var(--glass-bg);
+  border-radius: 8px;
+  padding: 6px 8px;
+  min-width: 56px;
 }
 .ov-stv {
   font-size: 12px;
   font-weight: 700;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .ov-stv.warn {
   color: var(--warning);
@@ -1464,8 +1280,9 @@ watch(
   color: var(--success);
 }
 .ov-stl {
-  font-size: 10px;
+  font-size: 9px;
   color: var(--text-secondary);
+  white-space: nowrap;
 }
 .ov-foot {
   display: flex;
