@@ -1,5 +1,5 @@
 <template>
-  <div class="strip" :class="[edge, { hidden }]" :data-theme="theme" :data-accent="accent" @mousedown="onDown">
+  <div class="strip" :class="[edge, { hidden }]" :data-theme="theme" :data-accent="accent" :data-preset="preset" @mousedown="onDown">
     <div
       v-for="(seg, i) in segments"
       :key="i"
@@ -20,6 +20,7 @@ const hidden = ref(true);
 const edge = ref("");
 const theme = ref("dark");
 const accent = ref(localStorage.getItem("accent") || "forest");
+const preset = ref(localStorage.getItem("preset") || "midnight");
 const SEGMENTS = 20;
 let unsubEdgeDock: (() => void) | null = null;
 let unsubTheme: (() => void) | null = null;
@@ -40,6 +41,8 @@ onMounted(async () => {
   // 读取初始主题
   const s = localStorage.getItem("theme");
   if (s) theme.value = s;
+  const savedPreset = localStorage.getItem("preset");
+  if (savedPreset) preset.value = savedPreset;
   // 先注册 listener，再异步加载数据（防止 IPC 在 loadConfig 期间到达而丢失）
   unsubEdgeDock = window.electronAPI.onEdgeDockChanged((s) => {
     hidden.value = !s.isDocked;
@@ -54,6 +57,10 @@ onMounted(async () => {
   unsubTheme = window.electronAPI.onThemeChanged((t) => {
     theme.value = t.mode;
     accent.value = t.accent;
+    preset.value = t.preset;
+    localStorage.setItem("theme", t.mode);
+    localStorage.setItem("accent", t.accent);
+    localStorage.setItem("preset", t.preset);
   });
   try {
     await store.loadConfig();

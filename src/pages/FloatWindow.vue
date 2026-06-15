@@ -4,6 +4,7 @@
     class="float-window"
     :data-theme="theme"
     :data-accent="accent"
+    :data-preset="preset"
     @contextmenu.prevent="showMenu($event)"
     @mouseenter="onFloatEnter"
     @mouseleave="onFloatLeave"
@@ -316,6 +317,7 @@ const store = useAppStore();
 const agg = useUsageAggregation();
 const theme = ref("light");
 const accent = ref(localStorage.getItem("accent") || "forest");
+const preset = ref(localStorage.getItem("preset") || "midnight");
 const layoutMode = ref<LayoutMode>(
   (localStorage.getItem("floatLayout") as LayoutMode) || "list",
 );
@@ -528,6 +530,7 @@ async function showMenu(e: MouseEvent) {
     modelId: ctxModel.value?.id ?? null,
     modelName: ctxModel.value?.name ?? null,
     theme: theme.value,
+    preset: preset.value,
     layoutMode: layoutMode.value,
     alwaysOnTop: alwaysOnTop.value,
   });
@@ -795,6 +798,8 @@ async function fetchModel(m: ModelConfig) {
 onMounted(async () => {
   const s = localStorage.getItem("theme");
   if (s) theme.value = s;
+  const savedPreset = localStorage.getItem("preset");
+  if (savedPreset) preset.value = savedPreset;
   // 标记需要在 resize 完成后发送 ready 信号
   shouldSendReadyAfterResize = true;
   window.electronAPI.debugLog(
@@ -885,6 +890,7 @@ onMounted(async () => {
         modelId: null,
         modelName: null,
         theme: theme.value,
+        preset: preset.value,
         layoutMode: layoutMode.value,
         alwaysOnTop: alwaysOnTop.value,
       });
@@ -906,6 +912,10 @@ onMounted(async () => {
   unsubThemeChanged = window.electronAPI.onThemeChanged((t) => {
     theme.value = t.mode;
     accent.value = t.accent;
+    preset.value = t.preset;
+    localStorage.setItem("theme", t.mode);
+    localStorage.setItem("accent", t.accent);
+    localStorage.setItem("preset", t.preset);
   });
   // 如果 resize 已经完成（timer 为 null），直接发送 ready
   if (shouldSendReadyAfterResize && !resizeTimer) {

@@ -4,6 +4,7 @@
     class="float-detail"
     :data-theme="theme"
     :data-accent="accent"
+    :data-preset="preset"
     @mouseenter="onDetailEnter"
     @mouseleave="onDetailLeave"
   >
@@ -40,6 +41,7 @@ import FloatModelCard from "@/components/FloatModelCard.vue";
 const store = useAppStore();
 const theme = ref("light");
 const accent = ref(localStorage.getItem("accent") || "forest");
+const preset = ref(localStorage.getItem("preset") || "midnight");
 const detailRef = ref<HTMLElement | null>(null);
 const enabledModels = computed(() => store.models.filter((m) => m.enabled));
 let unsubCfg: (() => void) | null = null;
@@ -84,6 +86,8 @@ function fitHeight() {
 onMounted(async () => {
   const s = localStorage.getItem("theme");
   if (s) theme.value = s;
+  const savedPreset = localStorage.getItem("preset");
+  if (savedPreset) preset.value = savedPreset;
   try {
     await store.loadConfig();
   } catch {}
@@ -98,6 +102,10 @@ onMounted(async () => {
   unsubThemeChanged = window.electronAPI.onThemeChanged((t) => {
     theme.value = t.mode;
     accent.value = t.accent;
+    preset.value = t.preset;
+    localStorage.setItem("theme", t.mode);
+    localStorage.setItem("accent", t.accent);
+    localStorage.setItem("preset", t.preset);
   });
   // 每次窗口显示时滚动到顶部
   onWindowFocus = () => {

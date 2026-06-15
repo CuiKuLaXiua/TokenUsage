@@ -322,16 +322,12 @@
                     class="detail-row"
                   >
                     <span class="detail-key">自动续费</span>
-                    <el-tag
-                      :type="
-                        getUsage(model.id)?.enableAutoRenew ? 'success' : 'info'
-                      "
-                      size="small"
-                      effect="light"
-                      round
+                    <span
+                      class="auto-renew-badge"
+                      :class="{ on: getUsage(model.id)?.enableAutoRenew }"
                     >
-                      {{ getUsage(model.id)?.enableAutoRenew ? "ON" : "OFF" }}
-                    </el-tag>
+                      {{ getUsage(model.id)?.enableAutoRenew ? 'ON' : 'OFF' }}
+                    </span>
                   </div>
                   <div class="detail-row">
                     <span class="detail-key">总计额度</span>
@@ -1208,6 +1204,26 @@ async function refreshAll() {
 
 .detail-row.highlight .detail-val {
   color: var(--neon-green);
+}
+
+/* ── 自动续费徽章 ── */
+.auto-renew-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  background: var(--glass-bg);
+  border: 1px solid var(--border-light);
+  color: var(--text-placeholder);
+  transition: all var(--duration-normal) var(--ease-smooth);
+}
+.auto-renew-badge.on {
+  color: var(--neon-green);
+  background: color-mix(in srgb, var(--neon-green) 12%, transparent);
+  border-color: color-mix(in srgb, var(--neon-green) 20%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--neon-green) 8%, transparent);
 }
 
 /* Percent Type */

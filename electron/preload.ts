@@ -80,6 +80,7 @@ export interface ElectronAPI {
     modelId: string | null
     modelName: string | null
     theme: string
+    preset: string
     layoutMode: string
     alwaysOnTop: boolean
   }) => Promise<boolean>
@@ -89,6 +90,7 @@ export interface ElectronAPI {
     modelId: string | null
     modelName: string | null
     theme: string
+    preset: string
     layoutMode: string
     alwaysOnTop: boolean
   } | null>
@@ -96,6 +98,7 @@ export interface ElectronAPI {
     modelId: string | null
     modelName: string | null
     theme: string
+    preset: string
     layoutMode: string
     alwaysOnTop: boolean
   }) => void) => () => void
@@ -109,8 +112,8 @@ export interface ElectronAPI {
   onEdgeDockChanged: (callback: (state: { isDocked: boolean; edge: 'left' | 'right' | 'top' | null }) => void) => () => void
   stripMousedown: () => Promise<void>
   // 主题同步
-  notifyThemeChanged: (theme: { mode: string; accent: string }) => Promise<boolean>
-  onThemeChanged: (callback: (theme: { mode: string; accent: string }) => void) => () => void
+  notifyThemeChanged: (theme: { mode: string; accent: string; preset: string }) => Promise<boolean>
+  onThemeChanged: (callback: (theme: { mode: string; accent: string; preset: string }) => void) => () => void
   // 关闭行为
   getCloseAction: () => Promise<string | null>
   setCloseAction: (action: string | null) => Promise<boolean>
@@ -258,7 +261,7 @@ const electronAPI: ElectronAPI = {
   // 主题同步
   notifyThemeChanged: (theme) => ipcRenderer.invoke('notify-theme-changed', theme),
   onThemeChanged: (callback) => {
-    const wrapper = (_: any, theme: { mode: string; accent: string }) => callback(theme)
+    const wrapper = (_: any, theme: { mode: string; accent: string; preset: string }) => callback(theme)
     ipcRenderer.on('theme-changed', wrapper)
     return () => { ipcRenderer.removeListener('theme-changed', wrapper) }
   },

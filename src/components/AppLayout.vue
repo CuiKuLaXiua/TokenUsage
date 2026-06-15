@@ -9,12 +9,13 @@
           placement="bottom-start"
           :width="200"
           trigger="click"
+          v-model:visible="menuVisible"
           popper-class="title-menu-popover"
           transition="menu-pop"
           :show-arrow="false"
         >
           <template #reference>
-            <button class="title-btn menu-btn" title="设置">
+            <button ref="menuBtnRef" class="title-btn menu-btn" title="设置">
               <svg class="menu-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
                 <line x1="2" y1="4" x2="14" y2="4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
                 <line x1="2" y1="8" x2="14" y2="8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
@@ -26,7 +27,22 @@
             </button>
           </template>
           <div class="title-menu">
-            <div class="menu-item" @click="themeStore.toggleTheme()">
+            <div class="menu-group">
+              <span class="menu-label">主题风格</span>
+              <div class="preset-group">
+                <button
+                  v-for="p in presets"
+                  :key="p.name"
+                  class="preset-dot"
+                  :class="{ active: themeStore.preset === p.name }"
+                  :style="{ background: p.preview }"
+                  :title="p.label"
+                  @click="themeStore.setPreset(p.name); menuVisible = false"
+                ></button>
+              </div>
+            </div>
+            <div class="menu-divider"></div>
+            <div class="menu-item" @click="themeStore.toggleTheme(); menuVisible = false">
               <el-icon :size="16">
                 <Sunny v-if="themeStore.isDark" />
                 <Moon v-else />
@@ -44,7 +60,7 @@
                   :class="{ active: themeStore.accent === a.name }"
                   :style="{ background: a.color }"
                   :title="a.label"
-                  @click="themeStore.setAccent(a.name)"
+                  @click="themeStore.setAccent(a.name); menuVisible = false"
                 ></button>
               </div>
             </div>
@@ -215,7 +231,7 @@ import {
   Close,
 } from "@element-plus/icons-vue";
 import { useThemeStore } from "@/stores/theme";
-import type { AccentName } from "@/stores/theme";
+import type { AccentName, PresetName } from "@/stores/theme";
 import type { CloseAction } from "@/types/electron";
 import ParticleBg from "./ParticleBg.vue";
 
@@ -223,10 +239,23 @@ const route = useRoute();
 const themeStore = useThemeStore();
 const isCollapsed = ref(false);
 const floatActive = ref(false);
+const menuVisible = ref(false);
+const menuBtnRef = ref<HTMLButtonElement | null>(null);
 
 // 关闭对话框状态
 const showCloseDialog = ref(false);
 const closeRemember = ref(true);
+
+// ── 菜单按钮：点击页面任意非菜单区域自动关闭 ──
+function onDocumentClick(e: MouseEvent) {
+  if (!menuVisible.value) return
+  const target = e.target as HTMLElement
+  // 点在 popover 浮层内或按钮上，不关
+  const popoverEl = document.querySelector('.title-menu-popover')
+  if (popoverEl?.contains(target)) return
+  if (menuBtnRef.value?.contains(target)) return
+  menuVisible.value = false
+}
 
 async function chooseCloseAction(action: CloseAction) {
   showCloseDialog.value = false;
@@ -270,8 +299,12 @@ onMounted(async () => {
   unsubResetCloseDialog = window.electronAPI.onResetCloseDialog(() => {
     showCloseDialog.value = false;
   });
+
+  // 菜单弹出后，点击菜单和按钮以外的任意区域自动关闭
+  document.addEventListener('click', onDocumentClick, true);
 });
 onUnmounted(() => {
+  document.removeEventListener('click', onDocumentClick, true);
   unsubFloatClosed?.();
   unsubFloatOpened?.();
   unsubShowCloseDialog?.();
@@ -282,6 +315,12 @@ const accents: { name: AccentName; color: string; label: string }[] = [
   { name: 'forest', color: '#6b9e7a', label: '森林绿' },
   { name: 'moss',   color: '#8fa870', label: '苔藓绿' },
   { name: 'matcha', color: '#82a888', label: '抹茶绿' },
+];
+
+const presets: { name: PresetName; preview: string; label: string }[] = [
+  { name: 'default',  preview: 'linear-gradient(135deg, #6b9e7a 0%, #c4a882 100%)', label: '森林默认' },
+  { name: 'midnight', preview: 'linear-gradient(135deg, #4f8cff 0%, #2ed573 100%)', label: 'Midnight Pro' },
+  { name: 'aurora',   preview: 'linear-gradient(135deg, #a78bfa 0%, #22d3ee 100%)', label: 'Aurora Glass' },
 ];
 
 // 检测是否为 macOS
@@ -856,6 +895,30 @@ function close() {
   transform: scale(1.2);
 }
 .accent-dot.active {
+  border-color: var(--text-primary);
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+
+/* ── Preset selector ── */
+.preset-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.preset-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s var(--ease-smooth);
+  outline: none;
+  padding: 0;
+}
+.preset-dot:hover {
+  transform: scale(1.2);
+}
+.preset-dot.active {
   border-color: var(--text-primary);
   box-shadow: 0 0 8px var(--accent-glow);
 }

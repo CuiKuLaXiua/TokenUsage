@@ -6,6 +6,13 @@ const accentColorMap: Record<string, string> = {
   forest: '#6b9e7a',
   moss: '#8fa87a',
   matcha: '#a8c27a',
+  midnight: '#4f8cff',
+  aurora: '#a78bfa',
+}
+
+function readCSSVar(name: string, fallback: string): string {
+  if (typeof document === 'undefined') return fallback
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
 }
 
 export function useChartTheme() {
@@ -13,14 +20,15 @@ export function useChartTheme() {
 
   const colors = computed<ChartThemeColors>(() => {
     const isDark = themeStore.isDark
-    const accentHex = accentColorMap[themeStore.accent] || '#6b9e7a'
+    // 动态读取当前主题的 CSS 变量，适配所有预设
+    const accentHex = accentColorMap[themeStore.preset] || accentColorMap[themeStore.accent] || '#6b9e7a'
     return {
       isDark,
       accentHex,
       tooltipBg: isDark ? 'rgba(15,22,16,0.94)' : 'rgba(255,252,245,0.96)',
       tooltipText: isDark ? '#e4e0d8' : '#2c3028',
       tooltipBorder: isDark ? 'rgba(74,124,89,0.15)' : 'rgba(74,124,89,0.2)',
-      axisColor: isDark ? '#5a6358' : '#8a9186',
+      axisColor: readCSSVar('--text-secondary', isDark ? '#9ca3af' : '#6b7280'),
       splitLineColor: isDark
         ? 'rgba(74,124,89,0.05)'
         : 'rgba(74,124,89,0.08)',

@@ -6,6 +6,7 @@
     class="ctx-menu-page"
     :data-theme="theme"
     :data-accent="accent"
+    :data-preset="preset"
     @mouseleave="onMouseLeave"
   >
     <!-- Model-specific header -->
@@ -50,6 +51,7 @@ import { Refresh, Close, Grid, List, Top, Check } from '@element-plus/icons-vue'
 
 const theme = ref('dark')
 const accent = ref(localStorage.getItem('accent') || 'forest')
+const preset = ref(localStorage.getItem('preset') || 'midnight')
 const modelId = ref<string | null>(null)
 const modelName = ref<string | null>(null)
 const layoutMode = ref('list')
@@ -64,6 +66,7 @@ onMounted(async () => {
     const config = await window.electronAPI.getCtxMenuConfig()
     if (config) {
       theme.value = config.theme
+      preset.value = config.preset
       modelId.value = config.modelId
       modelName.value = config.modelName
       layoutMode.value = config.layoutMode
@@ -73,6 +76,7 @@ onMounted(async () => {
   // 保留推送监听，用于窗口已存在时的后续更新
   unsubCfg = window.electronAPI.onCtxMenuConfig((config) => {
     theme.value = config.theme
+    preset.value = config.preset
     modelId.value = config.modelId
     modelName.value = config.modelName
     layoutMode.value = config.layoutMode

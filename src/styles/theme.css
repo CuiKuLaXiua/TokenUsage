@@ -248,6 +248,117 @@
   box-shadow: var(--glass-shadow-hover);
 }
 
+/* ═══════════════════════════════════════════════════════════
+   Theme Presets — 完整主题风格覆盖层
+   当 [data-preset] 不是 default 时，覆盖对应变量
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── 1. Midnight Pro（Linear / Vercel 风格）── */
+[data-theme="dark"][data-preset="midnight"] {
+  --bg-primary:    #0b0f17;
+  --bg-secondary:  #111827;
+  --bg-tertiary:   #1f2937;
+  --card-bg:       rgba(17, 24, 39, 0.92);
+  --sidebar-bg:    rgba(11, 15, 23, 0.92);
+  --header-bg:     rgba(11, 15, 23, 0.88);
+
+  --glass-bg:          rgba(17, 24, 39, 0.72);
+  --glass-bg-strong:   rgba(31, 41, 55, 0.92);
+  --glass-border:      rgba(79, 140, 255, 0.15);
+  --glass-shadow:      0 8px 32px rgba(0, 0, 0, 0.45);
+  --glass-shadow-hover:0 16px 48px rgba(79, 140, 255, 0.16);
+  --glass-blur:        24px;
+
+  --text-primary:      #e5e7eb;
+  --text-secondary:    #9ca3af;
+  --text-placeholder:  #6b7280;
+
+  --border-color:  rgba(79, 140, 255, 0.12);
+  --border-light:  rgba(79, 140, 255, 0.06);
+
+  --accent:        #4f8cff;
+  --accent-light:  #7aa8ff;
+  --accent-gradient: linear-gradient(135deg, #4f8cff 0%, #2ed573 100%);
+  --accent-glow:   rgba(79, 140, 255, 0.22);
+
+  --neon-green:  #2ed573;
+  --neon-amber:  #ffb020;
+  --neon-red:    #ff6b6b;
+  --neon-blue:   #4f8cff;
+
+  --progress-gradient: linear-gradient(90deg, var(--neon-blue), var(--neon-amber) 60%, var(--neon-red) 85%);
+  --neon-purple: #a78bfa;
+  --neon-pink:   #f472b6;
+
+  --success: #2ed573;
+  --warning: #ffb020;
+  --danger:  #ff6b6b;
+
+  --glow-green:  0 0 20px rgba(46, 213, 115, 0.25);
+  --glow-amber:  0 0 20px rgba(255, 176, 32, 0.25);
+  --glow-red:    0 0 20px rgba(255, 107, 107, 0.25);
+  --glow-blue:   0 0 20px rgba(79, 140, 255, 0.25);
+}
+
+[data-theme="dark"][data-preset="midnight"] .provider-badge.openai { background: rgba(79, 140, 255, 0.12); color: #4f8cff; border-color: rgba(79, 140, 255, 0.2); }
+[data-theme="dark"][data-preset="midnight"] .provider-badge.claude { background: rgba(167, 139, 250, 0.12); color: #a78bfa; border-color: rgba(167, 139, 250, 0.2); }
+[data-theme="dark"][data-preset="midnight"] .provider-badge.deepseek { background: rgba(46, 213, 115, 0.12); color: #2ed573; border-color: rgba(46, 213, 115, 0.2); }
+[data-theme="dark"][data-preset="midnight"] .provider-badge.kimi { background: rgba(244, 114, 182, 0.12); color: #f472b6; border-color: rgba(244, 114, 182, 0.2); }
+[data-theme="dark"][data-preset="midnight"] .provider-badge.mimo { background: rgba(255, 176, 32, 0.12); color: #ffb020; border-color: rgba(255, 176, 32, 0.2); }
+
+/* ── 2. Aurora Glass（macOS / Raycast 高级玻璃风）── */
+[data-theme="dark"][data-preset="aurora"] {
+  --bg-primary:    #0f172a;
+  --bg-secondary:  #1e293b;
+  --bg-tertiary:   #334155;
+  --card-bg:       rgba(255, 255, 255, 0.06);
+  --sidebar-bg:    rgba(15, 23, 42, 0.85);
+  --header-bg:     rgba(15, 23, 42, 0.8);
+
+  --glass-bg:          rgba(255, 255, 255, 0.06);
+  --glass-bg-strong:   rgba(255, 255, 255, 0.12);
+  --glass-border:      rgba(167, 139, 250, 0.18);
+  --glass-shadow:      0 8px 32px rgba(0, 0, 0, 0.35);
+  --glass-shadow-hover:0 16px 48px rgba(167, 139, 250, 0.18);
+  --glass-blur:        28px;
+
+  --text-primary:      #e2e8f0;
+  --text-secondary:    #94a3b8;
+  --text-placeholder:  #64748b;
+
+  --border-color:  rgba(167, 139, 250, 0.12);
+  --border-light:  rgba(167, 139, 250, 0.06);
+
+  --accent:        #a78bfa;
+  --accent-light:  #c4b5fd;
+  --accent-gradient: linear-gradient(135deg, #a78bfa 0%, #22d3ee 100%);
+  --accent-glow:   rgba(167, 139, 250, 0.25);
+
+  --neon-green:  #22d3ee;
+  --neon-amber:  #fbbf24;
+  --neon-red:    #f87171;
+  --neon-blue:   #a78bfa;
+
+  --progress-gradient: linear-gradient(90deg, var(--neon-blue), var(--neon-green) 60%, var(--neon-red) 85%);
+  --neon-purple: #a78bfa;
+  --neon-pink:   #f472b6;
+
+  --success: #22d3ee;
+  --warning: #fbbf24;
+  --danger:  #f87171;
+
+  --glow-green:  0 0 20px rgba(34, 211, 238, 0.25);
+  --glow-amber:  0 0 20px rgba(251, 191, 36, 0.25);
+  --glow-red:    0 0 20px rgba(248, 113, 113, 0.25);
+  --glow-blue:   0 0 20px rgba(167, 139, 250, 0.25);
+}
+
+[data-theme="dark"][data-preset="aurora"] .provider-badge.openai { background: rgba(167, 139, 250, 0.12); color: #a78bfa; border-color: rgba(167, 139, 250, 0.2); }
+[data-theme="dark"][data-preset="aurora"] .provider-badge.claude { background: rgba(34, 211, 238, 0.12); color: #22d3ee; border-color: rgba(34, 211, 238, 0.2); }
+[data-theme="dark"][data-preset="aurora"] .provider-badge.deepseek { background: rgba(46, 213, 115, 0.12); color: #2ed573; border-color: rgba(46, 213, 115, 0.2); }
+[data-theme="dark"][data-preset="aurora"] .provider-badge.kimi { background: rgba(244, 114, 182, 0.12); color: #f472b6; border-color: rgba(244, 114, 182, 0.2); }
+[data-theme="dark"][data-preset="aurora"] .provider-badge.mimo { background: rgba(251, 191, 36, 0.12); color: #fbbf24; border-color: rgba(251, 191, 36, 0.2); }
+
 /* 向后兼容旧类名 */
 .neon-text   { /* 兼容 */ }
 .neon-border { /* 兼容 */ }

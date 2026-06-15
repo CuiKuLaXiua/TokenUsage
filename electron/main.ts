@@ -483,6 +483,7 @@ let lastCtxMenuConfig: {
   modelId: string | null;
   modelName: string | null;
   theme: string;
+  preset: string;
   layoutMode: string;
   alwaysOnTop: boolean;
 } | null = null;
@@ -781,6 +782,7 @@ function showCtxMenuWindow(options: {
   modelId: string | null;
   modelName: string | null;
   theme: string;
+  preset: string;
   layoutMode: string;
   alwaysOnTop: boolean;
 }) {
@@ -804,6 +806,7 @@ function showCtxMenuWindow(options: {
     modelId: options.modelId,
     modelName: options.modelName,
     theme: options.theme,
+    preset: options.preset,
     layoutMode: options.layoutMode,
     alwaysOnTop: options.alwaysOnTop,
   };
@@ -1241,6 +1244,7 @@ ipcMain.handle(
       modelId: string | null;
       modelName: string | null;
       theme: string;
+      preset: string;
       layoutMode: string;
       alwaysOnTop: boolean;
     },
@@ -1284,7 +1288,7 @@ ipcMain.handle("set-float-always-on-top", (_, value: boolean) => {
 // ── 主题同步：广播给所有悬浮窗口 ──
 ipcMain.handle(
   "notify-theme-changed",
-  (_, theme: { mode: string; accent: string }) => {
+  (_, theme: { mode: string; accent: string; preset: string }) => {
     // 更新缓存的模式并重建托盘菜单
     if (theme.mode === "dark" || theme.mode === "light") {
       currentThemeMode = theme.mode;
