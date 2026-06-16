@@ -149,6 +149,8 @@ export interface ElectronAPI {
     api3Instance: string | null
   }>
   onLoginNeeded: (callback: (data: { modelId: string }) => void) => () => void
+  onApiKeyInvalid: (callback: (data: { modelId: string, modelName: string, provider: string }) => void) => () => void
+  showMainWindow: () => Promise<boolean>
   onConfigUpdated: (callback: () => void) => () => void
   windowMinimize: () => Promise<void>
   windowMaximize: () => Promise<void>
@@ -161,12 +163,12 @@ export interface ElectronAPI {
   onUsageUpdated: (callback: (data: { modelId: string, data: ModelUsageStatus }) => void) => () => void
   onUsageFetching: (callback: (data: { modelId: string, fetching: boolean }) => void) => () => void
   // 详情悬浮窗 hover 状态同步
-  notifyDetailHover: (state: 'enter' | 'leave') => Promise<void>
+  notifyDetailHover: (state: 'enter' | 'leave') => void
   onDetailHoverChanged: (callback: (state: 'enter' | 'leave') => void) => () => void
   // 详情窗口就绪信号
-  detailReady: () => void
+  detailReady: () => Promise<boolean>
   // 悬浮窗就绪信号
-  floatReady: () => void
+  floatReady: () => Promise<boolean>
   // 右键菜单弹出窗
   showCtxMenu: (options: {
     screenX: number
@@ -206,6 +208,7 @@ export interface ElectronAPI {
   onEdgeDockChanged: (callback: (state: { isDocked: boolean; edge: 'left' | 'right' | 'top' | null }) => void) => () => void
   stripMousedown: () => Promise<void>
   // 主题同步
+  getTheme: () => Promise<{ mode: string; accent: string; preset: string }>
   notifyThemeChanged: (theme: { mode: string; accent: string; preset: string }) => Promise<boolean>
   onThemeChanged: (callback: (theme: { mode: string; accent: string; preset: string }) => void) => () => void
   // 关闭行为

@@ -7,6 +7,7 @@
     :data-theme="theme"
     :data-accent="accent"
     :data-preset="preset"
+    @mouseenter="onMouseEnter"
     @mouseleave="onMouseLeave"
   >
     <!-- Model-specific header -->
@@ -59,8 +60,19 @@ const alwaysOnTop = ref(true)
 const ready = ref(false)
 
 let unsubCfg: (() => void) | null = null
+let leaveTimer: ReturnType<typeof setTimeout> | null = null
 
 onMounted(async () => {
+  // 先尝试从主进程拉取当前主题
+  try {
+    const t = await window.electronAPI.getTheme()
+    if (t) {
+      theme.value = t.mode
+      accent.value = t.accent
+      preset.value = t.preset
+    }
+  } catch {}
+
   // 主动拉取配置（避免页面加载与 IPC 推送的竞态问题）
   try {
     const config = await window.electronAPI.getCtxMenuConfig()
@@ -89,6 +101,10 @@ onMounted(async () => {
 
 onUnmounted(() => {
   unsubCfg?.()
+  if (leaveTimer) {
+    clearTimeout(leaveTimer)
+    leaveTimer = null
+  }
 })
 
 function act(action: string) {
@@ -96,9 +112,18 @@ function act(action: string) {
   window.electronAPI.sendCtxMenuAction(action)
 }
 
+function onMouseEnter() {
+  // 鼠标重新进入菜单，取消关闭计时器
+  if (leaveTimer) {
+    clearTimeout(leaveTimer)
+    leaveTimer = null
+  }
+}
+
 function onMouseLeave() {
   // 小延迟防止快速划过误关闭
-  setTimeout(() => {
+  leaveTimer = setTimeout(() => {
+    leaveTimer = null
     window.electronAPI.hideCtxMenu()
   }, 150)
 }

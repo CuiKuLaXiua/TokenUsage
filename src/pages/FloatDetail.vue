@@ -49,7 +49,6 @@ let unsubThemeChanged: (() => void) | null = null;
 let onWindowFocus: (() => void) | null = null;
 
 // ── Hover bridge ──
-// 通过 IPC 通知主进程，主进程再广播给主悬浮窗
 function broadcastHover(state: "enter" | "leave") {
   window.electronAPI.notifyDetailHover(state);
 }
@@ -68,7 +67,16 @@ async function fetchModel(m: ModelConfig) {
 }
 
 const DETAIL_MAX_HEIGHT = 420;
+const CARD_HEIGHT_ESTIMATE = 85; // 每个模型卡片预估高度
 
+/** 预估算高度：数据层面计算，避免渲染后 resize 闪烁 */
+function estimateHeight(): number {
+  const count = enabledModels.value.length;
+  if (count === 0) return 140;
+  return Math.min(120 + count * CARD_HEIGHT_ESTIMATE, DETAIL_MAX_HEIGHT);
+}
+
+/** 精确测量 DOM 高度并调整窗口 */
 function fitHeight() {
   nextTick(() => {
     const el = detailRef.value;
@@ -84,21 +92,35 @@ function fitHeight() {
 
 // ── Lifecycle ──
 onMounted(async () => {
-  const s = localStorage.getItem("theme");
-  if (s) theme.value = s;
-  const savedPreset = localStorage.getItem("preset");
-  if (savedPreset) preset.value = savedPreset;
+  // 先从主进程拉取当前主题（单一真相源）
+  try {
+    const t = await window.electronAPI.getTheme();
+    if (t) {
+      theme.value = t.mode;
+      accent.value = t.accent;
+      preset.value = t.preset;
+    }
+  } catch {
+    // 回退到 localStorage
+    const s = localStorage.getItem("theme");
+    if (s) theme.value = s;
+  }
+
   try {
     await store.loadConfig();
   } catch {}
-  fitHeight();
+
+  // 加载配置后，根据实际模型数量预估高度，避免渲染后 resize 闪烁
+  const estimatedH = estimateHeight();
+  window.electronAPI.resizeDetailWindow(window.outerWidth, estimatedH);
+
+  fitHeight(); // 精确微调
   unsubCfg = window.electronAPI.onConfigUpdated(() => {
     store
       .loadConfig()
       .then(() => fitHeight())
       .catch(() => {});
   });
-  // 监听主题变化（主窗口切换主题时实时同步）
   unsubThemeChanged = window.electronAPI.onThemeChanged((t) => {
     theme.value = t.mode;
     accent.value = t.accent;
@@ -107,13 +129,11 @@ onMounted(async () => {
     localStorage.setItem("accent", t.accent);
     localStorage.setItem("preset", t.preset);
   });
-  // 每次窗口显示时滚动到顶部
   onWindowFocus = () => {
     detailRef.value?.scrollTo(0, 0);
   };
   window.addEventListener("focus", onWindowFocus);
 
-  // 通知主进程详情窗口已完成渲染，避免首次闪烁
   nextTick(() => {
     window.electronAPI.detailReady();
   });

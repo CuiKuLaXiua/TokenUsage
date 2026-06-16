@@ -309,12 +309,36 @@ import { useAppStore } from "@/stores/app";
 import type { ModelConfig } from "@/stores/app";
 import { formatTokens, formatPercent, getProgressColor, formatResetTime } from "@/utils/format";
 import { useUsageAggregation } from "@/composables/useUsageAggregation";
+import { usePopupMutex } from "@/composables/usePopupMutex";
+import { useFloatState } from "@/composables/useFloatState";
 import TokenRing from "@/components/TokenRing.vue";
 
 type LayoutMode = "list" | "carousel";
 
 const store = useAppStore();
 const agg = useUsageAggregation();
+const mutex = usePopupMutex({
+  onShowDetail: async () => {
+    if (layoutMode.value !== "list") return;
+    const bounds = await window.electronAPI.getFloatWindowBounds();
+    if (!bounds) return;
+    window.electronAPI.showFloatDetail({
+      anchorX: bounds.x,
+      anchorY: bounds.y,
+      anchorW: bounds.width,
+      anchorH: bounds.height,
+    });
+  },
+  onHideDetail: () => {
+    window.electronAPI.hideFloatDetail();
+  },
+  onHideCtxMenu: () => {
+    window.electronAPI.hideCtxMenu();
+  },
+});
+const float = useFloatState();
+const { isDragging, isDocked } = float;
+const hasMoved = float.hasMoved;
 const theme = ref("light");
 const accent = ref(localStorage.getItem("accent") || "forest");
 const preset = ref(localStorage.getItem("preset") || "midnight");
@@ -333,28 +357,27 @@ let unsubCtxClosed: (() => void) | null = null;
 let unsubEdgeDock: (() => void) | null = null;
 let unsubThemeChanged: (() => void) | null = null;
 
-// ── 贴边状态 ──
-const isDocked = ref(false);
+// ── Timer 集中管理 ──
+const timers = {
+  showDetail: null as ReturnType<typeof setTimeout> | null,
+  hideDetail: null as ReturnType<typeof setTimeout> | null,
+  resize: null as ReturnType<typeof setTimeout> | null,
+  readySafety: null as ReturnType<typeof setTimeout> | null,
+};
+
+function clearAllTimers() {
+  for (const key of Object.keys(timers) as (keyof typeof timers)[]) {
+    if (timers[key]) {
+      clearTimeout(timers[key]!);
+      timers[key] = null;
+    }
+  }
+}
 
 // ── 详情窗口 hover 控制 ──
-let showDetailTimer: ReturnType<typeof setTimeout> | null = null;
-let hideDetailTimer: ReturnType<typeof setTimeout> | null = null;
 const isDetailHovered = ref(false);
 const SHOW_DELAY = 350; // 悬停 350ms 后弹出详情
 const HIDE_DELAY = 300; // 离开 300ms 后关闭详情
-
-async function showDetailWindow() {
-  if (layoutMode.value !== "list") return;
-  // 获取当前窗口 bounds，传给主进程计算详情窗口位置
-  const bounds = await window.electronAPI.getFloatWindowBounds();
-  if (!bounds) return;
-  window.electronAPI.showFloatDetail({
-    anchorX: bounds.x,
-    anchorY: bounds.y,
-    anchorW: bounds.width,
-    anchorH: bounds.height,
-  });
-}
 
 async function hideDetailWindow() {
   window.electronAPI.hideFloatDetail();
@@ -366,37 +389,31 @@ function onFloatEnter() {
 
   // 贴边状态：hover 弹出时立即取消贴边条显示
   if (isDocked.value) {
-    isDocked.value = false;
-  }
-  // 重置拖拽状态，避免残留状态影响右键菜单
-  hasMoved.value = false;
-  // 关闭可能打开的右键菜单（详情窗口与右键菜单互斥）
-  if (ctxMenuOpen.value) {
-    ctxMenuOpen.value = false;
-    window.electronAPI.hideCtxMenu();
+    float.undock();
   }
   if (layoutMode.value !== "list") return;
-  if (hideDetailTimer) {
-    clearTimeout(hideDetailTimer);
-    hideDetailTimer = null;
+  if (timers.hideDetail) {
+    clearTimeout(timers.hideDetail);
+    timers.hideDetail = null;
   }
-  if (showDetailTimer) return;
-  showDetailTimer = setTimeout(() => {
-    showDetailTimer = null;
+  if (timers.showDetail) return;
+  timers.showDetail = setTimeout(() => {
+    timers.showDetail = null;
     if (isDragging.value) return;
-    showDetailWindow();
+    // 互斥：如果右键菜单正打开，先关闭
+    mutex.showDetail();
   }, SHOW_DELAY);
 }
 
 function onFloatLeave() {
   if (layoutMode.value !== "list" || isDragging.value) return;
-  if (showDetailTimer) {
-    clearTimeout(showDetailTimer);
-    showDetailTimer = null;
+  if (timers.showDetail) {
+    clearTimeout(timers.showDetail);
+    timers.showDetail = null;
   }
-  if (hideDetailTimer) return;
-  hideDetailTimer = setTimeout(() => {
-    hideDetailTimer = null;
+  if (timers.hideDetail) return;
+  timers.hideDetail = setTimeout(() => {
+    timers.hideDetail = null;
     // 如果详情窗口正在被 hover，不关闭
     if (!isDetailHovered.value) {
       hideDetailWindow();
@@ -441,17 +458,14 @@ const FLOAT_WIDTH = 260;
 const FLOAT_LIST_HEIGHT = 88;
 const FLOAT_CAROUSEL_HEIGHT = 220;
 
-let resizeTimer: ReturnType<typeof setTimeout> | null = null;
 // 标记是否需要在 resize 完成后发送 ready 信号
 let shouldSendReadyAfterResize = false;
-// 安全定时器引用
-let readySafetyTimer: ReturnType<typeof setTimeout> | null = null;
 
 function resizeToFit() {
   // 取消上一次尚未执行的 resize，避免竞态
-  if (resizeTimer) {
-    clearTimeout(resizeTimer);
-    resizeTimer = null;
+  if (timers.resize) {
+    clearTimeout(timers.resize);
+    timers.resize = null;
   }
   // 使用 setTimeout 而非 nextTick，等待浏览器完成布局绘制后再 resize
   // nextTick 可能在 v-if 分支切换的 DOM 更新完成前触发
@@ -461,8 +475,8 @@ function resizeToFit() {
   window.electronAPI.debugLog(
     `resizeToFit: mode=${mode}, target=${FLOAT_WIDTH}x${targetH}`,
   );
-  resizeTimer = setTimeout(() => {
-    resizeTimer = null;
+  timers.resize = setTimeout(() => {
+    timers.resize = null;
     window.electronAPI.debugLog(
       `resizeToFit: executing ${FLOAT_WIDTH}x${targetH}, shouldSendReady=${shouldSendReadyAfterResize}`,
     );
@@ -471,9 +485,9 @@ function resizeToFit() {
     if (shouldSendReadyAfterResize) {
       shouldSendReadyAfterResize = false;
       // 清除安全定时器
-      if (readySafetyTimer) {
-        clearTimeout(readySafetyTimer);
-        readySafetyTimer = null;
+      if (timers.readySafety) {
+        clearTimeout(timers.readySafety);
+        timers.readySafety = null;
       }
       window.electronAPI.debugLog(
         "[FloatWindow] resizeToFit: sending floatReady after resize",
@@ -490,22 +504,21 @@ function resizeToFit() {
 async function showMenu(e: MouseEvent) {
   // 拖拽后不弹菜单，或拖拽状态残留时清理
   if (isDragging.value) {
-    isDragging.value = false;
-    hasMoved.value = false;
+    float.endDrag();
     cleanupDragListeners();
   }
   if (hasMoved.value) return;
 
-  // 详情窗口与右键菜单互斥：打开菜单时先关闭详情窗口
-  if (showDetailTimer) {
-    clearTimeout(showDetailTimer);
-    showDetailTimer = null;
+  // 详情窗口与右键菜单互斥：打开菜单时取消详情定时器，互斥由 mutex 统一管理
+  if (timers.showDetail) {
+    clearTimeout(timers.showDetail);
+    timers.showDetail = null;
   }
-  if (hideDetailTimer) {
-    clearTimeout(hideDetailTimer);
-    hideDetailTimer = null;
+  if (timers.hideDetail) {
+    clearTimeout(timers.hideDetail);
+    timers.hideDetail = null;
   }
-  hideDetailWindow();
+  mutex.showCtxMenu();
 
   // Walk up from target to find a model card
   let el = e.target as HTMLElement | null;
@@ -550,13 +563,13 @@ function handleCtxMenuAction(action: string) {
     case "set-layout:list":
       layoutMode.value = "list";
       localStorage.setItem("floatLayout", "list");
-      hideDetailWindow();
+      mutex.hideDetail();
       nextTick(() => resizeToFit());
       break;
     case "set-layout:carousel":
       layoutMode.value = "carousel";
       localStorage.setItem("floatLayout", "carousel");
-      hideDetailWindow();
+      mutex.hideDetail();
       nextTick(() => {
         idx.value = 0;
         go(0);
@@ -632,22 +645,19 @@ function onDragMove(e: MouseEvent) {
   el.scrollLeft = dragScrollLeft - dx;
 }
 
-function onDragEnd(e: MouseEvent) {
+function onDragEnd(_e: MouseEvent) {
   if (!dragging) return;
   dragging = false;
   const el = carouselRef.value;
   if (!el) return;
   el.style.scrollSnapType = "";
   el.style.cursor = "";
-  // Snap to nearest slide based on final scroll position
-  const w = el.querySelector(".cslide")?.clientWidth || 1;
-  const target = Math.round(el.scrollLeft / w);
+  // Snap to nearest slide — use clientWidth of container (each slide is 100% width)
+  const target = Math.round(el.scrollLeft / el.clientWidth);
   go(Math.max(0, Math.min(slideCount.value - 1, target)));
 }
 
 // Window drag (IPC-based, replaces -webkit-app-region: drag)
-const isDragging = ref(false);
-const hasMoved = ref(false);
 let windowDragStartX = 0;
 let windowDragStartY = 0;
 const DRAG_THRESHOLD = 3;
@@ -655,7 +665,7 @@ const DRAG_THRESHOLD = 3;
 function onWindowDragStart(e: MouseEvent) {
   // 贴边拖拽开始时立即取消贴边条
   if (isDocked.value) {
-    isDocked.value = false;
+    float.undock();
   }
   // 忽略右键（右键菜单单独处理）
   if (e.button !== 0) return;
@@ -669,8 +679,7 @@ function onWindowDragStart(e: MouseEvent) {
 
   windowDragStartX = e.screenX;
   windowDragStartY = e.screenY;
-  isDragging.value = true;
-  hasMoved.value = false;
+  float.startDrag(e.screenX, e.screenY);
 
   // 显示全屏遮罩，防止事件被其他元素截断
   showDragOverlay();
@@ -699,7 +708,7 @@ function onDocMouseMove(e: MouseEvent) {
 
   // 超过阈值后启动拖拽（只调用一次，主进程会持续跟踪鼠标）
   if (!hasMoved.value && (absDx > DRAG_THRESHOLD || absDy > DRAG_THRESHOLD)) {
-    hasMoved.value = true;
+    float.markDragMoved();
     // 拖拽开始时关闭详情窗口
     hideDetailWindow();
     // 启动主进程拖拽（只需调用一次，主进程会持续跟踪鼠标）
@@ -735,17 +744,14 @@ function stopDrag() {
   // 立即清理所有事件监听器和定时器
   cleanupDragListeners();
 
-  // 标记拖拽结束
-  isDragging.value = false;
+  // 结束拖拽状态，返回是否确实移动过
+  const hadMoved = float.endDrag();
 
   // 总是调用 stopWindowDrag，确保主进程清理定时器
-  if (hasMoved.value) {
+  if (hadMoved) {
     console.log("[FloatWindow] Calling stopWindowDrag");
     window.electronAPI.stopWindowDrag();
   }
-
-  // 重置移动状态，确保下次右键菜单能正常触发
-  hasMoved.value = false;
 }
 
 function cleanupDragListeners() {
@@ -759,11 +765,10 @@ function cleanupDragListeners() {
 function onWindowDragEnd() {
   cleanupDragListeners();
   if (!isDragging.value) return;
-  isDragging.value = false;
-  if (hasMoved.value) {
+  const hadMoved = float.endDrag();
+  if (hadMoved) {
     window.electronAPI.stopWindowDrag();
   }
-  hasMoved.value = false;
 }
 
 // 全屏遮罩，防止拖拽时事件被其他元素截断
@@ -796,10 +801,20 @@ async function fetchModel(m: ModelConfig) {
 
 // Lifecycle
 onMounted(async () => {
-  const s = localStorage.getItem("theme");
-  if (s) theme.value = s;
-  const savedPreset = localStorage.getItem("preset");
-  if (savedPreset) preset.value = savedPreset;
+  // 先从主进程拉取当前主题（单一真相源），回退到 localStorage
+  try {
+    const t = await window.electronAPI.getTheme();
+    if (t) {
+      theme.value = t.mode;
+      accent.value = t.accent;
+      preset.value = t.preset;
+    }
+  } catch {
+    const s = localStorage.getItem("theme");
+    if (s) theme.value = s;
+    const savedPreset = localStorage.getItem("preset");
+    if (savedPreset) preset.value = savedPreset;
+  }
   // 标记需要在 resize 完成后发送 ready 信号
   shouldSendReadyAfterResize = true;
   window.electronAPI.debugLog(
@@ -807,7 +822,7 @@ onMounted(async () => {
   );
 
   // 安全超时：确保即使 resize 流程出问题，ready 信号也会在 300ms 后发送
-  readySafetyTimer = setTimeout(() => {
+  timers.readySafety = setTimeout(() => {
     if (shouldSendReadyAfterResize) {
       shouldSendReadyAfterResize = false;
       window.electronAPI.debugLog(
@@ -821,13 +836,13 @@ onMounted(async () => {
     await store.loadConfig();
     resizeToFit();
     window.electronAPI.debugLog(
-      "[FloatWindow] onMounted: resizeToFit called, resizeTimer=" +
-        !!resizeTimer,
+      "[FloatWindow] onMounted: resizeToFit called, timers.resize=" +
+        !!timers.resize,
     );
   } catch {
     // loadConfig 失败时，直接发送 ready
     shouldSendReadyAfterResize = false;
-    clearTimeout(readySafetyTimer);
+    clearTimeout(timers.readySafety);
     window.electronAPI.debugLog(
       "[FloatWindow] onMounted: loadConfig failed, sending ready directly",
     );
@@ -852,9 +867,9 @@ onMounted(async () => {
     isDetailHovered.value = state === "enter";
     if (state === "enter") {
       // 详情窗口被 hover，取消关闭计时器
-      if (hideDetailTimer) {
-        clearTimeout(hideDetailTimer);
-        hideDetailTimer = null;
+      if (timers.hideDetail) {
+        clearTimeout(timers.hideDetail);
+        timers.hideDetail = null;
       }
     } else {
       // 详情窗口失去 hover，开始延迟关闭
@@ -870,16 +885,16 @@ onMounted(async () => {
   // 监听原生 context-menu 事件（窗口未聚焦时的兜底，修复 Issue #1）
   unsubNativeCtx = window.electronAPI.onNativeContextMenu(
     (pos: { x: number; y: number }) => {
-      // 详情窗口与右键菜单互斥：打开菜单时先关闭详情窗口
-      if (showDetailTimer) {
-        clearTimeout(showDetailTimer);
-        showDetailTimer = null;
+      // 详情窗口与右键菜单互斥
+      if (timers.showDetail) {
+        clearTimeout(timers.showDetail);
+        timers.showDetail = null;
       }
-      if (hideDetailTimer) {
-        clearTimeout(hideDetailTimer);
-        hideDetailTimer = null;
+      if (timers.hideDetail) {
+        clearTimeout(timers.hideDetail);
+        timers.hideDetail = null;
       }
-      hideDetailWindow();
+      mutex.showCtxMenu();
       // DOM 事件已处理过则跳过
       if (ctxMenuOpen.value) return;
       ctxMenuOpen.value = true;
@@ -902,11 +917,15 @@ onMounted(async () => {
   });
   // 初始化贴边状态
   const s2 = await window.electronAPI.getEdgeDockState();
-  if (s2) {
-    isDocked.value = s2.isDocked;
+  if (s2?.isDocked && s2.edge) {
+    float.dock(s2.edge);
   }
   unsubEdgeDock = window.electronAPI.onEdgeDockChanged((s) => {
-    isDocked.value = s.isDocked;
+    if (s.isDocked && s.edge) {
+      float.dock(s.edge as "left" | "right" | "top");
+    } else {
+      float.undock();
+    }
   });
   // 监听主题变化（主窗口切换主题时实时同步）
   unsubThemeChanged = window.electronAPI.onThemeChanged((t) => {
@@ -918,15 +937,15 @@ onMounted(async () => {
     localStorage.setItem("preset", t.preset);
   });
   // 如果 resize 已经完成（timer 为 null），直接发送 ready
-  if (shouldSendReadyAfterResize && !resizeTimer) {
+  if (shouldSendReadyAfterResize && !timers.resize) {
     shouldSendReadyAfterResize = false;
     // 清除安全定时器
-    if (readySafetyTimer) {
-      clearTimeout(readySafetyTimer);
-      readySafetyTimer = null;
+    if (timers.readySafety) {
+      clearTimeout(timers.readySafety);
+      timers.readySafety = null;
     }
     window.electronAPI.debugLog(
-      "[FloatWindow] onMounted end: resizeTimer is null, sending ready directly",
+      "[FloatWindow] onMounted end: timers.resize is null, sending ready directly",
     );
     // 使用 setTimeout 而不是 requestAnimationFrame
     setTimeout(() => {
@@ -934,8 +953,8 @@ onMounted(async () => {
     }, 0);
   } else {
     window.electronAPI.debugLog(
-      "[FloatWindow] onMounted end: waiting for resize, resizeTimer=" +
-        !!resizeTimer,
+      "[FloatWindow] onMounted end: waiting for resize, timers.resize=" +
+        !!timers.resize,
     );
   }
 });
@@ -951,15 +970,8 @@ onUnmounted(() => {
   unsubEdgeDock?.();
   unsubThemeChanged?.();
   cleanupDragListeners();
-  // 清理 resize 相关状态
-  if (resizeTimer) {
-    clearTimeout(resizeTimer);
-    resizeTimer = null;
-  }
-  if (readySafetyTimer) {
-    clearTimeout(readySafetyTimer);
-    readySafetyTimer = null;
-  }
+  // 统一清理所有定时器
+  clearAllTimers();
   shouldSendReadyAfterResize = false;
 });
 

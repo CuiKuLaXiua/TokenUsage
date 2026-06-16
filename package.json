@@ -4,13 +4,14 @@
   "description": "桌面端模型token用量及额度展示工具",
   "main": "dist-electron/main.js",
   "scripts": {
+    "clean": "node -e \"const{rmSync}=require('fs');rmSync('dist',{recursive:true,force:true});rmSync('release',{recursive:true,force:true})\"",
     "build:electron": "tsc -p tsconfig.electron.json",
     "generate-icons": "node scripts/generate-icons.mjs",
     "dev": "npm run build:electron && node scripts/dev.mjs",
-    "build": "npm run generate-icons && npm run build:electron && vite build",
+    "build": "npm run clean && npm run generate-icons && npm run build:electron && vite build",
     "preview": "vite preview",
-    "electron:dev": "npm run generate-icons && npm run build:electron && vite build && electron .",
-    "electron:build": "npm run generate-icons && npm run build:electron && vite build && electron-builder --config electron-builder.yml",
+    "electron:dev": "npm run clean && npm run generate-icons && npm run build:electron && vite build && electron .",
+    "electron:build": "npm run clean && npm run generate-icons && npm run build:electron && vite build && electron-builder --config electron-builder.yml",
     "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --ignore-path .gitignore",
     "postinstall": "patch-package"
   },
