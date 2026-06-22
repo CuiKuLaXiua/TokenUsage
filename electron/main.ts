@@ -19,6 +19,7 @@ import { config as loadDotenv } from "dotenv";
 import { isAllowedUrl } from "./ipc-validators";
 import { LoginWindowManager } from "./login";
 import { OpenCodeLoginWindowManager } from "./opencode-login";
+import { KimiLoginWindowManager } from "./kimi-login";
 import { UsageRefresher } from "./refresher";
 import { windowManager } from "./windowManager";
 import { parseOpenCodeDailyResponse, parseOpenCodeRecordsResponse } from "./api/parsers";
@@ -81,6 +82,7 @@ let isQuitting = false;
 
 const loginManager = new LoginWindowManager();
 const openCodeLoginManager = new OpenCodeLoginWindowManager();
+const kimiLoginManager = new KimiLoginWindowManager();
 
 const refresher = new UsageRefresher(configPath);
 
@@ -940,8 +942,12 @@ ipcMain.handle("open-mimo-login", async (_, modelId?: string) => {
           ? config.models?.find((m: any) => m.id === modelId)
           : config.models?.find((m: any) => m.provider === "mimo");
         if (!mimoModel) {
-          console.error("[Login] 未找到 MIMO 模型, modelId:", modelId);
-          resolve(null);
+          // 新添加尚未保存的模型：仍然打开登录窗口获取 Cookie，但不保存配置
+          console.log(
+            "[Login] 未在 config 中找到模型，按未保存模型处理，打开登录窗口:",
+            modelId,
+          );
+          doLogin(loginUrl, resolve, modelId);
           return;
         }
         if (mimoModel?.loginUrl) {
@@ -1029,7 +1035,7 @@ async function doLogin(
   modelId?: string,
 ): Promise<void> {
   console.log("[Login] 打开登录窗口:", loginUrl);
-  await loginManager.openLoginWindow(loginUrl, mainWindow || undefined);
+  await loginManager.openLoginWindow(loginUrl, modelId, mainWindow || undefined);
   loginManager.onLoginComplete((cookies) => {
     console.log("[Login] 登录完成，cookies:", cookies ? "已获取" : "未获取");
     if (cookies) {
@@ -1225,12 +1231,9 @@ ipcMain.handle("fetch-mimo-usage", async (_, options) => {
             // 情况1: HTTP 401/403 状态码
             if (response.statusCode === 401 || response.statusCode === 403) {
               console.warn(
-                "[API] MiMo 返回 401/403，触发登录，状态码:",
+                "[API] MiMo 返回 401/403，状态码:",
                 response.statusCode,
               );
-              if (mainWindow && !mainWindow.isDestroyed()) {
-                mainWindow.webContents.send("login-needed");
-              }
               const error = new Error("Cookie expired or unauthorized");
               (error as any).code = "COOKIE_EXPIRED";
               (error as any).statusCode = response.statusCode;
@@ -1240,10 +1243,7 @@ ipcMain.handle("fetch-mimo-usage", async (_, options) => {
 
             // 情况2: 响应中包含 loginUrl 字段（MiMo 特有的登录重定向）
             if (data.loginUrl) {
-              console.warn("[API] MiMo 返回 loginUrl，触发登录");
-              if (mainWindow && !mainWindow.isDestroyed()) {
-                mainWindow.webContents.send("login-needed");
-              }
+              console.warn("[API] MiMo 返回 loginUrl");
               const error = new Error("Cookie expired or unauthorized");
               (error as any).code = "COOKIE_EXPIRED";
               reject(error);
@@ -1265,9 +1265,6 @@ ipcMain.handle("fetch-mimo-usage", async (_, options) => {
 
               if (isCookieError) {
                 console.warn("[API] MiMo 检测到 Cookie 相关错误关键词");
-                if (mainWindow && !mainWindow.isDestroyed()) {
-                  mainWindow.webContents.send("login-needed");
-                }
                 const error = new Error("Cookie expired or unauthorized");
                 (error as any).code = "COOKIE_EXPIRED";
                 reject(error);
@@ -1350,18 +1347,12 @@ ipcMain.handle(
 
             // MiMo Cookie 过期检测
             if (response.statusCode === 401 || response.statusCode === 403) {
-              if (mainWindow && !mainWindow.isDestroyed()) {
-                mainWindow.webContents.send("login-needed");
-              }
               const error = new Error("Cookie expired");
               (error as any).code = "COOKIE_EXPIRED";
               reject(error);
               return;
             }
             if (data.loginUrl) {
-              if (mainWindow && !mainWindow.isDestroyed()) {
-                mainWindow.webContents.send("login-needed");
-              }
               const error = new Error("Cookie expired");
               (error as any).code = "COOKIE_EXPIRED";
               reject(error);
@@ -1428,18 +1419,12 @@ ipcMain.handle(
 
             // MiMo Cookie 过期检测
             if (response.statusCode === 401 || response.statusCode === 403) {
-              if (mainWindow && !mainWindow.isDestroyed()) {
-                mainWindow.webContents.send("login-needed");
-              }
               const error = new Error("Cookie expired");
               (error as any).code = "COOKIE_EXPIRED";
               reject(error);
               return;
             }
             if (data.loginUrl) {
-              if (mainWindow && !mainWindow.isDestroyed()) {
-                mainWindow.webContents.send("login-needed");
-              }
               const error = new Error("Cookie expired");
               (error as any).code = "COOKIE_EXPIRED";
               reject(error);
@@ -1932,6 +1917,257 @@ async function doOpenCodeLogin(
     }
   });
 }
+
+// ── Kimi 登录 ──
+let kimiLoginInProgress = false;
+let kimiLoginPromise: Promise<{ cookies: string | null; token: string | null }> | null = null;
+
+const KIMI_DEFAULT_LOGIN_URL = "https://www.kimi.com/code/console";
+const KIMI_SUBSCRIPTION_URL =
+  "https://www.kimi.com/apiv2/kimi.gateway.membership.v2.MembershipService/GetSubscriptionStat";
+
+ipcMain.handle("open-kimi-login", async (_, modelId?: string) => {
+  console.log(
+    "[KimiLogin] open-kimi-login handler 被调用, inProgress:",
+    kimiLoginInProgress,
+    "modelId:",
+    modelId,
+  );
+
+  if (kimiLoginInProgress && kimiLoginPromise) {
+    console.log("[KimiLogin] 登录已在进行中，等待结果");
+    return kimiLoginPromise;
+  }
+
+  kimiLoginInProgress = true;
+
+  kimiLoginPromise = new Promise<{ cookies: string | null; token: string | null }>((resolvePromise) => {
+    let loginUrl = KIMI_DEFAULT_LOGIN_URL;
+    try {
+      if (existsSync(configPath)) {
+        const config = JSON.parse(readFileSync(configPath, "utf-8"));
+        const kimiModel = modelId
+          ? config.models?.find((m: any) => m.id === modelId)
+          : config.models?.find((m: any) => m.provider === "kimi");
+        if (!kimiModel) {
+          // 新添加尚未保存的模型：仍然打开登录窗口获取 Cookie，但不保存配置
+          console.log(
+            "[KimiLogin] 未在 config 中找到模型，按未保存模型处理，打开登录窗口:",
+            modelId,
+          );
+          doKimiLogin(loginUrl, resolvePromise, modelId);
+          return;
+        }
+        if (kimiModel?.loginUrl) {
+          loginUrl = kimiModel.loginUrl;
+        }
+        // 如果已有 cookie，先验证是否有效
+        if (kimiModel?.cookies) {
+          const testRequest = net.request({
+            method: "POST",
+            url: KIMI_SUBSCRIPTION_URL,
+            headers: buildKimiSubscriptionHeaders(kimiModel.cookies, kimiModel.apiKey),
+          });
+
+          let testData = "";
+          testRequest.on("response", (response) => {
+            response.on("data", (chunk) => {
+              testData += chunk.toString();
+            });
+            response.on("end", () => {
+              try {
+                const data = JSON.parse(testData);
+                if (
+                  response.statusCode === 200 &&
+                  data?.subscriptionBalance
+                ) {
+                  console.log("[KimiLogin] 已有 cookie 有效，跳过登录");
+                  resolvePromise({ cookies: kimiModel.cookies, token: kimiModel.apiKey || null });
+                  return;
+                }
+              } catch {
+                /* 解析失败，继续登录流程 */
+              }
+              doKimiLogin(loginUrl, resolvePromise, kimiModel.id);
+            });
+          });
+          testRequest.on("error", () => {
+            doKimiLogin(loginUrl, resolvePromise, kimiModel.id);
+          });
+          testRequest.write("{}");
+          testRequest.end();
+          return;
+        }
+      }
+    } catch (error) {
+      console.error("[KimiLogin] 读取配置失败:", error);
+    }
+
+    // 无 cookie，直接打开登录窗口
+    let modelIdForLogin = modelId;
+    if (!modelIdForLogin) {
+      try {
+        if (existsSync(configPath)) {
+          const config = JSON.parse(readFileSync(configPath, "utf-8"));
+          const kimiModel = config.models?.find((m: any) => m.provider === "kimi");
+          modelIdForLogin = kimiModel?.id;
+        }
+      } catch {}
+    }
+    doKimiLogin(loginUrl, resolvePromise, modelIdForLogin);
+  });
+
+  kimiLoginPromise.finally(() => {
+    kimiLoginInProgress = false;
+    kimiLoginPromise = null;
+  });
+
+  return kimiLoginPromise;
+});
+
+async function doKimiLogin(
+  loginUrl: string,
+  resolvePromise: (result: { cookies: string | null; token: string | null }) => void,
+  modelId?: string,
+): Promise<void> {
+  console.log("[KimiLogin] 打开登录窗口:", loginUrl);
+  await kimiLoginManager.openLoginWindow(loginUrl, modelId, mainWindow || undefined);
+  kimiLoginManager.onLoginComplete((data) => {
+    console.log(
+      "[KimiLogin] 登录完成回调，data:",
+      data ? "已获取" : "null",
+    );
+
+      if (data?.cookies) {
+      // 保存到 config
+      try {
+        if (existsSync(configPath)) {
+          const config = JSON.parse(readFileSync(configPath, "utf-8"));
+          const kimiModel = modelId
+            ? config.models?.find((m: any) => m.id === modelId)
+            : config.models?.find((m: any) => m.provider === "kimi");
+          if (kimiModel) {
+            kimiModel.cookies = data.cookies;
+            if (data.token) {
+              kimiModel.apiKey = data.token;
+              console.log("[KimiLogin] JWT token 已保存到 apiKey, modelId:", kimiModel.id);
+            }
+            writeFileSync(configPath, JSON.stringify(config, null, 2));
+            console.log(
+              "[KimiLogin] Cookies 已保存到 config, modelId:",
+              kimiModel.id,
+            );
+          }
+        }
+      } catch (error) {
+        console.error("[KimiLogin] 保存配置失败:", error);
+      }
+      resolvePromise({ cookies: data.cookies, token: data.token || null });
+    } else {
+      console.warn("[KimiLogin] 登录失败或已取消");
+      resolvePromise({ cookies: null, token: null });
+    }
+  });
+}
+
+function buildKimiSubscriptionHeaders(
+  cookies: string,
+  token?: string,
+): Record<string, string> {
+  const deviceId = extractDeviceIdFromJwt(token);
+  const headers: Record<string, string> = {
+    "User-Agent":
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
+    Accept: "*/*",
+    "Accept-Language": "zh-CN,zh;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br, zstd",
+    Referer: "https://www.kimi.com/membership/subscription?tab=quota",
+    Origin: "https://www.kimi.com",
+    "connect-protocol-version": "1",
+    "content-type": "application/json",
+    "x-language": "zh-CN",
+    "x-msh-platform": "web",
+    "x-msh-version": "1.0.0",
+    "x-msh-device-id": deviceId || "",
+    "x-traffic-id": deviceId || "",
+    Cookie: cookies,
+  };
+  if (token) {
+    headers["authorization"] = `Bearer ${token}`;
+  }
+  return headers;
+}
+
+function extractDeviceIdFromJwt(jwt?: string): string | undefined {
+  if (!jwt) return undefined;
+  try {
+    const payload = jwt.split(".")[1];
+    if (!payload) return undefined;
+    const json = Buffer.from(
+      payload.replace(/-/g, "+").replace(/_/g, "/"),
+      "base64",
+    ).toString("utf-8");
+    const data = JSON.parse(json);
+    return data.device_id || data.sub || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+// Kimi 订阅状态 API 代理
+ipcMain.handle(
+  "fetch-kimi-subscription",
+  async (_, options: { cookies: string; token?: string; baseUrl?: string }) => {
+    return new Promise((resolve, reject) => {
+      const { cookies, token, baseUrl } = options;
+      const url = baseUrl || KIMI_SUBSCRIPTION_URL;
+
+      if (!isAllowedUrl(url)) {
+        reject(new Error("URL not allowed"));
+        return;
+      }
+
+      const requestHeaders = buildKimiSubscriptionHeaders(cookies, token);
+
+      const request = net.request({
+        method: "POST",
+        url,
+        headers: requestHeaders,
+      });
+
+      let responseData = "";
+
+      request.on("response", (response) => {
+        response.on("data", (chunk) => {
+          responseData += chunk.toString();
+        });
+
+        response.on("end", () => {
+          try {
+            if (response.statusCode === 401 || response.statusCode === 403) {
+              const error = new Error("Cookie expired or unauthorized");
+              (error as any).code = "COOKIE_EXPIRED";
+              reject(error);
+              return;
+            }
+
+            const data = JSON.parse(responseData);
+            resolve(data);
+          } catch {
+            reject(new Error("JSON解析失败"));
+          }
+        });
+      });
+
+      request.on("error", (error) => {
+        reject(error);
+      });
+
+      request.write("{}");
+      request.end();
+    });
+  },
+);
 
 // ── 数据导出：文件保存对话框 ──
 ipcMain.handle(

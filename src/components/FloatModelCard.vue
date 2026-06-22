@@ -49,6 +49,11 @@
             <!-- 百分比（进度条右侧） -->
             <span class="tier-percent">{{ formatPercent(tier.percent) }}%</span>
           </div>
+          <!-- 当 tier 带有 total/used 时显示详情 -->
+          <div v-if="tier.total && tier.total > 0" class="tier-detail">
+            <span>{{ formatTokens(tier.used) }} / {{ formatTokens(tier.total) }}</span>
+            <span class="tier-remaining">余 {{ formatTokens(tier.remaining) }}</span>
+          </div>
         </div>
       </template>
 
@@ -418,6 +423,20 @@ const usage = computed(() => store.modelUsageMap[props.model.id]);
   color: var(--text-primary);
   min-width: 40px;
   text-align: right;
+}
+
+/* Tier detail (used/total/remaining) */
+.tier-detail {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+.tier-remaining {
+  color: var(--success);
+  font-weight: 600;
 }
 
 /* Fetch button */

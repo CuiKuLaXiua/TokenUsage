@@ -173,6 +173,61 @@ function parseKimiResponse(response: any): ModelUsageStatus | null {
   }
 }
 
+function parseKimiSubscriptionResponse(response: any): ModelUsageStatus | null {
+  if (!response || typeof response !== 'object') return null
+
+  const tiers: UsageTier[] = []
+
+  // 5 小时速率限制
+  const limit5h = response.ratelimitCode5h
+  if (limit5h && typeof limit5h === 'object' && limit5h.enabled) {
+    const ratio = Number(limit5h.ratio) ?? 0
+    const percent = Math.round(ratio * 10000) / 100
+    tiers.push({
+      name: 'five_hour',
+      label: '5H',
+      percent,
+      resetAt: typeof limit5h.resetTime === 'string' ? limit5h.resetTime : undefined
+    })
+  }
+
+  // 7 天速率限制
+  const limit7d = response.ratelimitCode7d
+  if (limit7d && typeof limit7d === 'object' && limit7d.enabled) {
+    const ratio = Number(limit7d.ratio) ?? 0
+    const percent = Math.round(ratio * 10000) / 100
+    tiers.push({
+      name: 'seven_day',
+      label: '7D',
+      percent,
+      resetAt: typeof limit7d.resetTime === 'string' ? limit7d.resetTime : undefined
+    })
+  }
+
+  // 月度订阅额度 → 与 OpenCode 统一显示为 30D
+  const subscription = response.subscriptionBalance
+  if (subscription && typeof subscription === 'object') {
+    const ratio = Number(subscription.amountUsedRatio) ?? 0
+    const percent = Math.round(ratio * 10000) / 100
+    tiers.push({
+      name: 'subscription',
+      label: '30D',
+      percent,
+      resetAt: typeof subscription.expireTime === 'string' ? subscription.expireTime : undefined
+    })
+  }
+
+  if (tiers.length === 0) return null
+
+  return {
+    usageType: 'percent',
+    planName: 'Kimi 订阅',
+    lastUpdated: Date.now(),
+    tiers,
+    currentPeriodEnd: typeof subscription?.expireTime === 'string' ? subscription.expireTime : undefined
+  }
+}
+
 // ── DeepSeek (余额查询) ──
 // 响应格式: { balance_infos: [{ currency: "CNY", total_balance: 50.00, ... }] }
 
@@ -341,7 +396,8 @@ export function extractUsage(response: any, provider: string): ModelUsageStatus 
       result = parseMimoResponse(response)
       break
     case 'kimi':
-      result = parseKimiResponse(response)
+      // Kimi Cookie 方式返回 subscription 结构，API Key 方式返回 limits/usage 结构
+      result = parseKimiSubscriptionResponse(response) || parseKimiResponse(response)
       break
     case 'deepseek':
       result = parseDeepSeekResponse(response)

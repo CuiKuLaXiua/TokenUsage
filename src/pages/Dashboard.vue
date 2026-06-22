@@ -2,7 +2,8 @@
   <div class="dashboard" :class="{ 'first-mount': firstMount }">
     <!-- Hero Stats -->
     <div class="hero-section">
-      <div class="hero-grid">
+      <!-- 多模型 Hero -->
+      <div v-if="!agg.isSingleModel.value" class="hero-grid">
         <!-- Main Token Ring -->
         <div class="hero-main glass-surface">
           <div class="hero-ring-wrap">
@@ -133,82 +134,129 @@
         </div>
       </div>
 
-      <!-- Type Summary Cards -->
-      <div class="type-summary" v-show="agg.hasAnyData.value">
-        <!-- Token 汇总卡 -->
-        <div v-if="agg.tokenAgg.value" class="type-card glass-surface">
-          <div class="tc-header">
-            <span class="tc-title">📦 Token 额度</span>
-            <span class="tc-count"
-              >{{ agg.tokenAgg.value.modelCount }} 个模型</span
-            >
+      <!-- 单模型 Hero：仅显示当前状态 -->
+      <div v-else-if="agg.singleModelSummary.value" class="hero-grid single-model">
+        <div class="hero-main glass-surface single-model-main single-status">
+          <div class="hero-status-body">
+            <div class="hero-status-icon" :style="singleStatusIconStyle">
+              <el-icon :size="28"><component :is="singleStatusIcon" /></el-icon>
+            </div>
+            <div class="hero-status-info">
+              <div class="hero-status-title">{{ agg.singleModelSummary.value.title }}</div>
+              <div class="hero-status-value" :style="{ color: singleKpiColor }">
+                {{ singleStatusValue }}
+              </div>
+              <div
+                v-if="agg.singleModelSummary.value.secondaryText"
+                class="hero-status-sub"
+              >
+                {{ agg.singleModelSummary.value.secondaryText }}
+              </div>
+            </div>
           </div>
-          <div class="tc-bar-track">
-            <div
-              class="tc-bar-fill"
-              :style="{
-                width: '100%',
-                background: 'var(--progress-gradient)',
-                clipPath: `inset(0 calc(100% - ${Math.min(100, agg.tokenAgg.value.percent)}%) 0 0)`,
-              }"
-            ></div>
-          </div>
-          <div class="tc-meta">
-            <span
-              >{{ formatLargeNumber(agg.tokenAgg.value.used) }} /
-              {{ formatLargeNumber(agg.tokenAgg.value.total) }}</span
-            >
-            <span class="tc-pct"
-              >{{ agg.tokenAgg.value.percent.toFixed(1) }}%</span
-            >
-          </div>
-        </div>
 
-        <!-- 时间窗口汇总卡 -->
-        <div v-if="agg.percentAgg.value" class="type-card glass-surface">
-          <div class="tc-header">
-            <span class="tc-title">⏱ 时间窗口</span>
-            <span class="tc-count"
-              >{{ agg.percentAgg.value.modelCount }} 个模型</span
-            >
-          </div>
-          <div class="tc-bar-track">
-            <div
-              class="tc-bar-fill"
-              :style="{
-                width: '100%',
-                background: 'var(--progress-gradient)',
-                clipPath: `inset(0 calc(100% - ${Math.min(100, agg.percentAgg.value.worstPercent)}%) 0 0)`,
-              }"
-            ></div>
-          </div>
-          <div class="tc-meta">
-            <span>最紧张: {{ agg.percentAgg.value.worstLabel }}</span>
-            <span class="tc-pct"
-              >{{ agg.percentAgg.value.worstPercent.toFixed(1) }}%</span
-            >
+          <div class="hero-status-meta">
+            <span class="hero-provider-badge" :class="agg.singleModelSummary.value.model.provider">
+              {{ getProviderLabel(agg.singleModelSummary.value.model.provider) }}
+            </span>
+            <span class="hero-update-at">{{ singleModelLastUpdated }}更新</span>
           </div>
         </div>
+      </div>
 
-        <!-- 余额汇总卡 -->
-        <div v-if="agg.balanceAgg.value" class="type-card glass-surface">
-          <div class="tc-header">
-            <span class="tc-title">💰 账户余额</span>
-            <span class="tc-count"
-              >{{ agg.balanceAgg.value.modelCount }} 个模型</span
-            >
-          </div>
-          <div class="tc-balance">
-            <span class="tc-currency">{{
-              agg.balanceAgg.value.currency === "CNY"
-                ? "¥"
-                : agg.balanceAgg.value.currency
-            }}</span>
-            <span class="tc-amount">{{
-              agg.balanceAgg.value.totalBalance.toFixed(2)
-            }}</span>
+      <!-- 单模型但暂无 usage 数据：回退多模型 Hero -->
+      <div v-else class="hero-grid">
+        <div class="hero-main glass-surface">
+          <div class="hero-stats">
+            <div class="hero-stat-empty">
+              <span class="hero-stat-label">点击下方模型卡获取额度</span>
+            </div>
           </div>
         </div>
+        <div class="hero-side">
+          <div class="quick-stat glass-surface">
+            <div class="qs-info">
+              <span class="qs-value">1</span>
+              <span class="qs-label">已启用模型</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Type Summary Cards：仅多模型显示 -->
+      <div class="type-summary" v-show="agg.hasAnyData.value && !agg.isSingleModel.value">
+        <!-- 多模型：原有 3 列聚合卡 -->
+        <template v-if="!agg.isSingleModel.value">
+          <!-- Token 汇总卡 -->
+          <div v-if="agg.tokenAgg.value" class="type-card glass-surface">
+            <div class="tc-header">
+              <span class="tc-title">📦 Token 额度</span>
+              <span class="tc-count"
+                >{{ agg.tokenAgg.value.modelCount }} 个模型</span
+              >
+            </div>
+            <div class="tc-bar-track">
+              <div
+                class="tc-bar-fill"
+                :style="{
+                  width: '100%',
+                  background: getProgressColor(agg.tokenAgg.value.percent),
+                  clipPath: `inset(0 calc(100% - ${Math.min(100, agg.tokenAgg.value.percent)}%) 0 0)`,
+                }"
+              ></div>
+            </div>
+            <div class="tc-meta">
+              <span
+                >{{ formatLargeNumber(agg.tokenAgg.value.used) }} /
+                {{ formatLargeNumber(agg.tokenAgg.value.total) }}</span
+              >
+              <span class="tc-pct"
+                >{{ agg.tokenAgg.value.percent.toFixed(1) }}%</span
+              >
+            </div>
+          </div>
+
+          <!-- 时间窗口汇总卡 -->
+          <div v-if="agg.percentAgg.value" class="type-card glass-surface">
+            <div class="tc-header">
+              <span class="tc-title">⏱ 时间窗口</span>
+              <span class="tc-count"
+                >{{ agg.percentAgg.value.modelCount }} 个模型</span
+              >
+            </div>
+            <PercentBar
+              variant="mini-tiers"
+              :tiers="agg.percentAgg.value.tiers"
+              :show-detail="false"
+            />
+            <div class="tc-meta">
+              <span>最紧张: {{ agg.percentAgg.value.worstLabel }}</span>
+              <span class="tc-pct"
+                >{{ agg.percentAgg.value.worstPercent.toFixed(1) }}%</span
+              >
+            </div>
+          </div>
+
+          <!-- 余额汇总卡 -->
+          <div v-if="agg.balanceAgg.value" class="type-card glass-surface">
+            <div class="tc-header">
+              <span class="tc-title">💰 账户余额</span>
+              <span class="tc-count"
+                >{{ agg.balanceAgg.value.modelCount }} 个模型</span
+              >
+            </div>
+            <div class="tc-balance">
+              <span class="tc-currency">{{
+                agg.balanceAgg.value.currency === "CNY"
+                  ? "¥"
+                  : agg.balanceAgg.value.currency
+              }}</span>
+              <span class="tc-amount">{{
+                agg.balanceAgg.value.totalBalance.toFixed(2)
+              }}</span>
+            </div>
+          </div>
+        </template>
       </div>
     </div>
 
@@ -226,8 +274,7 @@
             :disabled="store.refreshing"
           >
             <el-icon :size="16" :class="{ spin: store.refreshing }"
-              ><Refresh
-            /></el-icon>
+              ><Refresh /></el-icon>
             <span>刷新全部</span>
           </button>
         </div>
@@ -284,7 +331,8 @@
                 :disabled="store.fetching[model.id]"
                 title="刷新"
               >
-                <el-icon :size="14" :class="{ spin: store.fetching[model.id] }">
+                <el-icon :size="14" :class="{ spin: store.fetching[model.id] }"
+                >
                   <component
                     :is="store.fetching[model.id] ? Loading : Refresh"
                   />
@@ -351,10 +399,29 @@
               </div>
             </template>
 
-            <!-- Percent Type (Kimi) -->
+            <!-- Percent Type (Kimi / OpenCode) -->
             <template v-else-if="getUsage(model.id)?.usageType === 'percent'">
               <div class="card-body percent-type">
                 <PercentBar :tiers="getUsage(model.id)?.tiers || []" />
+                <!-- 当 tiers 包含 total/used 数据时展示详情 -->
+                <div v-if="hasPercentDetails(model.id)" class="percent-details">
+                  <div class="detail-row">
+                    <span class="detail-key">套餐类型</span>
+                    <span class="detail-val">{{ getUsage(model.id)?.planName }}</span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="detail-key">总计额度</span>
+                    <span class="detail-val">{{ formatFullNumber(getPercentTotal(model.id)) }}</span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="detail-key">已用额度</span>
+                    <span class="detail-val warn">{{ formatFullNumber(getPercentUsed(model.id)) }}</span>
+                  </div>
+                  <div class="detail-row highlight">
+                    <span class="detail-key">剩余额度</span>
+                    <span class="detail-val ok">{{ formatFullNumber(getPercentRemaining(model.id)) }}</span>
+                  </div>
+                </div>
               </div>
             </template>
 
@@ -424,10 +491,14 @@ import {
   Plus,
   CircleCheck,
   DataBoard,
+  Clock,
+  MostlyCloudy,
+  Histogram,
+  Wallet,
 } from "@element-plus/icons-vue";
 import type { ModelConfig } from "@/stores/app";
 import { useAppStore } from "@/stores/app";
-import { formatTokens } from "@/utils/format";
+import { formatTokens, getProgressColor } from "@/utils/format";
 import { useUsageAggregation } from "@/composables/useUsageAggregation";
 import draggable from "vuedraggable";
 import TokenRing from "@/components/TokenRing.vue";
@@ -480,6 +551,128 @@ function formatLargeNumber(num: number): string {
 function formatFullNumber(num: number): string {
   return num.toLocaleString("zh-CN");
 }
+
+function hasPercentDetails(modelId: string): boolean {
+  const usage = getUsage(modelId);
+  if (!usage?.tiers) return false;
+  return usage.tiers.some((t) => (t.total || 0) > 0);
+}
+
+function getPercentTotal(modelId: string): number {
+  const usage = getUsage(modelId);
+  if (!usage?.tiers) return 0;
+  return usage.tiers.reduce((sum, t) => sum + (t.total || 0), 0);
+}
+
+function getPercentUsed(modelId: string): number {
+  const usage = getUsage(modelId);
+  if (!usage?.tiers) return 0;
+  return usage.tiers.reduce((sum, t) => sum + (t.used || 0), 0);
+}
+
+function getPercentRemaining(modelId: string): number {
+  const usage = getUsage(modelId);
+  if (!usage?.tiers) return 0;
+  return usage.tiers.reduce((sum, t) => sum + (t.remaining || 0), 0);
+}
+
+const singleStatusIcon = computed(() => {
+  const summary = agg.singleModelSummary.value;
+  if (!summary) return MostlyCloudy;
+  if (summary.type === "token") return Histogram;
+  if (summary.type === "percent") return Clock;
+  return Wallet;
+});
+
+const singleStatusIconStyle = computed(() => {
+  const summary = agg.singleModelSummary.value;
+  const glow =
+    summary?.type === "balance"
+      ? "var(--neon-green)"
+      : summary?.type === "percent"
+      ? "var(--neon-red)"
+      : "var(--neon-amber)";
+  return { "--glow": glow };
+});
+
+const singleStatusValue = computed(() => {
+  const summary = agg.singleModelSummary.value;
+  if (!summary) return "—";
+  if (summary.type === "balance") {
+    return `${summary.usage.currency === "CNY" ? "¥" : summary.usage.currency || ""}${(summary.usage.balance || 0).toFixed(2)}`;
+  }
+  return summary.primaryLabel;
+});
+
+// ── 单模型 Hero 右侧关键指标 --
+const singleKpiValue = computed(() => {
+  const summary = agg.singleModelSummary.value;
+  if (!summary) return "—";
+  if (summary.type === "token") {
+    return summary.primaryLabel;
+  }
+  if (summary.type === "percent") {
+    return summary.primaryLabel;
+  }
+  return summary.primaryLabel;
+});
+
+const singleKpiLabel = computed(() => {
+  const summary = agg.singleModelSummary.value;
+  if (!summary) return "状态";
+  if (summary.type === "token") return "已用比例";
+  if (summary.type === "percent") return "最紧张窗口";
+  return "账户余额";
+});
+
+const singleKpiIcon = computed(() => {
+  const summary = agg.singleModelSummary.value;
+  if (!summary) return MostlyCloudy;
+  if (summary.type === "token") return Histogram;
+  if (summary.type === "percent") return Clock;
+  return Wallet;
+});
+
+const singleKpiIconStyle = computed(() => {
+  const summary = agg.singleModelSummary.value;
+  const glow =
+    summary?.type === "balance"
+      ? "var(--neon-green)"
+      : summary?.type === "percent"
+      ? "var(--neon-red)"
+      : "var(--neon-amber)";
+  return { "--glow": glow };
+});
+
+const singleKpiColor = computed(() => {
+  const summary = agg.singleModelSummary.value;
+  if (!summary) return "var(--text-primary)";
+  if (summary.type === "balance") return "var(--neon-green)";
+  if (summary.type === "percent") {
+    return summary.primaryValue >= 90
+      ? "var(--neon-red)"
+      : summary.primaryValue >= 70
+      ? "var(--neon-amber)"
+      : "var(--neon-green)";
+  }
+  return summary.primaryValue >= 90
+    ? "var(--neon-red)"
+    : summary.primaryValue >= 70
+    ? "var(--neon-amber)"
+    : "var(--neon-green)";
+});
+
+const singleModelLastUpdated = computed(() => {
+  const usage = agg.singleModelUsage.value;
+  if (!usage?.lastUpdated) return "—";
+  const diff = Date.now() - usage.lastUpdated;
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return "刚刚";
+  if (minutes < 60) return `${minutes}分钟前`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}小时前`;
+  return `${Math.floor(hours / 24)}天前`;
+});
 
 // ── 拖拽排序 ──
 function onDragEnd() {
@@ -585,6 +778,294 @@ async function refreshAll() {
   pointer-events: none;
 }
 
+/* 单模型极简状态 Hero */
+.hero-grid.single-model {
+  grid-template-columns: 1fr;
+}
+
+.hero-grid.single-model .hero-main {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  min-height: 0;
+}
+
+.hero-grid.single-model .hero-main.single-model-main {
+  min-height: 0;
+}
+
+.hero-status-body {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.hero-status-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--glow);
+  box-shadow: 0 0 12px var(--glow);
+  flex-shrink: 0;
+}
+
+.hero-status-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.hero-status-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hero-status-value {
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.hero-status-sub {
+  font-size: 11px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hero-status-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.hero-update-at {
+  font-size: 10px;
+  color: var(--text-placeholder);
+}
+
+.hero-provider-badge {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 5px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: var(--glass-bg);
+  color: var(--text-secondary);
+}
+
+.hero-provider-badge.mimo {
+  background: rgba(212, 168, 85, 0.12);
+  color: var(--provider-mimo);
+}
+
+.hero-provider-badge.openai {
+  background: rgba(107, 158, 122, 0.12);
+  color: var(--provider-openai);
+}
+
+.hero-provider-badge.claude {
+  background: rgba(196, 168, 130, 0.12);
+  color: var(--provider-claude);
+}
+
+.hero-provider-badge.deepseek {
+  background: rgba(124, 196, 138, 0.12);
+  color: var(--provider-deepseek);
+}
+
+.hero-provider-badge.kimi {
+  background: rgba(184, 160, 136, 0.12);
+  color: var(--provider-kimi);
+}
+
+.hero-provider-badge.opencode {
+  background: rgba(139, 92, 246, 0.12);
+  color: #8b5cf6;
+}
+
+.hero-single-body {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.hero-single-stats {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.hss-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+}
+
+.hss-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.hss-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.hss-value.warn {
+  color: var(--neon-amber);
+}
+
+.hss-value.ok {
+  color: var(--neon-green);
+}
+
+.hero-model-footer {
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding-top: 4px;
+}
+
+.hero-model-meta {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.hero-model-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.hero-model-subtitle {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.hero-model-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.hpill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  font-size: 12px;
+}
+
+.hpill-k {
+  color: var(--text-secondary);
+}
+
+.hpill-v {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.hpill-v.warn {
+  color: var(--neon-amber);
+}
+
+.hpill-v.ok {
+  color: var(--neon-green);
+}
+
+.hero-percent-hero {
+  flex: 1;
+  min-width: 0;
+}
+
+.hero-balance-hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.hero-balance-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, var(--neon-amber) 0%, var(--accent) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  box-shadow: 0 0 24px rgba(212, 168, 85, 0.25);
+}
+
+.hero-balance-value {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.hero-balance-currency {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.hero-balance-amount {
+  font-size: 42px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 720px) {
+  .hero-grid.single-model {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-status-body {
+    gap: 12px;
+  }
+
+  .hero-status-value {
+    font-size: 18px;
+  }
+
+  .hero-status-meta {
+    align-items: flex-start;
+  }
+}
+
 .hero-ring-wrap {
   flex-shrink: 0;
 }
@@ -648,6 +1129,11 @@ async function refreshAll() {
   box-shadow: 0 0 6px var(--accent);
 }
 
+.hero-alert-dot.balance {
+  background: var(--neon-green);
+  box-shadow: 0 0 6px var(--neon-green);
+}
+
 .hero-alert-dot.ok {
   background: var(--neon-green);
   box-shadow: 0 0 6px var(--neon-green);
@@ -709,6 +1195,27 @@ async function refreshAll() {
   gap: 10px;
 }
 
+.hero-side.single-model-side {
+  justify-content: center;
+  display: none;
+}
+
+.hero-grid.single-model .hero-side {
+  gap: 12px;
+}
+
+.hero-grid.single-model .quick-stat.single-kpi {
+  padding: 14px;
+}
+
+.hero-grid.single-model .qs-value {
+  font-size: 16px;
+}
+
+.hero-grid.single-model .qs-label {
+  font-size: 10px;
+}
+
 .quick-stat {
   display: flex;
   align-items: center;
@@ -721,6 +1228,11 @@ async function refreshAll() {
 
 .quick-stat:hover {
   transform: translateX(4px);
+}
+
+.quick-stat.single-kpi {
+  flex: 1;
+  min-height: 0;
 }
 
 .qs-icon {
@@ -905,85 +1417,31 @@ async function refreshAll() {
 }
 
 .section-title {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 700;
+  margin: 0;
 }
 
 .section-subtitle {
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-
-/* ── Buttons ── */
-.btn-primary {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 10px 20px;
-  border-radius: 10px;
-  border: none;
-  background: var(--accent-gradient);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
-  transition: all var(--duration-normal) var(--ease-smooth);
-  box-shadow: 0 2px 12px var(--accent-glow);
-}
-
-.btn-primary:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 24px var(--accent-glow);
-}
-
-.btn-primary:active:not(:disabled) {
-  transform: scale(0.97);
-}
-
-.btn-primary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.spin {
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.loading-card-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 0;
-}
-
-.loading-text {
   font-size: 12px;
   color: var(--text-secondary);
-  font-weight: 500;
 }
 
-/* ── Empty State ── */
 .empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
-  padding: 60px 0;
-  border-radius: 20px;
+  justify-content: center;
+  padding: 48px 24px;
+  border-radius: 16px;
+  gap: 14px;
+  text-align: center;
 }
 
 .empty-visual {
   position: relative;
-  width: 100px;
-  height: 100px;
+  width: 80px;
+  height: 80px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -992,181 +1450,148 @@ async function refreshAll() {
 .empty-ring {
   position: absolute;
   inset: 0;
-  border: 2px dashed var(--border-color);
   border-radius: 50%;
-  animation: spin 20s linear infinite;
+  border: 3px solid var(--border-light);
+  border-top-color: var(--accent);
+  animation: spin 1.2s linear infinite;
 }
 
 .empty-icon {
   color: var(--text-placeholder);
-  animation: float 3s ease-in-out infinite;
 }
 
 .empty-text {
   font-size: 16px;
   font-weight: 600;
   color: var(--text-primary);
+  margin: 0;
 }
 
 .empty-hint {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text-secondary);
+  margin: 0;
 }
 
-/* ═══════════════════════════════════════════════════════════
-   Model Grid
-   ═══════════════════════════════════════════════════════════ */
 .model-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 12px;
-  min-width: 0;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
 }
 
 .model-card {
-  border-radius: 16px;
-  overflow: hidden;
-  cursor: grab;
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   transition:
     transform var(--duration-normal) var(--ease-spring),
-    box-shadow var(--duration-normal) var(--ease-spring);
-}
-.model-card:active {
-  cursor: grabbing;
-}
-
-.model-grid:has(.card-drag) .model-card:not(.card-drag):hover {
-  transform: none !important;
-  box-shadow: none !important;
-}
-
-/* ── 占位槽（原位置空框，不放任何内容）── */
-.card-ghost {
-  background: transparent !important;
-  border: 2px dashed var(--accent) !important;
-  border-radius: 16px !important;
-  box-shadow: inset 0 0 24px var(--accent-glow) !important;
-  opacity: 1 !important;
-  overflow: hidden !important;
-}
-
-.card-ghost > * {
-  visibility: hidden !important;
-  pointer-events: none !important;
-}
-
-/* ── 拖拽中的实体卡片（Sortable.js forceFallback 克隆元素）──
-   Sortable.js 用内联 style.transform:translate3d() 控制位置。
-   不用 scale（会导致文字模糊），不用 rotate（干扰碰撞检测），
-   不用 backdrop-filter（拖拽时性能差）。
-   通过多层阴影 + 发光边框营造"拎起来"的立体感。 */
-.card-drag {
-  opacity: 1 !important;
-  /* 禁用 glass-surface 继承的 backdrop-filter，每帧 20px 高斯模糊是性能杀手 */
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  /* 禁用 model-card 的 spring transition，避免与 SortableJS 的 translate3d 位置控制冲突 */
-  transition: none !important;
-  /* 多层阴影营造深度：远距离下沉 + 近距离弥散 + 边框高亮 + 外层辉光 */
-  box-shadow:
-    0 30px 70px rgba(0, 0, 0, 0.45),
-    0 12px 24px rgba(0, 0, 0, 0.25),
-    0 0 0 2px var(--accent),
-    0 0 50px var(--accent-glow) !important;
-  z-index: 9999 !important;
-  cursor: grabbing !important;
-  background: var(--glass-bg-strong) !important;
-  border-radius: 16px !important;
-  pointer-events: none !important;
-  will-change: transform;
+    box-shadow var(--duration-normal) var(--ease-smooth);
 }
 
 .model-card:hover {
-  transform: translateY(-4px);
+  transform: translateY(-2px);
   box-shadow: var(--glass-shadow-hover);
 }
 
-/* ── Card Header ── */
 .card-header {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border-light);
+  align-items: center;
 }
 
 .card-title-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
 }
 
 .model-name {
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .provider-badge {
+  flex-shrink: 0;
   font-size: 10px;
   font-weight: 700;
-  padding: 3px 8px;
-  border-radius: 6px;
+  padding: 2px 8px;
+  border-radius: 5px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  background: var(--glass-bg);
+  color: var(--text-secondary);
+}
+
+.provider-badge.openai {
+  background: rgba(107, 158, 122, 0.12);
+  color: var(--provider-openai);
+}
+
+.provider-badge.claude {
+  background: rgba(196, 168, 130, 0.12);
+  color: var(--provider-claude);
+}
+
+.provider-badge.deepseek {
+  background: rgba(124, 196, 138, 0.12);
+  color: var(--provider-deepseek);
+}
+
+.provider-badge.kimi {
+  background: rgba(184, 160, 136, 0.12);
+  color: var(--provider-kimi);
 }
 
 .provider-badge.mimo {
   background: rgba(212, 168, 85, 0.12);
   color: var(--provider-mimo);
 }
-.provider-badge.openai {
-  background: rgba(107, 158, 122, 0.12);
-  color: var(--provider-openai);
-}
-.provider-badge.claude {
-  background: rgba(196, 168, 130, 0.12);
-  color: var(--provider-claude);
-}
-.provider-badge.deepseek {
-  background: rgba(124, 196, 138, 0.12);
-  color: var(--provider-deepseek);
-}
-.provider-badge.kimi {
-  background: rgba(184, 160, 136, 0.12);
-  color: var(--provider-kimi);
-}
+
 .provider-badge.opencode {
   background: rgba(139, 92, 246, 0.12);
   color: #8b5cf6;
 }
 
 .card-refresh {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: 8px;
-  border: 1px solid var(--border-light);
+  border: 1px solid var(--glass-border);
   background: var(--glass-bg);
   color: var(--text-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all var(--duration-fast) var(--ease-smooth);
+  transition: all 0.15s;
+  flex-shrink: 0;
 }
 
-.card-refresh:hover {
+.card-refresh:hover:not(:disabled) {
   background: var(--glass-bg-strong);
   color: var(--text-primary);
-  border-color: var(--glass-border);
 }
 
-/* ── Card Body ── */
+.card-refresh:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .card-body {
-  padding: 16px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
-/* Token Type */
 .token-type {
   display: flex;
   flex-direction: column;
@@ -1182,14 +1607,19 @@ async function refreshAll() {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .detail-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 13px;
+  font-size: 12px;
+}
+
+.detail-row.highlight .detail-val {
+  color: var(--neon-green);
+  font-weight: 700;
 }
 
 .detail-key {
@@ -1202,49 +1632,41 @@ async function refreshAll() {
   font-variant-numeric: tabular-nums;
 }
 
-.detail-row.highlight .detail-val {
-  color: var(--neon-green);
-}
-
-/* ── 自动续费徽章 ── */
 .auto-renew-badge {
-  display: inline-block;
-  padding: 3px 10px;
-  border-radius: 7px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.4px;
-  background: var(--glass-bg);
-  border: 1px solid var(--border-light);
-  color: var(--text-placeholder);
-  transition: all var(--duration-normal) var(--ease-smooth);
-}
-.auto-renew-badge.on {
-  color: var(--neon-green);
-  background: color-mix(in srgb, var(--neon-green) 12%, transparent);
-  border-color: color-mix(in srgb, var(--neon-green) 20%, transparent);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--neon-green) 8%, transparent);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 5px;
+  background: rgba(248, 113, 113, 0.12);
+  color: var(--neon-red);
 }
 
-/* Percent Type */
+.auto-renew-badge.on {
+  background: rgba(34, 211, 238, 0.12);
+  color: var(--neon-green);
+}
+
 .percent-type {
+  gap: 10px;
+}
+
+.percent-details {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-light);
 }
 
-/* Balance Type */
 .balance-type {
-  display: flex;
-  justify-content: center;
+  align-items: stretch;
 }
 
-/* Empty Type */
 .empty-type {
-  display: flex;
-  justify-content: center;
   align-items: center;
-  min-height: 80px;
+  justify-content: center;
+  min-height: 160px;
+  gap: 10px;
 }
 
 .error-card-content {
@@ -1252,126 +1674,145 @@ async function refreshAll() {
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  width: 100%;
-  padding: 8px 0;
+  text-align: center;
 }
 
 .error-info {
   display: flex;
   flex-direction: column;
-  align-items: center;
   gap: 4px;
-  text-align: center;
 }
 
 .error-label {
   font-size: 13px;
-  font-weight: 600;
-  color: var(--danger);
+  font-weight: 700;
+  color: var(--neon-red);
 }
 
 .error-detail {
   font-size: 11px;
   color: var(--text-secondary);
-  max-width: 180px;
-  line-height: 1.4;
-  word-break: break-word;
+  max-width: 100%;
+  word-break: break-all;
 }
 
 .btn-relogin {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 20px;
+  padding: 6px 14px;
   border-radius: 8px;
   border: 1px solid var(--glass-border);
   background: var(--glass-bg);
   color: var(--text-primary);
   font-size: 12px;
   font-weight: 600;
-  font-family: inherit;
   cursor: pointer;
-  transition: all var(--duration-normal) var(--ease-smooth);
+  transition: all 0.15s;
 }
 
 .btn-relogin:hover {
   background: var(--glass-bg-strong);
-  border-color: var(--accent);
-  box-shadow: 0 0 12px var(--accent-glow);
-  transform: translateY(-1px);
+}
+
+.loading-card-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
 }
 
 .btn-fetch {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 24px;
-  border-radius: 10px;
+  padding: 8px 18px;
+  border-radius: 8px;
   border: 1px solid var(--glass-border);
   background: var(--glass-bg);
   color: var(--text-primary);
   font-size: 13px;
   font-weight: 600;
-  font-family: inherit;
   cursor: pointer;
-  transition: all var(--duration-normal) var(--ease-smooth);
+  transition: all 0.15s;
 }
 
-.btn-fetch:hover:not(:disabled) {
+.btn-fetch:hover {
   background: var(--glass-bg-strong);
-  border-color: var(--accent);
-  box-shadow: 0 0 12px var(--accent-glow);
 }
 
-.btn-fetch:disabled {
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent);
+  color: var(--bg-primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-primary:hover:not(:disabled) {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.btn-primary:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
-/* ── Responsive ── */
-@media (max-width: 1200px) {
+.spin {
+  animation: spin 0.8s linear infinite;
+}
+
+.card-ghost {
+  opacity: 0.5;
+  background: var(--glass-bg-strong);
+}
+
+.card-drag {
+  opacity: 0.95;
+  transform: scale(1.02);
+}
+
+@keyframes fadeSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 单模型时模型卡片区域顶部间距微调 */
+.hero-grid.single-model + .type-summary {
+  margin-top: 14px;
+}
+
+@media (max-width: 720px) {
   .hero-grid {
     grid-template-columns: 1fr;
   }
 
   .hero-side {
     flex-direction: row;
+    flex-wrap: wrap;
   }
 
-  .type-summary {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* 适配 Electron 最小宽度 1000px */
-@media (max-width: 1000px) {
-  .hero-grid {
-    grid-template-columns: 1fr;
-    gap: 12px;
+  .quick-stat {
+    flex: 1 1 calc(50% - 5px);
   }
 
-  .hero-main {
-    padding: 16px;
-    gap: 16px;
-  }
-
-  .hero-ring-wrap {
-    transform: scale(0.85);
-  }
-
-  .model-grid {
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 10px;
-  }
-}
-
-@media (max-width: 768px) {
-  .hero-main {
-    flex-direction: column;
-    text-align: center;
-  }
-
-  .model-grid {
+  .token-type {
     grid-template-columns: 1fr;
   }
 }

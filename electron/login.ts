@@ -9,14 +9,17 @@ export class LoginWindowManager {
     null;
   private timeoutTimer: ReturnType<typeof setTimeout> | null = null;
   private resolved = false;
+  private partition: string = "";
 
   /**
-   * 打开登录窗口。如果已有登录窗口打开则聚焦已有窗口。
+   * 打开登录窗口。每个 modelId 使用独立 Session partition，实现 Cookie 隔离。
    * @param url 登录页 URL
+   * @param modelId 模型 ID，用于生成独立 partition
    * @param parentWindow 父窗口（可选，关联但不模态）
    */
   async openLoginWindow(
     url: string,
+    modelId?: string,
     parentWindow?: BrowserWindow,
   ): Promise<void> {
     if (this.loginWindow && !this.loginWindow.isDestroyed()) {
@@ -25,10 +28,15 @@ export class LoginWindowManager {
     }
 
     this.resolved = false;
+    this.partition = modelId
+      ? `persist:mimo-${modelId}`
+      : "persist:mimo-shared";
 
-    // 先清除默认 session 的所有 cookies
-    console.log("[LoginWindow] 清除默认 session 的 cookies...");
-    await session.defaultSession.clearStorageData({
+    const loginSession = session.fromPartition(this.partition);
+    console.log(`[LoginWindow] 使用独立 partition: ${this.partition}`);
+    console.log("[LoginWindow] 清除当前 partition 的 cookies...");
+    // 清除该 partition 下所有 cookies（不仅是 mimo 域，避免任何残留）
+    await loginSession.clearStorageData({
       storages: ["cookies"],
     });
 
@@ -36,7 +44,7 @@ export class LoginWindowManager {
     await new Promise((resolve) => setTimeout(resolve, 500));
 
     // 验证清除结果
-    const remainingCookies = await session.defaultSession.cookies.get({
+    const remainingCookies = await loginSession.cookies.get({
       domain: MIMO_COOKIE_DOMAIN,
     });
     console.log(
@@ -51,6 +59,7 @@ export class LoginWindowManager {
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
+        partition: this.partition,
       },
     };
 
@@ -103,6 +112,10 @@ export class LoginWindowManager {
     this.loginCompleteCallback = callback;
   }
 
+  private getSession() {
+    return session.fromPartition(this.partition);
+  }
+
   /**
    * 检查并提取 cookies
    */
@@ -112,9 +125,7 @@ export class LoginWindowManager {
 
     try {
       // 从登录窗口的 webContents session 提取 cookies
-      const cookies = await this.loginWindow.webContents.session.cookies.get(
-        {},
-      );
+      const cookies = await this.getSession().cookies.get({});
 
       console.log("[LoginWindow] 检查 cookies:", cookies.length, "个");
       if (cookies.length > 0) {
@@ -126,8 +137,8 @@ export class LoginWindowManager {
         }
 
         // 检查是否有 platform.xiaomimimo.com 的 cookies
-        const hasPlatformCookies = cookies.some((c) =>
-          c.domain?.includes("xiaomimimo.com"),
+        const hasPlatformCookies = cookies.some(
+          (c) => c.domain?.includes("xiaomimimo.com"),
         );
 
         if (hasPlatformCookies) {
@@ -166,10 +177,8 @@ export class LoginWindowManager {
     if (this.resolved) return;
 
     try {
-      // 从登录窗口的 webContents session 提取 cookies
-      const cookies = this.loginWindow
-        ? await this.loginWindow.webContents.session.cookies.get({})
-        : await session.defaultSession.cookies.get({});
+      // 从当前 partition session 提取 cookies
+      const cookies = await this.getSession().cookies.get({});
 
       console.log(
         "[LoginWindow] 从 session 提取 cookies:",

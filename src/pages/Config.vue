@@ -170,7 +170,7 @@
                     <button class="icon-btn action-btn" title="编辑" @click="editModel(model)">
                       <el-icon :size="15"><Edit /></el-icon>
                     </button>
-                    <button class="icon-btn action-btn danger" title="删除" @click="deleteModel(model.id)">
+                    <button class="icon-btn action-btn danger" title="删除" @click.stop="deleteModel(model.id)" @mousedown.stop>
                       <el-icon :size="15"><Delete /></el-icon>
                     </button>
                   </div>
@@ -213,8 +213,16 @@
                 <option value="opencode">Open Code</option>
               </select>
             </div>
-            <!-- API 密钥（OpenCode 除外） -->
-            <div v-if="form.provider !== 'mimo' && form.provider !== 'opencode'" class="form-field">
+            <!-- Kimi 认证方式 -->
+            <div v-if="form.provider === 'kimi'" class="form-field form-field-inline">
+              <label class="form-label">认证方式</label>
+              <select v-model="form.authMode" class="form-input form-select auth-mode-select">
+                <option value="apikey">API Key</option>
+                <option value="cookie">Cookie 登录</option>
+              </select>
+            </div>
+            <!-- API 密钥（OpenCode / Kimi Cookie 除外） -->
+            <div v-if="form.provider !== 'mimo' && form.provider !== 'opencode' && !(form.provider === 'kimi' && form.authMode === 'cookie')" class="form-field">
               <label class="form-label">API 密钥 <span class="required">*</span></label>
               <div class="input-with-suffix">
                 <input
@@ -235,26 +243,30 @@
                 </button>
               </div>
             </div>
-            <!-- MiMo Cookie -->
-            <div v-if="form.provider === 'mimo'" class="form-field">
+            <!-- MiMo / Kimi Cookie -->
+            <div v-if="form.provider === 'mimo' || (form.provider === 'kimi' && form.authMode === 'cookie')" class="form-field">
               <label class="form-label">Cookie <span class="required">*</span></label>
               <div class="cookie-field">
                 <textarea
                   v-model="form.cookies"
                   class="form-input form-textarea"
                   rows="3"
-                  placeholder="从浏览器复制 Cookie"
+                  :placeholder="form.provider === 'kimi' ? '点击下方按钮登录获取 Cookie，或手动粘贴' : '从浏览器复制 Cookie'"
                 ></textarea>
                 <div class="cookie-actions">
                   <button
                     class="btn-primary btn-sm"
-                    @click="handleLogin"
+                    @click="form.provider === 'kimi' ? handleKimiLogin() : handleLogin()"
                     :disabled="store.loginState === 'logging-in'"
                   >
                     <span v-if="store.loginState === 'logging-in'">登录中...</span>
                     <span v-else>🔑 登录获取</span>
                   </button>
-                  <button class="btn-ghost btn-sm" @click="showPasteDialog = true">
+                  <button
+                    v-if="form.provider === 'mimo'"
+                    class="btn-ghost btn-sm"
+                    @click="showPasteDialog = true"
+                  >
                     📋 粘贴
                   </button>
                 </div>
@@ -356,6 +368,27 @@
       </div>
     </Transition>
 
+    <!-- 删除确认对话框 -->
+    <Transition name="dialog-fade">
+      <div v-if="showDeleteConfirm" class="dialog-overlay">
+        <div class="dialog-box glass-surface">
+          <div class="dialog-header">
+            <h3 class="dialog-title">确认删除</h3>
+            <button class="icon-btn" @click="showDeleteConfirm = false">
+              <el-icon :size="16"><Close /></el-icon>
+            </button>
+          </div>
+          <div class="dialog-body">
+            <p>确定删除模型 <b>{{ modelToDeleteName }}</b> 吗？此操作不可恢复。</p>
+          </div>
+          <div class="dialog-footer">
+            <button class="btn-ghost" @click="showDeleteConfirm = false">取消</button>
+            <button class="btn-primary danger" @click="confirmDelete">删除</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
     <!-- 应用设置 -->
     <div class="section-card glass-surface" style="animation-delay: 60ms">
       <div class="section-header">
@@ -381,6 +414,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { nextTick } from 'vue'
 import {
   Plus,
   Edit,
@@ -408,6 +442,9 @@ const isEditing = ref(false)
 const showPasteDialog = ref(false)
 const cookiesInput = ref('')
 const showApiKey = ref(false)
+const showDeleteConfirm = ref(false)
+const modelToDeleteId = ref('')
+const modelToDeleteName = ref('')
 
 // 关闭行为设置
 const closeActionModel = ref<CloseAction | null>(null)
@@ -446,6 +483,7 @@ const defaultForm: ModelConfig = {
   apiKey: '',
   baseUrl: '',
   cookies: '',
+  authMode: 'apikey',
   refreshInterval: 0,
   refreshUnit: 'minute',
   enabled: true
@@ -470,16 +508,23 @@ async function saveModel() {
     ElMessage.warning({ message: '请填写模型名称', duration: 2000 })
     return
   }
-  // MIMO 仅需 Cookie，OpenCode 仅需 Cookie，其他提供商需要 API 密钥
-  if (form.provider === 'mimo') {
+  // 校验凭证：MIMO / OpenCode 仅需 Cookie；Kimi 根据 authMode 校验；其他需要 API 密钥
+  if (form.provider === 'mimo' || form.provider === 'opencode') {
     if (!form.cookies) {
       ElMessage.warning({ message: '需要填写 Cookie', duration: 2000 })
       return
     }
-  } else if (form.provider === 'opencode') {
-    if (!form.cookies) {
-      ElMessage.warning({ message: '请点击登录按钮获取 Cookie', duration: 2000 })
-      return
+  } else if (form.provider === 'kimi') {
+    if (form.authMode === 'cookie') {
+      if (!form.cookies) {
+        ElMessage.warning({ message: '请点击登录按钮获取 Cookie', duration: 2000 })
+        return
+      }
+    } else {
+      if (!form.apiKey) {
+        ElMessage.warning({ message: '请填写 API 密钥', duration: 2000 })
+        return
+      }
     }
   } else {
     if (!form.apiKey) {
@@ -502,10 +547,24 @@ async function saveModel() {
 }
 
 function deleteModel(id: string) {
-  ElMessageBox.confirm('确定删除此模型？', '确认', { type: 'warning' }).then(async () => {
+  console.log('[Config] 点击删除模型:', id)
+  const model = store.models.find(m => m.id === id)
+  modelToDeleteId.value = id
+  modelToDeleteName.value = model?.name || '该模型'
+  showDeleteConfirm.value = true
+}
+
+async function confirmDelete() {
+  const id = modelToDeleteId.value
+  showDeleteConfirm.value = false
+  try {
     await store.removeModel(id)
     ElMessage.success({ message: '删除成功', duration: 2000 })
-  }).catch(() => {})
+    console.log('[Config] 删除完成:', id)
+  } catch (err: any) {
+    console.error('[Config] 删除失败:', err)
+    ElMessage.error({ message: '删除失败', duration: 2000 })
+  }
 }
 
 function handlePasteCookies() {
@@ -520,8 +579,13 @@ function handlePasteCookies() {
 }
 
 async function handleLogin() {
+  if (!form.id) {
+    ElMessage.warning('请先保存模型配置，再登录获取 Cookie')
+    return
+  }
   try {
-    const cookies = await window.electronAPI.openMimoLogin()
+    store.loginState = 'logging-in'
+    const cookies = await window.electronAPI.openMimoLogin(form.id)
     if (cookies) {
       form.cookies = cookies
       ElMessage.success('登录成功，Cookies 已获取')
@@ -531,6 +595,34 @@ async function handleLogin() {
   } catch (error) {
     ElMessage.error('登录失败')
     console.error('登录失败:', error)
+  } finally {
+    store.loginState = 'idle'
+  }
+}
+
+async function handleKimiLogin() {
+  if (!form.id) {
+    ElMessage.warning('请先保存模型配置，再登录获取 Cookie')
+    return
+  }
+  try {
+    store.loginState = 'logging-in'
+    const result = await window.electronAPI.openKimiLogin(form.id)
+    if (result?.cookies) {
+      form.cookies = result.cookies
+      form.authMode = 'cookie'
+      if (result.token) {
+        form.apiKey = result.token
+      }
+      ElMessage.success('登录成功，Cookies 已获取')
+    } else {
+      ElMessage.warning('登录超时或已取消')
+    }
+  } catch (error) {
+    ElMessage.error('登录失败')
+    console.error('Kimi 登录失败:', error)
+  } finally {
+    store.loginState = 'idle'
   }
 }
 
@@ -580,12 +672,12 @@ async function fetchUsage(model: ModelConfig) {
   } catch (error: any) {
     console.error(`[Config] ${model.name} 获取额度失败:`, error)
 
-    // 检查是否是 Cookie 过期错误（MiMo）
+    // 检查是否是 Cookie 过期错误（MiMo / OpenCode / Kimi Cookie 模式）
     if (error?.code === 'COOKIE_EXPIRED' || error?.message?.includes('Cookie expired')) {
       ElMessage.warning({ message: 'Cookie 已过期，请重新登录', duration: 3000 })
       // 不需要手动触发登录，store 的 login-needed 监听器会自动处理
     }
-    // 检查是否是 API key 失效（Kimi、DeepSeek 等）
+    // 检查是否是 API key 失效（Kimi API Key 模式、DeepSeek 等）
     else if (error?.message?.includes('unauthorized') ||
              error?.message?.includes('401') ||
              error?.message?.includes('403') ||
@@ -612,6 +704,10 @@ async function handleErrorAction(model: ModelConfig) {
     try {
       if (model.provider === 'opencode') {
         await store.startOpenCodeLogin(model.id)
+        ElMessage.success({ message: '登录成功，正在刷新额度...', duration: 2000 })
+        await fetchUsage(model)
+      } else if (model.provider === 'kimi') {
+        await store.startKimiLogin(model.id)
         ElMessage.success({ message: '登录成功，正在刷新额度...', duration: 2000 })
         await fetchUsage(model)
       } else {
@@ -988,6 +1084,11 @@ async function handleErrorAction(model: ModelConfig) {
   text-align: center;
   cursor: pointer;
   padding-right: 20px !important;
+}
+
+.auth-mode-select {
+  width: 140px !important;
+  flex-shrink: 0;
 }
 
 .interval-hint {

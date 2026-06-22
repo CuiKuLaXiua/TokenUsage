@@ -1,6 +1,21 @@
 import { BrowserWindow, net } from "electron";
 import { readFileSync, existsSync } from "fs";
 
+// ── 工具函数 ──
+
+function extractDeviceIdFromJwt(jwt?: string): string | undefined {
+  if (!jwt) return undefined;
+  try {
+    const payload = jwt.split(".")[1];
+    if (!payload) return undefined;
+    const json = Buffer.from(payload.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf-8");
+    const data = JSON.parse(json);
+    return data.device_id || data.sub || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 // ── 类型定义 ──
 
 interface ModelConfig {
@@ -205,6 +220,69 @@ function parseKimiResponse(response: any): ModelUsageStatus | null {
   };
 }
 
+function parseKimiSubscriptionResponse(response: any): ModelUsageStatus | null {
+  if (!response || typeof response !== "object") return null;
+
+  const tiers: UsageTier[] = [];
+
+  // 5 小时速率限制
+  const limit5h = response.ratelimitCode5h;
+  if (limit5h && typeof limit5h === "object" && limit5h.enabled) {
+    const ratio = Number(limit5h.ratio) ?? 0;
+    const percent = Math.round(ratio * 10000) / 100;
+    tiers.push({
+      name: "five_hour",
+      label: "5H",
+      percent,
+      resetAt:
+        typeof limit5h.resetTime === "string" ? limit5h.resetTime : undefined,
+    });
+  }
+
+  // 7 天速率限制
+  const limit7d = response.ratelimitCode7d;
+  if (limit7d && typeof limit7d === "object" && limit7d.enabled) {
+    const ratio = Number(limit7d.ratio) ?? 0;
+    const percent = Math.round(ratio * 10000) / 100;
+    tiers.push({
+      name: "seven_day",
+      label: "7D",
+      percent,
+      resetAt:
+        typeof limit7d.resetTime === "string" ? limit7d.resetTime : undefined,
+    });
+  }
+
+  // 月度订阅额度 → 与 OpenCode 统一显示为 30D
+  const subscription = response.subscriptionBalance;
+  if (subscription && typeof subscription === "object") {
+    const ratio = Number(subscription.amountUsedRatio) ?? 0;
+    const percent = Math.round(ratio * 10000) / 100;
+    tiers.push({
+      name: "subscription",
+      label: "30D",
+      percent,
+      resetAt:
+        typeof subscription.expireTime === "string"
+          ? subscription.expireTime
+          : undefined,
+    });
+  }
+
+  if (tiers.length === 0) return null;
+
+  return {
+    usageType: "percent",
+    planName: "Kimi 订阅",
+    lastUpdated: Date.now(),
+    tiers,
+    currentPeriodEnd:
+      typeof subscription?.expireTime === "string"
+        ? subscription.expireTime
+        : undefined,
+  };
+}
+
 function parseDeepSeekResponse(response: any): ModelUsageStatus | null {
   if (
     !response ||
@@ -395,7 +473,7 @@ function extractUsage(
       result = parseMimoResponse(response);
       break;
     case "kimi":
-      result = parseKimiResponse(response);
+      result = parseKimiSubscriptionResponse(response) || parseKimiResponse(response);
       break;
     case "deepseek":
       result = parseDeepSeekResponse(response);
@@ -436,10 +514,15 @@ export class UsageRefresher {
 
     for (const model of this.models) {
       if (!model.enabled) continue;
-      // MIMO 和 OpenCode 仅需 Cookie，其他提供商需要 apiKey
+      // MIMO 和 OpenCode 仅需 Cookie，其他提供商需要 apiKey；Kimi 支持 apikey/cookie 两种模式
       let hasAuth = false;
       if (model.provider === "mimo" || model.provider === "opencode") {
         hasAuth = !!model.cookies;
+      } else if (model.provider === "kimi") {
+        hasAuth =
+          (model as any).authMode === "cookie"
+            ? !!model.cookies
+            : !!model.apiKey;
       } else {
         hasAuth = !!model.apiKey;
       }
@@ -519,17 +602,21 @@ export class UsageRefresher {
     } catch (error) {
       console.error(`[Refresher] ${model.name} 拉取失败:`, error);
 
-      // 检测 cookie 过期（MiMo 和 OpenCode）
+      // 检测 cookie 过期（MiMo、OpenCode、Kimi Cookie 模式）
       if (
-        (model.provider === "mimo" || model.provider === "opencode") &&
+        (model.provider === "mimo" ||
+          model.provider === "opencode" ||
+          (model.provider === "kimi" && (model as any).authMode === "cookie")) &&
         this.isCookieExpired(error)
       ) {
         console.log("[Refresher] 检测到 Cookie 过期，广播 login-needed");
         this.broadcastLoginNeeded(model.id);
       }
 
-      // 检测 API key 失效（Kimi、DeepSeek 等）
-      if (this.isApiKeyInvalid(error, model.provider)) {
+      // 检测 API key 失效（Kimi API Key 模式、DeepSeek 等）
+      if (
+        this.isApiKeyInvalid(error, model.provider, (model as any).authMode)
+      ) {
         console.log(`[Refresher] 检测到 ${model.provider} API key 可能失效`);
         this.broadcastApiKeyInvalid(model);
       }
@@ -559,6 +646,11 @@ export class UsageRefresher {
       let hasAuth = false;
       if (model.provider === "mimo" || model.provider === "opencode") {
         hasAuth = !!model.cookies;
+      } else if (model.provider === "kimi") {
+        hasAuth =
+          (model as any).authMode === "cookie"
+            ? !!model.cookies
+            : !!model.apiKey;
       } else {
         hasAuth = !!model.apiKey;
       }
@@ -616,6 +708,33 @@ export class UsageRefresher {
 
   private buildFetchOptions(model: ModelConfig): any {
     if (model.provider === "kimi") {
+      // Kimi Cookie 模式：走网页 GetSubscriptionStat
+      if ((model as any).authMode === "cookie") {
+        const deviceId = extractDeviceIdFromJwt(model.apiKey);
+        return {
+          url:
+            model.baseUrl ||
+            "https://www.kimi.com/apiv2/kimi.gateway.membership.v2.MembershipService/GetSubscriptionStat",
+          cookies: model.cookies,
+          apiKey: model.apiKey,
+          method: "POST",
+          headers: {
+            Accept: "*/*",
+            "Accept-Language": "zh-CN,zh;q=0.9",
+            Referer: "https://www.kimi.com/membership/subscription?tab=quota",
+            Origin: "https://www.kimi.com",
+            "connect-protocol-version": "1",
+            "content-type": "application/json",
+            "x-language": "zh-CN",
+            "x-msh-platform": "web",
+            "x-msh-version": "1.0.0",
+            "x-msh-device-id": deviceId || "",
+            "x-traffic-id": deviceId || "",
+          },
+          body: {},
+        };
+      }
+      // Kimi API Key 模式：原接口
       return {
         url: model.baseUrl || KIMI_DEFAULT_BASE_URL,
         apiKey: model.apiKey,
@@ -706,7 +825,7 @@ export class UsageRefresher {
           try {
             // 记录原始响应（调试用）
             console.log(`[Refresher] ${url} 响应状态: ${response.statusCode}`);
-            // console.log(`[Refresher] ${url} 响应内容前 500 字符:`, responseData.substring(0, 500))
+            console.log(`[Refresher] ${url} 响应内容前 500 字符:`, responseData.substring(0, 500))
 
             // 检测 MiMo 登录重定向
             if (url.includes("platform.xiaomimimo.com")) {
@@ -718,7 +837,17 @@ export class UsageRefresher {
               }
             }
 
-            // 检测 Kimi/DeepSeek/OpenCode 等 API key 失效（401/403 状态码）
+            // 检测 Kimi Cookie 过期
+            if (url.includes("www.kimi.com")) {
+              if (response.statusCode === 401 || response.statusCode === 403) {
+                const error = new Error("Cookie expired or unauthorized");
+                (error as any).code = "COOKIE_EXPIRED";
+                reject(error);
+                return;
+              }
+            }
+
+            // 检测 Kimi API Key / DeepSeek / OpenCode 等 API key 失效（401/403 状态码）
             if (response.statusCode === 401 || response.statusCode === 403) {
               const error = new Error(
                 `API request failed with status ${response.statusCode}: unauthorized`,
@@ -819,10 +948,11 @@ export class UsageRefresher {
     );
   }
 
-  private isApiKeyInvalid(error: any, provider: string): boolean {
-    // 检测 API key 相关的错误（用于 Kimi、DeepSeek 等使用 API key 的提供商）
-    // MIMO 和 OpenCode 使用 cookie，不检测 API key
+  private isApiKeyInvalid(error: any, provider: string, authMode?: string): boolean {
+    // 检测 API key 相关的错误（用于 Kimi API Key 模式、DeepSeek 等使用 API key 的提供商）
+    // MIMO、OpenCode 以及 Kimi Cookie 模式不使用 API key
     if (provider === "mimo" || provider === "opencode") return false;
+    if (provider === "kimi" && authMode === "cookie") return false;
 
     if (error instanceof Error) {
       const message = error.message.toLowerCase();

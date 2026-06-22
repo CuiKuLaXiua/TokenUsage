@@ -8,7 +8,7 @@ export interface ElectronAPI {
   saveUsage: (month: string, data: any[]) => Promise<boolean>
   getDataPath: () => Promise<string>
 
-  // ── MiMo / OpenCode API proxies ──
+  // ── MiMo / OpenCode / Kimi API proxies ──
   fetchMimoUsage: (options: {
     url: string
     apiKey: string
@@ -19,6 +19,7 @@ export interface ElectronAPI {
   }) => Promise<any>
   fetchMimoTokenPlan: (options: { year: number; month: number; cookies: string }) => Promise<any>
   fetchMimoTokenPlanDetail: (options: { cookies: string }) => Promise<any>
+  fetchKimiSubscription: (options: { cookies: string; token?: string; baseUrl?: string }) => Promise<any>
   fetchOpenCodeUsageDetail: (options: { cookies: string; serverId: string; serverInstance: string; body: string }) => Promise<any>
   fetchOpenCodeUsageRecords: (options: { cookies: string; serverId: string; serverInstance: string; body: string }) => Promise<any>
 
@@ -124,6 +125,7 @@ export interface ElectronAPI {
     api3ServerId: string | null
     api3Instance: string | null
   }>
+  openKimiLogin: (modelId?: string) => Promise<{ cookies: string | null; token: string | null }>
   onLoginNeeded: (callback: (data: { modelId: string }) => void) => () => void
   onApiKeyInvalid: (callback: (data: { modelId: string, modelName: string, provider: string }) => void) => () => void
 
@@ -159,6 +161,7 @@ const electronAPI: ElectronAPI = {
   fetchMimoUsage: (options) => ipcRenderer.invoke('fetch-mimo-usage', options),
   fetchMimoTokenPlan: (options) => ipcRenderer.invoke('fetch-mimo-token-plan', options),
   fetchMimoTokenPlanDetail: (options) => ipcRenderer.invoke('fetch-mimo-token-plan-detail', options),
+  fetchKimiSubscription: (options) => ipcRenderer.invoke('fetch-kimi-subscription', options),
   fetchOpenCodeUsageDetail: (options) => ipcRenderer.invoke('fetch-opencode-usage-detail', options),
   fetchOpenCodeUsageRecords: (options) => ipcRenderer.invoke('fetch-opencode-usage-records', options),
 
@@ -275,6 +278,7 @@ const electronAPI: ElectronAPI = {
   // Login
   openMimoLogin: (modelId) => ipcRenderer.invoke('open-mimo-login', modelId),
   openOpencodeLogin: (modelId) => ipcRenderer.invoke('open-opencode-login', modelId),
+  openKimiLogin: (modelId) => ipcRenderer.invoke('open-kimi-login', modelId),
   onLoginNeeded: (callback) => {
     const wrapper = (_: any, data: { modelId: string }) => callback(data)
     ipcRenderer.on('login-needed', wrapper)

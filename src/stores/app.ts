@@ -16,6 +16,8 @@ export interface ModelConfig {
   refreshInterval?: number  // 自动刷新间隔数值，0 或 undefined 表示关闭
   refreshUnit?: 'second' | 'minute' | 'hour'  // 刷新间隔单位，默认 minute
   enabled: boolean
+  // Kimi 专用：认证方式
+  authMode?: 'apikey' | 'cookie'  // 默认 apikey，保留旧配置兼容
   // OpenCode 专用
   serverId?: string              // API1 GET x-server-id（基础数据 + 刷新器）
   serverInstance?: string        // API1 GET x-server-instance
@@ -183,6 +185,9 @@ export const useAppStore = defineStore('app', () => {
       if (model?.provider === 'opencode') {
         console.log('[Store] 准备调用 startOpenCodeLogin(), modelId:', modelId)
         startOpenCodeLogin(modelId)
+      } else if (model?.provider === 'kimi') {
+        console.log('[Store] 准备调用 startKimiLogin(), modelId:', modelId)
+        startKimiLogin(modelId)
       } else {
         console.log('[Store] 准备调用 startMimoLogin(), modelId:', modelId)
         startMimoLogin(modelId)
@@ -243,9 +248,11 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function removeModel(id: string) {
+    console.log('[Store] 删除模型:', id)
     models.value = models.value.filter(m => m.id !== id)
     delete modelUsageMap[id]
     await saveConfig()
+    console.log('[Store] 模型已删除并保存:', id)
   }
 
   async function reorderModels(fromIndex: number, toIndex: number, persist = true) {
@@ -370,6 +377,64 @@ export const useAppStore = defineStore('app', () => {
   }
 
   /**
+   * 开始 Kimi 登录流程
+   */
+  async function startKimiLogin(modelId?: string): Promise<void> {
+    if (loginState.value === 'logging-in') {
+      console.log('[KimiLogin] 已经在登录中，跳过')
+      return
+    }
+
+    console.log('[KimiLogin] 开始登录流程，准备调用 openKimiLogin(), modelId:', modelId)
+    loginState.value = 'logging-in'
+    loginError.value = null
+
+    try {
+      console.log('[KimiLogin] 调用 window.electronAPI.openKimiLogin()')
+      const result = await window.electronAPI.openKimiLogin(modelId)
+      console.log('[KimiLogin] openKimiLogin 返回:', result?.cookies ? 'cookies 已获取' : 'cookies 为空')
+
+      if (result?.cookies) {
+        if (modelId) {
+          const model = models.value.find(m => m.id === modelId)
+          if (model) {
+            model.cookies = result.cookies
+            model.authMode = 'cookie'
+            if (result.token) {
+              model.apiKey = result.token
+            }
+          }
+        } else {
+          for (const model of models.value) {
+            if (model.provider === 'kimi') {
+              model.cookies = result.cookies
+              model.authMode = 'cookie'
+              if (result.token) {
+                model.apiKey = result.token
+              }
+            }
+          }
+        }
+        await saveConfig()
+        loginState.value = 'complete'
+        console.log('[KimiLogin] 登录完成，cookies 已保存')
+
+        setTimeout(() => {
+          if (loginState.value === 'complete') {
+            loginState.value = 'idle'
+          }
+        }, 2000)
+      } else {
+        loginState.value = 'failed'
+        loginError.value = '登录超时或已取消'
+      }
+    } catch (error) {
+      loginState.value = 'failed'
+      loginError.value = error instanceof Error ? error.message : '登录失败'
+    }
+  }
+
+  /**
    * 开始 Open Code 登录流程
    */
   async function startOpenCodeLogin(modelId?: string): Promise<void> {
@@ -477,6 +542,7 @@ export const useAppStore = defineStore('app', () => {
     requestRefreshAll,
     startMimoLogin,
     startOpenCodeLogin,
+    startKimiLogin,
     resetLoginState,
     setMimoCookies,
     stopSubscription

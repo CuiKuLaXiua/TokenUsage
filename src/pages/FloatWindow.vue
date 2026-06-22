@@ -24,7 +24,116 @@
       <!-- List mode (compact overview) -->
       <template v-else-if="layoutMode === 'list'">
         <div class="compact-wrap">
-          <div class="compact-card" :data-model-id="'__overview__'">
+          <!-- 单模型优化 Overview -->
+          <div
+            v-if="agg.isSingleModel.value"
+            class="compact-card single-overview"
+            :data-model-id="'__overview__'"
+          >
+            <!-- Token 单模型 -->
+            <template v-if="agg.singleModelSummary.value?.type === 'token'"
+            >
+              <div class="sov-row">
+                <div class="sov-ring" style="width: 44px; height: 44px">
+                  <TokenRing
+                    :percent="agg.singleModelSummary.value.primaryValue"
+                    :size="44"
+                    :stroke="4"
+                  >
+                    <div class="sov-ring-inner">
+                      <span class="sov-pct">{{
+                        agg.singleModelSummary.value.primaryValue.toFixed(0)
+                      }}</span>
+                      <span class="sov-pct-u">%</span>
+                    </div>
+                  </TokenRing>
+                </div>
+                <div class="sov-info">
+                  <div class="sov-name">{{ agg.singleModelSummary.value.title }}</div>
+                  <div class="sov-sub">{{ agg.singleModelSummary.value.subtitle }}</div>
+                  <div class="sov-detail">
+                    <span>{{ fmtTk(agg.singleModelUsage.value?.used) }} /
+                      {{ fmtTk(agg.singleModelUsage.value?.total) }}</span>
+                    <span
+                      v-if="agg.singleModelUsage.value?.currentPeriodEnd"
+                      class="sov-expiry"
+                    >
+                      {{ agg.singleModelUsage.value.currentPeriodEnd.slice(0, 10) }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <!-- Percent 单模型 -->
+            <template v-else-if="agg.singleModelSummary.value?.type === 'percent'"
+            >
+              <div class="sov-row percent">
+                <div class="sov-info">
+                  <div class="sov-name">{{ agg.singleModelSummary.value.title }}</div>
+                  <div class="sov-sub">{{ agg.singleModelSummary.value.subtitle }}</div>
+                  <div
+                    v-if="agg.singleModelSummary.value.secondaryText"
+                    class="sov-detail"
+                  >
+                    {{ agg.singleModelSummary.value.secondaryText }}
+                  </div>
+                </div>
+                <div class="sov-mini-tiers">
+                  <div
+                    v-for="tier in agg.singleModelSummary.value.tiers"
+                    :key="tier.name"
+                    class="sov-mini-tier"
+                  >
+                    <div class="sov-mini-label">{{ tier.label }}</div>
+                    <div class="sov-mini-track">
+                      <div
+                        class="sov-mini-fill"
+                        :style="{
+                          width: '100%',
+                          background: getFillColor(tier.percent),
+                          clipPath: `inset(0 calc(100% - ${tier.percent}%) 0 0)`,
+                        }"
+                      ></div>
+                    </div>
+                    <div
+                      class="sov-mini-pct"
+                      :style="{ color: getColor(tier.percent) }"
+                    >
+                      {{ tier.percent.toFixed(0) }}%
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <!-- Balance 单模型 -->
+            <template v-else-if="agg.singleModelSummary.value?.type === 'balance'"
+            >
+              <div class="sov-row balance">
+                <div class="sov-balance-icon">
+                  <span>💰</span>
+                </div>
+                <div class="sov-info">
+                  <div class="sov-name">{{ agg.singleModelSummary.value.title }}</div>
+                  <div class="sov-balance">
+                    <span class="sov-balance-currency">{{
+                      agg.singleModelUsage.value?.currency === "CNY"
+                        ? "¥"
+                        : agg.singleModelUsage.value?.currency
+                    }}</span>
+                    <span class="sov-balance-amount">{{
+                      (agg.singleModelUsage.value?.balance || 0).toFixed(2)
+                    }}</span>
+                  </div>
+                  <div class="sov-sub">{{ agg.singleModelSummary.value.subtitle }}</div>
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <!-- 多模型原有 Overview -->
+          <div v-else class="compact-card" :data-model-id="'__overview__'">
             <div class="ov-row">
               <div class="ov-ring" style="width: 40px; height: 40px">
                 <TokenRing
@@ -104,70 +213,206 @@
             <!-- Overview slide -->
             <div class="cslide" :data-model-id="'__overview__'">
               <div class="cslide-body ov-slide">
-                <div class="ov-ring-lg" style="width: 58px; height: 58px">
-                  <TokenRing
-                    :percent="agg.mainRing.value.percent"
-                    :size="58"
-                    :stroke="5"
+                <!-- 单模型：直接展示模型核心信息 -->
+                <template v-if="agg.isSingleModel.value">
+                  <!-- Token 单模型 -->
+                  <template v-if="agg.singleModelSummary.value?.type === 'token'"
                   >
-                    <div class="ov-ring-lg-in">
-                      <span class="ov-pct-lg">{{
-                        agg.mainRing.value.source !== "none"
-                          ? agg.mainRing.value.percent.toFixed(1)
-                          : "—"
-                      }}</span>
-                      <span class="ov-pct-u-lg">{{
-                        agg.mainRing.value.source !== "none" ? "%" : ""
-                      }}</span>
+                    <div class="sov-row carousel">
+                      <div class="sov-ring-lg" style="width: 70px; height: 70px">
+                        <TokenRing
+                          :percent="agg.singleModelSummary.value.primaryValue"
+                          :size="70"
+                          :stroke="5"
+                        >
+                          <div class="sov-ring-lg-in">
+                            <span class="sov-pct-lg">{{
+                              agg.singleModelSummary.value.primaryValue.toFixed(1)
+                            }}</span>
+                            <span class="sov-pct-u-lg">%</span>
+                          </div>
+                        </TokenRing>
+                      </div>
+                      <div class="sov-info carousel">
+                        <div class="sov-name carousel">
+                          {{ agg.singleModelSummary.value.title }}
+                        </div>
+                        <div class="sov-sub carousel">
+                          {{ agg.singleModelSummary.value.subtitle }}
+                        </div>
+                      </div>
                     </div>
-                  </TokenRing>
-                </div>
-                <div class="ov-stats">
-                  <div class="ov-st" v-if="agg.tokenAgg.value">
-                    <span class="ov-stv"
-                      >{{ fmtLg(agg.tokenAgg.value.used) }}/{{
-                        fmtLg(agg.tokenAgg.value.total)
-                      }}</span
-                    ><span class="ov-stl"
-                      >Token {{ agg.tokenAgg.value.percent.toFixed(0) }}%</span
+
+                    <div class="sov-stats-carousel">
+                      <div class="sov-st">
+                        <span class="sov-stv">{{ fmtTk(agg.singleModelUsage.value?.used) }}</span>
+                        <span class="sov-stl">已用</span>
+                      </div>
+                      <div class="sov-st">
+                        <span class="sov-stv">{{ fmtTk(agg.singleModelUsage.value?.total) }}</span>
+                        <span class="sov-stl">总计</span>
+                      </div>
+                      <div class="sov-st">
+                        <span class="sov-stv ok">{{ fmtTk(agg.singleModelUsage.value?.remaining) }}</span>
+                        <span class="sov-stl">剩余</span>
+                      </div>
+                    </div>
+
+                    <div
+                      v-if="agg.singleModelUsage.value?.currentPeriodEnd"
+                      class="sov-foot"
+                    >
+                      <span>到期 {{ agg.singleModelUsage.value.currentPeriodEnd.slice(0, 10) }}</span>
+                    </div>
+                  </template>
+
+                  <!-- Percent 单模型 -->
+                  <template v-else-if="agg.singleModelSummary.value?.type === 'percent'"
+                  >
+                    <div class="sov-name carousel">
+                      {{ agg.singleModelSummary.value.title }}
+                    </div>
+
+                    <div class="sov-tiers-carousel">
+                      <div
+                        v-for="tier in agg.singleModelSummary.value.tiers"
+                        :key="tier.name"
+                        class="sov-tier-carousel"
+                      >
+                        <div class="sov-tier-hd">
+                          <span class="sov-tier-lb">{{ tier.label }}</span>
+                          <span
+                            v-if="tier.resetAt"
+                            class="sov-tier-reset"
+                          >
+                            <el-icon :size="10"><Clock /></el-icon>
+                            {{ fmtReset(tier.resetAt) }}
+                          </span>
+                        </div>
+                        <div class="sov-tier-track-row">
+                          <div class="sov-tier-track">
+                            <div
+                              class="sov-tier-fill"
+                              :style="{
+                                width: '100%',
+                                background: getFillColor(tier.percent),
+                                clipPath: `inset(0 calc(100% - ${tier.percent}%) 0 0)`,
+                              }"
+                            ></div>
+                          </div>
+                          <span
+                            class="sov-tier-pct"
+                            :style="{ color: getColor(tier.percent) }"
+                          >
+                            {{ tier.percent.toFixed(1) }}%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div
+                      v-if="agg.singleModelSummary.value.secondaryText"
+                      class="sov-foot"
+                    >
+                      <span>{{ agg.singleModelSummary.value.secondaryText }}</span>
+                    </div>
+                  </template>
+
+                  <!-- Balance 单模型 -->
+                  <template v-else-if="agg.singleModelSummary.value?.type === 'balance'"
+                  >
+                    <div class="sov-balance-carousel">
+                      <div class="sov-balance-icon-lg">
+                        <span>💰</span>
+                      </div>
+                      <div class="sov-balance-value-lg">
+                        <span class="sov-balance-currency">{{
+                          agg.singleModelUsage.value?.currency === "CNY"
+                            ? "¥"
+                            : agg.singleModelUsage.value?.currency
+                        }}</span>
+                        <span class="sov-balance-amount">{{
+                          (agg.singleModelUsage.value?.balance || 0).toFixed(2)
+                        }}</span>
+                      </div>
+                    </div>
+
+                    <div class="sov-name carousel">
+                      {{ agg.singleModelSummary.value.title }}
+                    </div>
+                  </template>
+                </template>
+
+                <!-- 多模型：原有 Overview -->
+                <template v-else>
+                  <div class="ov-ring-lg" style="width: 58px; height: 58px">
+                    <TokenRing
+                      :percent="agg.mainRing.value.percent"
+                      :size="58"
+                      :stroke="5"
+                    >
+                      <div class="ov-ring-lg-in">
+                        <span class="ov-pct-lg">{{
+                          agg.mainRing.value.source !== "none"
+                            ? agg.mainRing.value.percent.toFixed(1)
+                            : "—"
+                        }}</span>
+                        <span class="ov-pct-u-lg">{{
+                          agg.mainRing.value.source !== "none" ? "%" : ""
+                        }}</span>
+                      </div>
+                    </TokenRing>
+                  </div>
+                  <div class="ov-stats">
+                    <div class="ov-st" v-if="agg.tokenAgg.value">
+                      <span class="ov-stv"
+                        >{{ fmtLg(agg.tokenAgg.value.used) }}/{{
+                          fmtLg(agg.tokenAgg.value.total)
+                        }}</span
+                      >
+                      <span class="ov-stl"
+                        >Token {{ agg.tokenAgg.value.percent.toFixed(0) }}%</span
+                      >
+                    </div>
+                    <div class="ov-st" v-if="agg.percentAgg.value">
+                      <span class="ov-stv warn"
+                        >{{ agg.percentAgg.value.worstLabel }}
+                        {{ agg.percentAgg.value.worstPercent.toFixed(0) }}%</span
+                      >
+                      <span class="ov-stl">最紧张窗口</span>
+                    </div>
+                    <div class="ov-st" v-if="agg.balanceAgg.value">
+                      <span class="ov-stv ok"
+                        >{{
+                          agg.balanceAgg.value.currency === "CNY"
+                            ? "¥"
+                            : agg.balanceAgg.value.currency
+                        }}{{ agg.balanceAgg.value.totalBalance.toFixed(2) }}</span
+                      >
+                      <span class="ov-stl">余额</span>
+                    </div>
+                  </div>
+                  <div class="ov-foot">
+                    <span class="ov-cnt">{{ enabledModels.length }}</span
+                    ><span class="ov-cntl">个模型</span>
+                    <span class="ov-type-sep"></span>
+                    <span class="ov-type-tag t"
+                      >T{{ agg.typeCounts.value.token }}</span
+                    >
+                    <span class="ov-type-tag p"
+                      >P{{ agg.typeCounts.value.percent }}</span
+                    >
+                    <span class="ov-type-tag b"
+                      >B{{ agg.typeCounts.value.balance }}</span
                     >
                   </div>
-                  <div class="ov-st" v-if="agg.percentAgg.value">
-                    <span class="ov-stv warn"
-                      >{{ agg.percentAgg.value.worstLabel }}
-                      {{ agg.percentAgg.value.worstPercent.toFixed(0) }}%</span
-                    ><span class="ov-stl">最紧张窗口</span>
-                  </div>
-                  <div class="ov-st" v-if="agg.balanceAgg.value">
-                    <span class="ov-stv ok"
-                      >{{
-                        agg.balanceAgg.value.currency === "CNY"
-                          ? "¥"
-                          : agg.balanceAgg.value.currency
-                      }}{{ agg.balanceAgg.value.totalBalance.toFixed(2) }}</span
-                    ><span class="ov-stl">余额</span>
-                  </div>
-                </div>
-                <div class="ov-foot">
-                  <span class="ov-cnt">{{ enabledModels.length }}</span
-                  ><span class="ov-cntl">个模型</span>
-                  <span class="ov-type-sep"></span>
-                  <span class="ov-type-tag t"
-                    >T{{ agg.typeCounts.value.token }}</span
-                  >
-                  <span class="ov-type-tag p"
-                    >P{{ agg.typeCounts.value.percent }}</span
-                  >
-                  <span class="ov-type-tag b"
-                    >B{{ agg.typeCounts.value.balance }}</span
-                  >
-                </div>
+                </template>
               </div>
             </div>
 
-            <!-- Model slides -->
+            <!-- Model slides：仅多模型时显示 -->
             <div
-              v-for="model in enabledModels"
+              v-for="model in carouselModelSlides"
               :key="model.id"
               class="cslide"
               :data-model-id="model.id"
@@ -231,7 +476,6 @@
                       >
                         <div class="ms-tier-hd">
                           <span class="ms-tier-lb">{{ tier.label }}</span>
-                          <!-- 重置时间（右上角） -->
                           <span
                             v-if="tier.resetAt"
                             class="ms-tier-reset-inline"
@@ -246,15 +490,20 @@
                               class="ms-bar-f"
                               :style="{
                                 width: '100%',
-                                background: 'var(--progress-gradient)',
+                                background: getFillColor(tier.percent),
                                 clipPath: `inset(0 calc(100% - ${tier.percent}%) 0 0)`,
                               }"
                             ></div>
                           </div>
-                          <!-- 百分比（进度条右侧） -->
-                          <span class="ms-tier-pc"
+                          <span
+                            class="ms-tier-pc"
+                            :style="{ color: getColor(tier.percent) }"
                             >{{ fmtPct(tier.percent) }}%</span
                           >
+                        </div>
+                        <div v-if="tier.total && tier.total > 0" class="ms-tier-detail">
+                          <span>{{ fmtTk(tier.used) }} / {{ fmtTk(tier.total) }}</span>
+                          <span class="ms-tier-remain">余 {{ fmtTk(tier.remaining) }}</span>
                         </div>
                       </div>
                     </template>
@@ -307,7 +556,12 @@ import { computed, onMounted, onUnmounted, ref, nextTick, watch } from "vue";
 import { Clock, DataAnalysis } from "@element-plus/icons-vue";
 import { useAppStore } from "@/stores/app";
 import type { ModelConfig } from "@/stores/app";
-import { formatTokens, formatPercent, getProgressColor, formatResetTime } from "@/utils/format";
+import {
+  formatTokens,
+  formatPercent,
+  getProgressColor,
+  formatResetTime,
+} from "@/utils/format";
 import { useUsageAggregation } from "@/composables/useUsageAggregation";
 import { usePopupMutex } from "@/composables/usePopupMutex";
 import { useFloatState } from "@/composables/useFloatState";
@@ -387,6 +641,9 @@ function onFloatEnter() {
   // 拖拽进行中时，不触发任何详情窗口逻辑
   if (isDragging.value) return;
 
+  // 单模型时不触发 hover 详情（信息已在 overview 中完整展示）
+  if (agg.isSingleModel.value) return;
+
   // 贴边状态：hover 弹出时立即取消贴边条显示
   if (isDocked.value) {
     float.undock();
@@ -427,7 +684,13 @@ const ctxModel = ref<ModelConfig | null>(null);
 
 // Computed
 const enabledModels = computed(() => store.models.filter((m) => m.enabled));
-const slideCount = computed(() => 1 + enabledModels.value.length);
+
+// 单模型时只保留 Overview slide
+const carouselModelSlides = computed(() => {
+  return agg.isSingleModel.value ? [] : enabledModels.value;
+});
+
+const slideCount = computed(() => 1 + carouselModelSlides.value.length);
 
 // Helpers
 function u(id: string) {
@@ -440,6 +703,9 @@ function fmtPct(v: number) {
   return formatPercent(v);
 }
 function getColor(p: number) {
+  return getProgressColor(p);
+}
+function getFillColor(p: number) {
   return getProgressColor(p);
 }
 function fmtReset(s: string) {
@@ -1067,6 +1333,9 @@ watch(
   width: 100%;
   padding: 3px 0;
 }
+.compact-card.single-overview {
+  padding: 2px 0;
+}
 .ov-row {
   display: flex;
   align-items: center;
@@ -1100,6 +1369,158 @@ watch(
   font-size: 9px;
   color: var(--text-secondary);
   font-weight: 600;
+}
+
+/* ── 单模型 List Overview ── */
+.sov-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sov-row.percent {
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.sov-row.percent .sov-info {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.sov-row.percent .sov-mini-tiers {
+  flex: 0 0 108px;
+}
+.sov-row.balance {
+  align-items: center;
+}
+.sov-ring {
+  flex-shrink: 0;
+  position: relative;
+}
+.sov-ring-inner {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.sov-pct {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+}
+.sov-pct-u {
+  font-size: 9px;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+.sov-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.sov-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sov-sub {
+  font-size: 10px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sov-detail {
+  display: flex;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+.sov-expiry {
+  color: var(--text-placeholder);
+}
+
+.sov-mini-tiers {
+  flex: 0 0 108px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 5px 7px;
+  border-radius: 6px;
+  background: var(--glass-bg);
+}
+.sov-mini-tier {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.sov-mini-label {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  width: 16px;
+  flex-shrink: 0;
+}
+.sov-mini-track {
+  flex: 1;
+  height: 3px;
+  border-radius: 1.5px;
+  background: var(--border-light);
+  overflow: hidden;
+}
+.sov-mini-fill {
+  height: 100%;
+  border-radius: 1.5px;
+  transition: clip-path 0.8s var(--ease-spring);
+}
+.sov-mini-pct {
+  font-size: 9px;
+  font-weight: 700;
+  min-width: 24px;
+  text-align: right;
+  line-height: 1;
+}
+
+.sov-balance-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--neon-amber) 0%, var(--accent) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+.sov-balance {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+}
+.sov-balance-currency {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.sov-balance-amount {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
 }
 
 /* ── 进度环容器 ── */
@@ -1167,7 +1588,7 @@ watch(
 }
 .ov-type-tag.b {
   color: var(--neon-green);
-  background: rgba(124, 196, 138, 0.12);
+  background: rgba(34, 211, 238, 0.12);
 }
 
 .ov-type-sep {
@@ -1319,6 +1740,175 @@ watch(
 .ov-cntl {
   font-size: 11px;
   color: var(--text-secondary);
+}
+
+/* 单模型 carousel overview */
+.sov-row.carousel {
+  gap: 12px;
+  width: 100%;
+  justify-content: center;
+}
+.sov-ring-lg {
+  flex-shrink: 0;
+  position: relative;
+}
+.sov-ring-lg-in {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.sov-pct-lg {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+}
+.sov-pct-u-lg {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+.sov-info.carousel {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.sov-name.carousel {
+  font-size: 15px;
+  text-align: left;
+}
+.sov-sub.carousel {
+  font-size: 12px;
+}
+.sov-stats-carousel {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  padding: 0 8px;
+}
+.sov-st {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  flex: 1 1 auto;
+  background: var(--glass-bg);
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+.sov-stv {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.sov-stv.ok {
+  color: var(--success);
+}
+.sov-stl {
+  font-size: 9px;
+  color: var(--text-secondary);
+}
+.sov-foot {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.sov-tiers-carousel {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 4px;
+}
+.sov-tier-carousel {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.sov-tier-hd {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.sov-tier-lb {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+.sov-tier-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 9px;
+  color: var(--text-placeholder);
+}
+.sov-tier-track-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sov-tier-track {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border-light);
+  overflow: hidden;
+}
+.sov-tier-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: clip-path 0.8s var(--ease-spring);
+}
+.sov-tier-pct {
+  font-size: 12px;
+  font-weight: 700;
+  min-width: 44px;
+  text-align: right;
+}
+
+.sov-balance-carousel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.sov-balance-icon-lg {
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, var(--neon-amber) 0%, var(--accent) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+}
+.sov-balance-value-lg {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.sov-balance-value-lg .sov-balance-currency {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.sov-balance-value-lg .sov-balance-amount {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
 }
 
 /* model slide */
@@ -1482,6 +2072,18 @@ watch(
   color: var(--text-primary);
   min-width: 40px;
   text-align: right;
+}
+
+.ms-tier-detail {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+.ms-tier-remain {
+  color: var(--success);
+  font-weight: 600;
 }
 
 .ms-bal {

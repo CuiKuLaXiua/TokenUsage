@@ -1,12 +1,17 @@
 <template>
-  <div class="percent-bar">
-    <div v-for="tier in tiers" :key="tier.name" class="bar-tier glass-surface">
+  <div class="percent-bar" :class="[`variant-${variant}`]">
+    <div
+      v-for="tier in tiers"
+      :key="tier.name"
+      class="bar-tier"
+      :class="{ 'glass-surface': variant === 'default' || variant === 'summary' }"
+    >
       <div class="tier-header">
         <div class="tier-badge">
           <span class="tier-label">{{ tier.label }}</span>
         </div>
         <!-- 重置时间（右上角） -->
-        <span v-if="tier.resetAt" class="tier-reset">
+        <span v-if="tier.resetAt && variant !== 'mini-tiers'" class="tier-reset">
           <el-icon :size="10"><Clock /></el-icon>
           {{ formatResetTime(tier.resetAt) }}
         </span>
@@ -18,7 +23,7 @@
             class="tier-fill"
             :style="{
               width: '100%',
-              background: 'var(--progress-gradient)',
+              background: getFillColor(tier.percent),
               clipPath: `inset(0 calc(100% - ${tier.percent}%) 0 0)`
             }"
           >
@@ -30,6 +35,15 @@
         <span class="tier-percent" :style="{ color: getColor(tier.percent) }">
           {{ tier.percent.toFixed(1) }}%
         </span>
+      </div>
+
+      <!-- summary / default 下的 used/total 详情 -->
+      <div
+        v-if="showDetail && (variant === 'default' || variant === 'summary') && tier.total && tier.total > 0"
+        class="tier-detail"
+      >
+        <span>{{ formatFullNumber(tier.used || 0) }} / {{ formatFullNumber(tier.total || 0) }}</span>
+        <span class="tier-remain">余 {{ formatFullNumber(tier.remaining || 0) }}</span>
       </div>
     </div>
   </div>
@@ -51,14 +65,26 @@ interface Tier {
 const props = withDefaults(defineProps<{
   tiers: Tier[]
   showDetail?: boolean
+  variant?: 'default' | 'mini-tiers' | 'summary'
 }>(), {
-  showDetail: true
+  showDetail: true,
+  variant: 'default'
 })
 
 function getColor(percent: number): string {
   if (percent >= 90) return 'var(--neon-red)'
   if (percent >= 70) return 'var(--neon-amber)'
   return 'var(--neon-green)'
+}
+
+function getFillColor(percent: number): string {
+  if (percent >= 90) return 'var(--neon-red)'
+  if (percent >= 70) return 'var(--neon-amber)'
+  return 'var(--neon-green)'
+}
+
+function formatFullNumber(num: number): string {
+  return num.toLocaleString('zh-CN')
 }
 
 function formatResetTime(timeStr: string): string {
@@ -97,9 +123,18 @@ function formatResetTime(timeStr: string): string {
 <style scoped>
 .percent-bar {
   display: flex;
+  width: 100%;
+}
+
+/* ═══ Default / Summary variant ═══ */
+.variant-default,
+.variant-summary {
   flex-direction: column;
   gap: 12px;
-  width: 100%;
+}
+
+.variant-summary {
+  gap: 14px;
 }
 
 .bar-tier {
@@ -108,6 +143,12 @@ function formatResetTime(timeStr: string): string {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.variant-summary .bar-tier {
+  padding: 16px;
+  border-radius: 14px;
+  gap: 12px;
 }
 
 .tier-header {
@@ -133,12 +174,22 @@ function formatResetTime(timeStr: string): string {
   letter-spacing: 0.5px;
 }
 
+.variant-summary .tier-label {
+  font-size: 14px;
+  padding: 5px 14px;
+}
+
 .tier-percent {
   font-size: 16px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   min-width: 50px;
   text-align: right;
+}
+
+.variant-summary .tier-percent {
+  font-size: 18px;
+  min-width: 56px;
 }
 
 .tier-track-row {
@@ -156,11 +207,20 @@ function formatResetTime(timeStr: string): string {
   position: relative;
 }
 
+.variant-summary .tier-track {
+  height: 12px;
+  border-radius: 6px;
+}
+
 .tier-fill {
   height: 100%;
   border-radius: 5px;
   position: relative;
   transition: clip-path 1.2s var(--ease-spring);
+}
+
+.variant-summary .tier-fill {
+  border-radius: 6px;
 }
 
 .tier-glow {
@@ -187,6 +247,62 @@ function formatResetTime(timeStr: string): string {
   gap: 3px;
   font-size: 11px;
   color: var(--text-placeholder);
+}
+
+.tier-detail {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: -4px;
+}
+
+.tier-remain {
+  color: var(--success);
+  font-weight: 600;
+}
+
+/* ═══ Mini-tiers variant ═══ */
+.variant-mini-tiers {
+  flex-direction: row;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.variant-mini-tiers .bar-tier {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+  gap: 4px;
+}
+
+.variant-mini-tiers .tier-header {
+  display: none;
+}
+
+.variant-mini-tiers .tier-track-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.variant-mini-tiers .tier-track {
+  height: 4px;
+  border-radius: 2px;
+}
+
+.variant-mini-tiers .tier-percent {
+  font-size: 10px;
+  font-weight: 700;
+  min-width: auto;
+  text-align: left;
+  line-height: 1;
+}
+
+.variant-mini-tiers .tier-fill {
+  border-radius: 2px;
 }
 
 @keyframes shine {
