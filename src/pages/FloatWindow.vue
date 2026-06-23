@@ -68,42 +68,52 @@
             <!-- Percent 单模型 -->
             <template v-else-if="agg.singleModelSummary.value?.type === 'percent'"
             >
-              <div class="sov-row percent">
-                <div class="sov-info">
-                  <div class="sov-name">{{ agg.singleModelSummary.value.title }}</div>
-                  <div class="sov-sub">{{ agg.singleModelSummary.value.subtitle }}</div>
-                  <div
-                    v-if="agg.singleModelSummary.value.secondaryText"
-                    class="sov-detail"
-                  >
-                    {{ agg.singleModelSummary.value.secondaryText }}
-                  </div>
-                </div>
-                <div class="sov-mini-tiers">
-                  <div
-                    v-for="tier in agg.singleModelSummary.value.tiers"
-                    :key="tier.name"
-                    class="sov-mini-tier"
-                  >
-                    <div class="sov-mini-label">{{ tier.label }}</div>
-                    <div class="sov-mini-track">
-                      <div
-                        class="sov-mini-fill"
-                        :style="{
-                          width: '100%',
-                          background: getFillColor(tier.percent),
-                          clipPath: `inset(0 calc(100% - ${tier.percent}%) 0 0)`,
-                        }"
-                      ></div>
-                    </div>
+              <div class="ov-nums percent-single">
+                <div
+                  v-for="tier in agg.singleModelSummary.value.tiers"
+                  :key="tier.name"
+                  class="ov-n tier-card"
+                >
+                  <div class="ov-tier-track">
                     <div
-                      class="sov-mini-pct"
+                      class="ov-tier-fill"
+                      :style="{
+                        width: '100%',
+                        background: getTierGradient(tier.percent),
+                        clipPath: `inset(0 calc(100% - ${tier.percent}%) 0 0)`,
+                      }"
+                    ></div>
+                  </div>
+                  <div class="ov-tier-hd">
+                    <span class="ov-tier-label">{{ tier.label }}</span>
+                    <span
+                      class="ov-tier-pct"
                       :style="{ color: getColor(tier.percent) }"
                     >
                       {{ tier.percent.toFixed(0) }}%
-                    </div>
+                    </span>
+                  </div>
+                  <div v-if="tier.resetAt" class="ov-tier-reset">
+                    <el-icon :size="9"><Clock /></el-icon>
+                    {{ fmtReset(tier.resetAt) }}
                   </div>
                 </div>
+              </div>
+              <div class="ov-types single-meta">
+                <span class="ov-meta-tag name">
+                  {{ agg.singleModelSummary.value.title }}
+                </span>
+                <template v-if="agg.singleModelUsage.value?.currentPeriodEnd">
+                  <span class="ov-meta-tag expiry">
+                    到期 {{ agg.singleModelUsage.value.currentPeriodEnd.slice(0, 10) }}
+                  </span>
+                </template>
+                <template v-else-if="agg.singleModelSummary.value.longestTierResetAt">
+                  <span class="ov-meta-tag reset">
+                    <el-icon :size="10"><Clock /></el-icon>
+                    {{ agg.singleModelSummary.value.longestTierResetAt.slice(0, 10) }} 重置
+                  </span>
+                </template>
               </div>
             </template>
 
@@ -185,7 +195,7 @@
             </div>
             <div class="ov-types" v-if="agg.hasAnyData.value">
               <span class="ov-type-tag t"
-                >T:{{ agg.typeCounts.value.token }}</span
+                >T1:{{ agg.typeCounts.value.token }}</span
               >
               <span class="ov-type-tag p"
                 >P:{{ agg.typeCounts.value.percent }}</span
@@ -560,6 +570,7 @@ import {
   formatTokens,
   formatPercent,
   getProgressColor,
+  getProgressGradient,
   formatResetTime,
 } from "@/utils/format";
 import { useUsageAggregation } from "@/composables/useUsageAggregation";
@@ -708,6 +719,9 @@ function getColor(p: number) {
 function getFillColor(p: number) {
   return getProgressColor(p);
 }
+function getTierGradient(p: number) {
+  return getProgressGradient(p);
+}
 function fmtReset(s: string) {
   return formatResetTime(s);
 }
@@ -721,7 +735,7 @@ function fmtLg(n: number) {
 
 // Resize — now only used for carousel mode
 const FLOAT_WIDTH = 260;
-const FLOAT_LIST_HEIGHT = 88;
+const FLOAT_LIST_HEIGHT = 78;
 const FLOAT_CAROUSEL_HEIGHT = 220;
 
 // 标记是否需要在 resize 完成后发送 ready 信号
@@ -1331,10 +1345,10 @@ watch(
 }
 .compact-card {
   width: 100%;
-  padding: 3px 0;
+  padding: 2px 0;
 }
 .compact-card.single-overview {
-  padding: 2px 0;
+  padding: 1px 0;
 }
 .ov-row {
   display: flex;
@@ -1377,6 +1391,93 @@ watch(
   align-items: center;
   gap: 10px;
 }
+.sov-row.percent-new {
+  display: none;
+}
+
+/* Percent 单模型复用 ov-nums */
+.ov-nums.percent-single {
+  margin-top: 0;
+  gap: 5px;
+}
+.ov-nums.percent-single .ov-n.tier-card {
+  flex: 1 1 0;
+  min-width: 56px;
+  max-width: 120px;
+  padding: 5px 5px 4px;
+  gap: 4px;
+}
+.ov-tier-track {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border-light);
+  overflow: hidden;
+}
+.ov-tier-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: clip-path 0.8s var(--ease-spring);
+}
+.ov-tier-hd {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+.ov-tier-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  line-height: 1;
+}
+.ov-tier-pct {
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.ov-tier-reset {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: 9px;
+  color: var(--text-placeholder);
+  line-height: 1;
+}
+
+/* 单模型元信息区 */
+.ov-types.single-meta {
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 5px;
+  padding-top: 5px;
+}
+.ov-meta-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+.ov-meta-tag.name {
+  color: var(--text-primary);
+  background: var(--glass-bg);
+  font-weight: 700;
+}
+.ov-meta-tag.expiry {
+  color: var(--text-secondary);
+  background: var(--glass-bg);
+}
+.ov-meta-tag.reset {
+  color: var(--text-placeholder);
+  background: var(--glass-bg);
+}
+
 .sov-row.percent {
   align-items: center;
   justify-content: space-between;

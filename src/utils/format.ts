@@ -75,6 +75,12 @@ export function getProgressColorSmooth(percent: number | undefined | null): stri
   return `oklch(${l.toFixed(2)} ${c.toFixed(2)} ${Math.round(h)})`
 }
 
+/** 连续渐变进度条：固定从 0% 绿色平滑过渡到 100% 红色，当前进度只显示前段 */
+export function getProgressGradient(percent?: number | undefined | null): string {
+  if (percent == null || isNaN(percent)) return 'var(--border-light)'
+  return 'linear-gradient(90deg, hsl(140, 78%, 46%), hsl(75, 92%, 55%), hsl(35, 96%, 58%), hsl(0, 82%, 58%))'
+}
+
 export function formatResetTime(timeStr: string): string {
   try {
     const date = new Date(timeStr)

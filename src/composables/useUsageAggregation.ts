@@ -49,6 +49,8 @@ export interface SingleModelSummary {
   primaryLabel: string
   secondaryText: string
   tiers: UsageTier[]
+  longestTierResetAt?: string
+  longestTierLabel?: string
 }
 
 /** 时间窗口优先级：数字越大表示窗口越长 */
@@ -329,6 +331,7 @@ export function useUsageAggregation() {
     if (usage.usageType === 'percent') {
       const tiers = usage.tiers || []
       const worst = pickWorstTier(tiers)
+      const longest = pickLongestTier(tiers)
       const resetText = worst?.resetAt
         ? `${worst.label} 窗口 ${formatResetTimeShort(worst.resetAt)}后重置`
         : ''
@@ -341,7 +344,9 @@ export function useUsageAggregation() {
         primaryValue: worst?.percent ?? 0,
         primaryLabel: worst ? `${worst.label} ${worst.percent.toFixed(1)}%` : '—',
         secondaryText: resetText,
-        tiers
+        tiers,
+        longestTierResetAt: longest?.resetAt,
+        longestTierLabel: longest?.label
       }
     }
 
