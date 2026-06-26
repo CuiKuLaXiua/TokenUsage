@@ -127,6 +127,7 @@ export interface ElectronAPI {
     api3Instance: string | null
   }>
   openKimiLogin: (modelId?: string) => Promise<{ cookies: string | null; token: string | null }>
+  onKimiLoginSuccess: (callback: (data: { modelId: string; hasToken: boolean }) => void) => () => void
   onLoginNeeded: (callback: (data: { modelId: string }) => void) => () => void
   onApiKeyInvalid: (callback: (data: { modelId: string, modelName: string, provider: string }) => void) => () => void
 
@@ -288,6 +289,11 @@ const electronAPI: ElectronAPI = {
   openMimoLogin: (modelId) => ipcRenderer.invoke('open-mimo-login', modelId),
   openOpencodeLogin: (modelId) => ipcRenderer.invoke('open-opencode-login', modelId),
   openKimiLogin: (modelId) => ipcRenderer.invoke('open-kimi-login', modelId),
+  onKimiLoginSuccess: (callback) => {
+    const wrapper = (_: any, data: { modelId: string; hasToken: boolean }) => callback(data)
+    ipcRenderer.on('kimi-login-success', wrapper)
+    return () => { ipcRenderer.removeListener('kimi-login-success', wrapper) }
+  },
   onLoginNeeded: (callback) => {
     const wrapper = (_: any, data: { modelId: string }) => callback(data)
     ipcRenderer.on('login-needed', wrapper)

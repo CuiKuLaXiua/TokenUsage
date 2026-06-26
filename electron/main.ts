@@ -2026,6 +2026,14 @@ async function doKimiLogin(
         console.error("[KimiLogin] 保存配置失败:", error);
       }
       resolvePromise({ cookies: data.cookies, token: data.token || null });
+
+      // 通知主窗口登录成功
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send("kimi-login-success", {
+          modelId,
+          hasToken: !!data.token,
+        });
+      }
     } else {
       console.warn("[KimiLogin] 登录失败或已取消");
       resolvePromise({ cookies: null, token: null });

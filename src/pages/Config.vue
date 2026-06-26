@@ -439,7 +439,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import { nextTick } from 'vue'
 import {
   Plus,
@@ -481,6 +481,7 @@ const modelToDeleteName = ref('')
 // 关闭行为设置（GlassSelect 不支持 null，用 '' 代替"每次询问"）
 const closeActionModel = ref('')
 let unsubCloseActionUpdated: (() => void) | undefined
+let unsubKimiLogin: (() => void) | undefined
 
 onMounted(async () => {
   try {
@@ -491,10 +492,21 @@ onMounted(async () => {
   unsubCloseActionUpdated = window.electronAPI.onCloseActionUpdated((action) => {
     closeActionModel.value = action ?? ''
   })
+
+  // 监听 Kimi 登录成功通知
+  unsubKimiLogin = window.electronAPI.onKimiLoginSuccess((data) => {
+    ElNotification({
+      title: 'Kimi 登录成功',
+      message: data.hasToken ? '已捕获订阅接口 JWT，Cookie 和 Token 已保存' : 'Cookie 已保存',
+      type: 'success',
+      duration: 3000,
+    })
+  })
 })
 
 onUnmounted(() => {
   unsubCloseActionUpdated?.()
+  unsubKimiLogin?.()
 })
 
 async function onCloseActionChange(v: string) {
