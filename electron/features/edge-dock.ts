@@ -9,7 +9,6 @@ export const EDGE_MARGIN = 2; // 贴边条与屏幕边缘的间距
 const EDGE_REVEAL_ZONE = 5; // 鼠标距离边缘 5px 内触发弹出
 const EDGE_HIDE_ZONE = 50; // 鼠标距离窗口 50px 外触发收起
 const HOVER_REVEAL_DELAY = 200; // 鼠标在检测区停留 200ms 才触发弹出（防划过误触）
-const DRAG_IDLE_THRESHOLD = 15; // 鼠标静止超过 15 帧（约 240ms）自动停止拖拽
 
 // ── 接口定义 ──
 
@@ -29,9 +28,10 @@ interface DragState {
   startPosX: number;
   startPosY: number;
   intervalId: ReturnType<typeof setInterval> | null;
-  lastCursorX: number;
-  lastCursorY: number;
-  idleCount: number; // 鼠标静止计数
+  lastSetX: number;
+  lastSetY: number;
+  workArea: { x: number; y: number; width: number; height: number };
+  winSize: [number, number];
 }
 
 // ── 缓动函数 ──
@@ -467,6 +467,11 @@ export class EdgeDockManager {
           if (existingState.intervalId) clearInterval(existingState.intervalId);
         }
 
+        // 缓存显示区域和窗口尺寸，避免每 tick 重复调用原生 API
+        const [winW, winH] = win.getSize();
+        const display = screen.getDisplayMatching(win.getBounds());
+        const workArea = display.workArea;
+
         const state: DragState = {
           isDragging: true,
           startMouseX: options.mouseX,
@@ -474,9 +479,10 @@ export class EdgeDockManager {
           startPosX: posX,
           startPosY: posY,
           intervalId: null,
-          lastCursorX: options.mouseX,
-          lastCursorY: options.mouseY,
-          idleCount: 0,
+          lastSetX: posX,
+          lastSetY: posY,
+          workArea: { x: workArea.x, y: workArea.y, width: workArea.width, height: workArea.height },
+          winSize: [winW, winH],
         };
 
         state.intervalId = setInterval(() => {
@@ -489,41 +495,20 @@ export class EdgeDockManager {
           }
 
           const cursor = screen.getCursorScreenPoint();
-
-          if (
-            Math.abs(cursor.x - state.lastCursorX) <= 1 &&
-            Math.abs(cursor.y - state.lastCursorY) <= 1
-          ) {
-            state.idleCount++;
-            if (state.idleCount > DRAG_IDLE_THRESHOLD) {
-              console.log(
-                `[Main] Drag auto-stopped: mouse idle for ${state.idleCount} frames`,
-              );
-              this.stopDragForWindow(win.id);
-              return;
-            }
-          } else {
-            state.idleCount = 0;
-            state.lastCursorX = cursor.x;
-            state.lastCursorY = cursor.y;
-          }
-
           const dx = cursor.x - state.startMouseX;
           const dy = cursor.y - state.startMouseY;
           let newX = state.startPosX + dx;
           let newY = state.startPosY + dy;
 
-          const display = screen.getDisplayMatching(win.getBounds());
-          const { x: workX, y: workY, width: workW, height: workH } = display.workArea;
-          const [winW, winH] = win.getSize();
+          // clamp 到缓存的显示区域
+          const { x: wX, y: wY, width: wW, height: wH } = state.workArea;
+          newX = Math.max(wX, Math.min(newX, wX + wW - state.winSize[0]));
+          newY = Math.max(wY, Math.min(newY, wY + wH - state.winSize[1]));
 
-          newX = Math.max(workX, newX);
-          newX = Math.min(newX, workX + workW - winW);
-          newY = Math.max(workY, newY);
-          newY = Math.min(newY, workY + workH - winH);
-
-          const [currentX, currentY] = win.getPosition();
-          if (Math.abs(currentX - newX) > 1 || Math.abs(currentY - newY) > 1) {
+          // 用缓存位置判断是否需要更新，避免 win.getPosition() 原生调用
+          if (state.lastSetX !== newX || state.lastSetY !== newY) {
+            state.lastSetX = newX;
+            state.lastSetY = newY;
             win.setPosition(Math.round(newX), Math.round(newY));
           }
         }, 16);

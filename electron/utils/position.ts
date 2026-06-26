@@ -9,8 +9,8 @@ export const CTX_MENU_HEIGHT_NO_MODEL = 198;
 export const CTX_MENU_HEIGHT_WITH_MODEL = 198;
 
 // ── 托盘菜单弹窗 ──
-export const TRAY_MENU_WIDTH = 280;
-export const TRAY_MENU_BASE_HEIGHT = 220;
+export const TRAY_MENU_WIDTH = 220;
+export const TRAY_MENU_BASE_HEIGHT = 265;
 export const TRAY_MENU_MODEL_ROW_HEIGHT = 34;
 export const TRAY_MENU_MAX_HEIGHT = 520;
 

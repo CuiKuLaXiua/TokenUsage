@@ -564,7 +564,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, nextTick, watch } from "vue";
-import { Clock, DataAnalysis } from "@element-plus/icons-vue";
+import { Clock, DataAnalysis, Loading } from "@element-plus/icons-vue";
 import { useAppStore } from "@/stores/app";
 import type { ModelConfig } from "@/stores/app";
 import {
@@ -789,6 +789,9 @@ async function showMenu(e: MouseEvent) {
   }
   if (hasMoved.value) return;
 
+  // 尽早标记菜单已打开，防止原生 context-menu 事件重复触发（DOM + native 双路径竞态）
+  ctxMenuOpen.value = true;
+
   // 详情窗口与右键菜单互斥：打开菜单时取消详情定时器，互斥由 mutex 统一管理
   if (timers.showDetail) {
     clearTimeout(timers.showDetail);
@@ -811,9 +814,6 @@ async function showMenu(e: MouseEvent) {
     }
     el = el.parentElement;
   }
-
-  // 标记菜单已打开（由 ctx-menu-closed 事件重置）
-  ctxMenuOpen.value = true;
 
   // 主进程统一管理菜单生命周期（复用窗口，show/hide）
   // e.screenX/Y 与 setPosition 使用相同的 DPI 感知坐标系，无需 DPR 转换

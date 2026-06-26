@@ -30,9 +30,12 @@
       <el-icon :size="14"><Monitor /></el-icon>
       <span>{{ mainWindowActive ? '聚焦主窗口' : '打开主窗口' }}</span>
     </div>
-    <div class="tm-item" @click="act('toggle-float')">
+    <div class="tm-switch-row">
       <el-icon :size="14"><Grid /></el-icon>
-      <span>{{ floatActive ? '隐藏悬浮窗' : '显示悬浮窗' }}</span>
+      <span class="tm-switch-label">悬浮窗</span>
+      <div class="tm-switch" :class="{ on: floatActive }" @click="toggleFloat">
+        <div class="tm-switch-thumb"></div>
+      </div>
     </div>
     <div class="tm-item" @click="act('refresh-all')">
       <el-icon :size="14"><Refresh /></el-icon><span>刷新全部数据</span>
@@ -112,6 +115,7 @@ const mainWindowActive = ref(false)
 
 let unsubUpdate: (() => void) | null = null
 let leaveTimer: ReturnType<typeof setTimeout> | null = null
+let suppressUntilApplied = false  // toggle 期间屏蔽事件，直到 IPC 返回值被应用后解除
 
 // ── 强调色数据（与 theme.css 对应） ──
 
@@ -161,8 +165,9 @@ onMounted(async () => {
     }
   } catch {}
 
-  // 监听实时更新
+  // 监听实时更新（toggle 期间屏蔽，IPC 返回值到达后解除）
   unsubUpdate = window.electronAPI.onTrayMenuUpdate((payload) => {
+    if (suppressUntilApplied) return
     applyPayload(payload)
   })
 })
@@ -198,10 +203,20 @@ function applyPayload(payload: {
 
 async function act(action: string) {
   try {
-    await window.electronAPI.sendTrayMenuAction(action)
+    const result = await window.electronAPI.sendTrayMenuAction(action)
+    if (result && typeof result === 'object' && 'models' in result) {
+      applyPayload(result as any)
+    }
   } catch (e) {
     console.error('[TrayMenu] action failed:', action, e)
+  } finally {
+    suppressUntilApplied = false
   }
+}
+
+function toggleFloat() {
+  suppressUntilApplied = true
+  act('toggle-float')
 }
 
 // ── 鼠标进出 ──
@@ -217,7 +232,7 @@ function onMouseLeave() {
   leaveTimer = setTimeout(() => {
     leaveTimer = null
     window.electronAPI.sendTrayMenuAction('__hide').catch(() => {})
-  }, 180)
+  }, 500)
 }
 </script>
 
@@ -226,12 +241,8 @@ function onMouseLeave() {
 html, body {
   margin: 0;
   padding: 0;
-  background: #141e16 !important;
+  background: transparent !important;
   overflow: hidden;
-}
-html[data-theme="light"] body,
-html[data-theme="light"] {
-  background: #ede7dc !important;
 }
 </style>
 
@@ -240,8 +251,21 @@ html[data-theme="light"] {
   background: var(--bg-secondary);
   padding: 6px;
   box-sizing: border-box;
-  min-height: 100vh;
+  min-height: 100%;
   overflow: hidden;
+  border-radius: 12px;
+  animation: traySlideIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes traySlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 /* ── 区域标题 ── */
@@ -346,6 +370,62 @@ html[data-theme="light"] {
   background: var(--border-light);
   margin: 4px 8px;
   opacity: 0.6;
+}
+
+/* ── 开关行 ── */
+.tm-switch-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  transition: background 0.12s ease;
+}
+
+.tm-switch-row:hover {
+  background: var(--glass-bg);
+}
+
+.tm-switch-label {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.tm-switch {
+  position: relative;
+  width: 34px;
+  height: 18px;
+  border-radius: 12px;
+  background: var(--border-color);
+  cursor: pointer;
+  transition: background 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+  will-change: background, box-shadow;
+}
+
+.tm-switch.on {
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+
+.tm-switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+}
+
+.tm-switch.on .tm-switch-thumb {
+  transform: translateX(16px);
 }
 
 /* ── 菜单项 ── */

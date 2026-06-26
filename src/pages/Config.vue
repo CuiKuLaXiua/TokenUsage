@@ -204,23 +204,32 @@
             </div>
             <div class="form-field">
               <label class="form-label">提供商 <span class="required">*</span></label>
-              <select v-model="form.provider" class="form-input form-select">
-                <option value="mimo">小米 MIMO</option>
-                <option value="openai">OpenAI</option>
-                <option value="claude">Claude</option>
-                <option value="deepseek">DeepSeek</option>
-                <option value="kimi">Kimi</option>
-                <option value="opencode">Open Code</option>
-              </select>
+              <GlassSelect
+                v-model="form.provider"
+                :options="[
+                  { label: '小米 MIMO', value: 'mimo' },
+                  { label: 'OpenAI', value: 'openai' },
+                  { label: 'Claude', value: 'claude' },
+                  { label: 'DeepSeek', value: 'deepseek' },
+                  { label: 'Kimi', value: 'kimi' },
+                  { label: 'Open Code', value: 'opencode' },
+                ]"
+                placeholder="请选择提供商"
+              />
             </div>
             <!-- Kimi 认证方式 -->
             <div v-if="form.provider === 'kimi'" class="form-field form-field-inline">
               <label class="form-label">认证方式</label>
               <div class="auth-mode-wrap">
-                <select v-model="form.authMode" class="form-input form-select auth-mode-select">
-                  <option value="apikey">API Key（用量额度）</option>
-                  <option value="cookie">Cookie 登录（订阅详情）</option>
-                </select>
+                <GlassSelect
+                  v-model="form.authMode"
+                  :options="[
+                    { label: 'API Key（用量额度）', value: 'apikey' },
+                    { label: 'Cookie 登录（订阅详情）', value: 'cookie' },
+                  ]"
+                  placeholder="请选择认证方式"
+                  class="auth-mode-select"
+                />
                 <p class="auth-mode-hint">
                   <template v-if="form.authMode === 'apikey'">获取 Coding API 用量，需填入 API Key</template>
                   <template v-else>获取完整订阅数据（5H/7D 限额 + 订阅额度），需登录 Kimi 账号</template>
@@ -316,11 +325,16 @@
                   step="1"
                   placeholder="0"
                 />
-                <select v-model="form.refreshUnit" class="form-input unit-select">
-                  <option value="second">秒</option>
-                  <option value="minute">分钟</option>
-                  <option value="hour">小时</option>
-                </select>
+                <GlassSelect
+                  v-model="form.refreshUnit"
+                  :options="[
+                    { label: '秒', value: 'second' },
+                    { label: '分钟', value: 'minute' },
+                    { label: '小时', value: 'hour' },
+                  ]"
+                  size="small"
+                  class="unit-select"
+                />
               </div>
               <span class="interval-hint">0 = 关闭</span>
             </div>
@@ -406,11 +420,17 @@
             <span class="setting-label">关闭窗口时</span>
             <span class="setting-desc">选择点击关闭按钮后的行为</span>
           </div>
-          <select v-model="closeActionModel" class="form-input form-select setting-select" @change="onCloseActionChange">
-            <option :value="null">每次询问</option>
-            <option value="minimize-to-tray">隐藏到托盘</option>
-            <option value="quit">直接退出</option>
-          </select>
+          <GlassSelect
+            v-model="closeActionModel"
+            :options="[
+              { label: '每次询问', value: '' },
+              { label: '隐藏到托盘', value: 'minimize-to-tray' },
+              { label: '直接退出', value: 'quit' },
+            ]"
+            placeholder="请选择"
+            class="setting-select"
+            @change="onCloseActionChange"
+          />
         </div>
       </div>
     </div>
@@ -458,18 +478,18 @@ const showDeleteConfirm = ref(false)
 const modelToDeleteId = ref('')
 const modelToDeleteName = ref('')
 
-// 关闭行为设置
-const closeActionModel = ref<CloseAction | null>(null)
+// 关闭行为设置（GlassSelect 不支持 null，用 '' 代替"每次询问"）
+const closeActionModel = ref('')
 let unsubCloseActionUpdated: (() => void) | undefined
 
 onMounted(async () => {
   try {
-    closeActionModel.value = await window.electronAPI.getCloseAction()
+    closeActionModel.value = (await window.electronAPI.getCloseAction()) ?? ''
   } catch { /* ignore */ }
 
   // 监听对话框中的配置更新
   unsubCloseActionUpdated = window.electronAPI.onCloseActionUpdated((action) => {
-    closeActionModel.value = action
+    closeActionModel.value = action ?? ''
   })
 })
 
@@ -477,8 +497,8 @@ onUnmounted(() => {
   unsubCloseActionUpdated?.()
 })
 
-async function onCloseActionChange() {
-  await window.electronAPI.setCloseAction(closeActionModel.value)
+async function onCloseActionChange(v: string) {
+  await window.electronAPI.setCloseAction(v || null)
   ElMessage.success({ message: '关闭行为已更新', duration: 1500 })
 }
 
@@ -1092,10 +1112,18 @@ async function handleErrorAction(model: ModelConfig) {
 }
 
 .unit-select {
-  width: 88px !important;
+  width: 88px;
+  flex-shrink: 0;
+}
+.unit-select :deep(.glass-select) {
+  width: 88px;
+  height: 30px;
+  border-radius: 8px;
+}
+.unit-select :deep(.glass-select__text) {
+  font-size: 12px;
   text-align: center;
-  cursor: pointer;
-  padding-right: 20px !important;
+  padding: 0 24px 0 8px;
 }
 
 .auth-mode-wrap {
@@ -1107,8 +1135,11 @@ async function handleErrorAction(model: ModelConfig) {
 }
 
 .auth-mode-select {
-  width: 180px !important;
+  width: 180px;
   flex-shrink: 0;
+}
+.auth-mode-select :deep(.glass-select) {
+  width: 180px;
 }
 
 .auth-mode-hint {
@@ -1507,7 +1538,10 @@ async function handleErrorAction(model: ModelConfig) {
 }
 
 .setting-select {
-  width: 160px !important;
+  width: 160px;
   flex-shrink: 0;
+}
+.setting-select :deep(.glass-select) {
+  width: 160px;
 }
 </style>

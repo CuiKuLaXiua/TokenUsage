@@ -49,8 +49,11 @@ export class TrayMenuManager {
   private win: BrowserWindow | null = null;
   private lastPayload: TrayMenuPayload | null = null;
   private gen = 0;
+  private genAtShow = 0;
   private closing = false;
   private actionInProgress = false;
+  private keepOpen = false;
+  private showLock = false;
   private focusTimer: ReturnType<typeof setTimeout> | null = null;
   private pageLoaded = false;
 
@@ -67,13 +70,12 @@ export class TrayMenuManager {
       resizable: false,
       alwaysOnTop: true,
       skipTaskbar: true,
-      frame: false,          // 无标题栏
-      transparent: false,    // 非透明 → 无合成问题
-      hasShadow: true,       // 系统阴影
+      frame: false,
+      transparent: true,
+      hasShadow: true,
       show: false,
-      backgroundColor: "#141e16", // 暗色背景（与 --bg-secondary 一致）
       webPreferences: {
-        preload: join(__dirname, "preload.js"),
+        preload: join(__dirname, "../preload.js"),
         nodeIntegration: false,
         contextIsolation: true,
       },
@@ -103,16 +105,17 @@ export class TrayMenuManager {
 
     // blur 关闭（generation 计数器 + isClosing，同 CtxMenu）
     let blurTimer: ReturnType<typeof setTimeout> | null = null;
-    const genAtBind = this.gen;
 
     win.on("blur", () => {
       if (this.closing) return;
-      // 操作分发中：不要自动关闭窗口，等待操作完成后再关闭
+      if (this.showLock) return;
+      if (this.keepOpen) return;   // toggle-float 等操作后保持打开
       if (this.actionInProgress) return;
       if (blurTimer) clearTimeout(blurTimer);
       blurTimer = setTimeout(() => {
         blurTimer = null;
-        if (this.closing || this.actionInProgress || this.gen !== genAtBind) return;
+        if (this.closing || this.actionInProgress || this.keepOpen) return;
+        if (this.gen !== this.genAtShow) return;
         this.hide();
       }, 120);
     });
@@ -137,6 +140,8 @@ export class TrayMenuManager {
     if (!win) return false;
 
     this.gen++;
+    this.genAtShow = this.gen;
+    this.keepOpen = false;
 
     const payload = this.getPayload();
     this.lastPayload = payload;
@@ -164,13 +169,15 @@ export class TrayMenuManager {
         this.doShow(win);
       });
     } else {
-      this.doShow(win);
+      // 延迟一帧显示：确保 renderer 收到 payload 并完成渲染后再 show，避免旧帧闪烁
+      setTimeout(() => this.doShow(win), 16);
     }
 
     return true;
   }
 
   private doShow(win: BrowserWindow): void {
+    this.showLock = true;
     win.showInactive();
     if (this.focusTimer) {
       clearTimeout(this.focusTimer);
@@ -181,6 +188,10 @@ export class TrayMenuManager {
       if (win && !win.isDestroyed()) {
         win.focus();
       }
+      // showLock 在 focus 后再保持 120ms，覆盖 focus 触发的 blur + 120ms timer
+      setTimeout(() => {
+        this.showLock = false;
+      }, 120);
     }, 80);
   }
 
@@ -190,12 +201,18 @@ export class TrayMenuManager {
       this.focusTimer = null;
     }
     this.closing = true;
+    this.keepOpen = false;
     const win = this.win;
     if (win && !win.isDestroyed()) {
       win.hide();
       win.blur();
     }
     this.closing = false;
+  }
+
+  isVisible(): boolean {
+    const win = this.win;
+    return win != null && !win.isDestroyed() && win.isVisible();
   }
 
   destroy(): void {
@@ -353,9 +370,17 @@ export class TrayMenuManager {
         this.hide();
         return true;
       }
+      if (action === "toggle-float") {
+        this.keepOpen = true;
+      }
       await this.handleAction(action);
-      this.hide();
-      return true;
+      if (action !== "toggle-float") {
+        this.hide();
+      }
+      // 直接返回最新快照，不依赖 lastPayload 或 refreshIfVisible
+      const fresh = this.getPayload();
+      this.lastPayload = fresh;
+      return fresh;
     });
   }
 }

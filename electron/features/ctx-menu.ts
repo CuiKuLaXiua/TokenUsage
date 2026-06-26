@@ -18,7 +18,10 @@ export interface CtxMenuDeps {
 export class CtxMenuManager {
   private lastConfig: CtxMenuConfig | null = null;
   private gen = 0;
+  private genAtShow = 0;
   private closing = false;
+  private showing = false;
+  private blurTimer: ReturnType<typeof setTimeout> | null = null;
   private focusTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private deps: CtxMenuDeps) {}
@@ -31,6 +34,7 @@ export class CtxMenuManager {
     if (!win) return false;
 
     this.gen++;
+    this.genAtShow = this.gen;
 
     const menuHeight = options.modelName
       ? CTX_MENU_HEIGHT_WITH_MODEL
@@ -54,6 +58,7 @@ export class CtxMenuManager {
     this.lastConfig = config;
     win.webContents.send("ctx-menu-config", config);
 
+    this.showing = true;
     win.showInactive();
     if (this.focusTimer) {
       clearTimeout(this.focusTimer);
@@ -61,6 +66,7 @@ export class CtxMenuManager {
     }
     this.focusTimer = setTimeout(() => {
       this.focusTimer = null;
+      this.showing = false;
       if (win && !win.isDestroyed()) {
         win.focus();
       }
@@ -70,6 +76,11 @@ export class CtxMenuManager {
   }
 
   hide(): void {
+    this.showing = false;
+    if (this.blurTimer) {
+      clearTimeout(this.blurTimer);
+      this.blurTimer = null;
+    }
     if (this.focusTimer) {
       clearTimeout(this.focusTimer);
       this.focusTimer = null;
@@ -88,6 +99,10 @@ export class CtxMenuManager {
   }
 
   destroy(): void {
+    if (this.blurTimer) {
+      clearTimeout(this.blurTimer);
+      this.blurTimer = null;
+    }
     if (this.focusTimer) {
       clearTimeout(this.focusTimer);
       this.focusTimer = null;
@@ -103,7 +118,32 @@ export class CtxMenuManager {
   }
 
   get isClosing(): boolean { return this.closing; }
+  get isShowing(): boolean { return this.showing; }
   get generation(): number { return this.gen; }
+  get genAtShowValue(): number { return this.genAtShow; }
+
+  // 点击外部关闭 — 注册 blur/closed 事件，含 showing 守卫防止 show 过程中误关
+  onBlur(): void {
+    if (this.closing) return;
+    if (this.showing) return;
+    if (this.blurTimer) clearTimeout(this.blurTimer);
+    this.blurTimer = setTimeout(() => {
+      this.blurTimer = null;
+      if (this.closing || this.showing) return;
+      if (this.gen !== this.genAtShow) return;
+      this.hide();
+    }, 120);
+  }
+
+  registerWindow(win: BrowserWindow): void {
+    win.on("blur", () => this.onBlur());
+    win.on("closed", () => {
+      if (this.blurTimer) {
+        clearTimeout(this.blurTimer);
+        this.blurTimer = null;
+      }
+    });
+  }
 
   registerIpc(): void {
     ipcMain.handle(

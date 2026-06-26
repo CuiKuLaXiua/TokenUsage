@@ -147,16 +147,24 @@ function createTray() {
   tray = new Tray(icon);
   tray.setToolTip("Token Usage");
 
-  // 点击/右键弹出自定义菜单
+  // 点击/右键弹出自定义菜单（toggle 模式：已显示则关闭）
   tray.on("click", () => {
-    const { screen } = require("electron");
-    const pos = screen.getCursorScreenPoint();
-    trayMenuMgr.show(pos.x, pos.y);
+    if (trayMenuMgr.isVisible()) {
+      trayMenuMgr.hide();
+    } else {
+      const { screen } = require("electron");
+      const pos = screen.getCursorScreenPoint();
+      trayMenuMgr.show(pos.x, pos.y);
+    }
   });
   tray.on("right-click", () => {
-    const { screen } = require("electron");
-    const pos = screen.getCursorScreenPoint();
-    trayMenuMgr.show(pos.x, pos.y);
+    if (trayMenuMgr.isVisible()) {
+      trayMenuMgr.hide();
+    } else {
+      const { screen } = require("electron");
+      const pos = screen.getCursorScreenPoint();
+      trayMenuMgr.show(pos.x, pos.y);
+    }
   });
 
   tray.on("double-click", () => {
@@ -483,26 +491,10 @@ function ensureCtxMenuWindow() {
     });
   }
 
-  // 点击外部关闭 — 使用 generation 计数器防止旧 blur 回调干扰新 show
-  let blurTimer: ReturnType<typeof setTimeout> | null = null;
-  const genAtBind = ctxMenu.generation; // 捕获绑定时的 generation
-
-  ctxMenuWindow.on("blur", () => {
-    if (ctxMenu.isClosing) return; // hideCtxMenu 触发的 blur，忽略
-    if (blurTimer) clearTimeout(blurTimer);
-    blurTimer = setTimeout(() => {
-      blurTimer = null;
-      // generation 不匹配 → 菜单已被新的 show 操作接管，不关闭
-      if (ctxMenu.isClosing || ctxMenu.generation !== genAtBind) return;
-      ctxMenu.hide();
-    }, 120);
-  });
+  // 点击外部关闭 — showing 守卫防止 show 过程中瞬态 blur 误关菜单
+  ctxMenu.registerWindow(ctxMenuWindow);
 
   ctxMenuWindow.on("closed", () => {
-    if (blurTimer) {
-      clearTimeout(blurTimer);
-      blurTimer = null;
-    }
     ctxMenuWindow = null;
   });
 
@@ -548,7 +540,10 @@ const trayMenuMgr = new TrayMenuManager({
       if (floatStripWindow && !floatStripWindow.isDestroyed()) {
         floatStripWindow.close();
       }
-      if (fw) fw.close();
+      if (fw) {
+        fw.hide();   // 立即隐藏，让 isFloatWindowActive() 在同一事件循环内返回 false
+        fw.close();
+      }
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send("float-window-closed");
       }
