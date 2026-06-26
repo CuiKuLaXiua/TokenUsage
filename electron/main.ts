@@ -4,9 +4,7 @@ import {
   dialog,
   ipcMain,
   net,
-  screen,
   Tray,
-  Menu,
   nativeImage,
 } from "electron";
 import { join } from "path";
@@ -50,6 +48,7 @@ import type { CloseAction } from "./services/persistence";
 import { themeService } from "./services/theme";
 import { EdgeDockManager, DOCK_VISIBLE_WIDTH } from "./features/edge-dock";
 import { CtxMenuManager } from "./features/ctx-menu";
+import { TrayMenuManager } from "./features/tray-menu";
 
 // 加载 .env.local 环境变量
 loadDotenv({ path: join(__dirname, "../.env.local") });
@@ -128,107 +127,6 @@ function isFloatWindowActive(): boolean {
 }
 
 // ── 系统托盘 ──
-function buildTrayMenu(): Menu {
-  // 检查悬浮窗状态（使用统一的检查函数）
-  const isFloatActive = isFloatWindowActive();
-
-  return Menu.buildFromTemplate([
-    {
-      label: "显示主窗口",
-      click: () => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          if (mainWindow.isMinimized()) mainWindow.restore();
-          mainWindow.show();
-          mainWindow.focus();
-        } else {
-          createWindow();
-        }
-      },
-    },
-    { type: "separator" },
-    {
-      label: isFloatActive ? "隐藏悬浮窗" : "显示悬浮窗",
-      click: async () => {
-        if (isFloatWindowActive()) {
-          // 关闭悬浮窗
-          const detailWindow = getDetailWindow();
-          if (detailWindow) {
-            detailWindow.close();
-          }
-          ctxMenu.destroy();
-          edgeDock.stopHoverPolling();
-          const floatWindow = getFloatWindow();
-          edgeDock.edgeDockState.delete(floatWindow?.id || -1);
-          if (floatStripWindow && !floatStripWindow.isDestroyed()) {
-            floatStripWindow.close();
-          }
-          if (floatWindow) {
-            floatWindow.close();
-          }
-          // 通知主窗口悬浮窗已关闭
-          if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send("float-window-closed");
-          }
-        } else {
-          // 打开悬浮窗
-          const floatWindow = getFloatWindow();
-          if (!floatWindow) {
-            createFloatWindow();
-            if (!floatWindowReady) {
-              await new Promise<void>((resolve) => {
-                floatWindowReadyResolve = resolve;
-              });
-            }
-            const win = getFloatWindow();
-            if (win) {
-              win.show();
-              win.focus();
-            }
-          } else {
-            // 边缘吸附状态的窗口需要恢复
-            const state = edgeDock.edgeDockState.get(floatWindow.id);
-            if (state?.isDocked) {
-              edgeDock.revealFloatWindow();
-            } else {
-              floatWindow.show();
-              floatWindow.focus();
-            }
-          }
-          // 通知主窗口悬浮窗已打开
-          if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send("float-window-opened");
-          }
-        }
-        // 更新托盘菜单
-        tray?.setContextMenu(buildTrayMenu());
-      },
-    },
-    { type: "separator" },
-    {
-      label: themeService.mode === "dark" ? "切换浅色模式" : "切换深色模式",
-      click: () => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send("tray-toggle-theme");
-        }
-      },
-    },
-    {
-      label: "刷新所有数据",
-      click: () => {
-        refresher.refreshAll();
-      },
-    },
-    { type: "separator" },
-    {
-      label: "退出",
-      click: () => {
-        isQuitting = true;
-        app.quit();
-      },
-    },
-  ]);
-}
-
 function createTray() {
   const iconPath = getTrayIconPath();
   let icon = nativeImage.createFromPath(iconPath);
@@ -248,7 +146,18 @@ function createTray() {
 
   tray = new Tray(icon);
   tray.setToolTip("Token Usage");
-  tray.setContextMenu(buildTrayMenu());
+
+  // 点击/右键弹出自定义菜单
+  tray.on("click", () => {
+    const { screen } = require("electron");
+    const pos = screen.getCursorScreenPoint();
+    trayMenuMgr.show(pos.x, pos.y);
+  });
+  tray.on("right-click", () => {
+    const { screen } = require("electron");
+    const pos = screen.getCursorScreenPoint();
+    trayMenuMgr.show(pos.x, pos.y);
+  });
 
   tray.on("double-click", () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -464,8 +373,7 @@ function createFloatWindow() {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send("float-window-closed");
     }
-    // 更新托盘菜单状态
-    tray?.setContextMenu(buildTrayMenu());
+    // 托盘菜单数据在 show 时自动刷新，无需手动更新
   });
 
   // 兜底：如果渲染进程 ready 信号延迟，1.5s 后强制标记就绪
@@ -624,6 +532,71 @@ const ctxMenu = new CtxMenuManager({
 });
 ctxMenu.registerIpc();
 
+// ── 托盘菜单管理器 ──
+const trayMenuMgr = new TrayMenuManager({
+  getMainWindow: () => mainWindow,
+  getFloatWindow: () => getFloatWindow() ?? null,
+  getFloatWindowActive: isFloatWindowActive,
+  toggleFloatWindow: async () => {
+    if (isFloatWindowActive()) {
+      const dw = getDetailWindow();
+      if (dw) dw.close();
+      ctxMenu.destroy();
+      edgeDock.stopHoverPolling();
+      const fw = getFloatWindow();
+      edgeDock.edgeDockState.delete(fw?.id || -1);
+      if (floatStripWindow && !floatStripWindow.isDestroyed()) {
+        floatStripWindow.close();
+      }
+      if (fw) fw.close();
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send("float-window-closed");
+      }
+    } else {
+      const fw = getFloatWindow();
+      if (!fw) {
+        createFloatWindow();
+        if (!floatWindowReady) {
+          await new Promise<void>((resolve) => {
+            floatWindowReadyResolve = resolve;
+          });
+        }
+        const win = getFloatWindow();
+        if (win) { win.show(); win.focus(); }
+      } else {
+        const state = edgeDock.edgeDockState.get(fw.id);
+        if (state?.isDocked) {
+          edgeDock.revealFloatWindow();
+        } else {
+          fw.show();
+          fw.focus();
+        }
+      }
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send("float-window-opened");
+      }
+    }
+  },
+  refresher,
+  windowManager,
+  showOrCreateMain: () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("reset-close-dialog");
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    } else {
+      createWindow();
+    }
+  },
+  isQuitting: () => isQuitting,
+  setQuitting: (v: boolean) => { isQuitting = v; },
+});
+trayMenuMgr.registerIpc();
+
+// 数据更新时刷新托盘菜单（如果可见）
+refresher.onUpdate = () => trayMenuMgr.refreshIfVisible();
+
 import { registerDataIpc } from "./ipc/data";
 registerDataIpc({ getRefresher: () => refresher });
 
@@ -631,8 +604,9 @@ app.whenReady().then(() => {
   ensureDataDir();
   createTray();
   createWindow();
-  ensureFloatWindow(); // 预创建悬浮窗，避免首次点击时等待加载
-  refresher.start(); // 启动统一刷新
+  ensureFloatWindow();
+  trayMenuMgr.ensureWindow();
+  refresher.start();
 
   app.on("before-quit", () => {
     isQuitting = true;
@@ -671,22 +645,16 @@ ipcMain.handle("open-float-window", async () => {
     }
   } else if (floatWindow.isVisible()) {
     floatWindow.close();
-    // 更新托盘菜单状态
-    tray?.setContextMenu(buildTrayMenu());
     return false;
   } else {
     // 边缘吸附等隐藏状态：视为已开启，再次点击则关闭
     if (edgeDock.edgeDockState.get(floatWindow.id)?.isDocked) {
       floatWindow.close();
-      // 更新托盘菜单状态
-      tray?.setContextMenu(buildTrayMenu());
       return false;
     }
     floatWindow.show();
     floatWindow.focus();
   }
-  // 更新托盘菜单状态
-  tray?.setContextMenu(buildTrayMenu());
   return true;
 });
 
@@ -712,8 +680,6 @@ ipcMain.handle("close-float-window", () => {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send("float-window-closed");
   }
-  // 更新托盘菜单状态
-  tray?.setContextMenu(buildTrayMenu());
   return true;
 });
 
@@ -851,9 +817,7 @@ ipcMain.handle(
   (_, theme: { mode: string; accent: string; preset: string }) => {
     // 更新缓存的模式并重建托盘菜单
     if (theme.mode === "dark" || theme.mode === "light") {
-      if (tray && !tray.isDestroyed()) {
-        tray.setContextMenu(buildTrayMenu());
-      }
+      // 托盘菜单数据在 show 时自动刷新，无需手动更新
     }
     // 更新主题真相源并精确广播
     themeService.broadcast(theme);
@@ -1132,6 +1096,10 @@ ipcMain.handle("show-main-window", () => {
 // 统一刷新相关
 ipcMain.handle("get-cached-usage", () => {
   return refresher.getCachedData();
+});
+
+ipcMain.handle("get-strip-data", () => {
+  return refresher.getStripData();
 });
 
 ipcMain.handle("get-fetching-state", () => {
