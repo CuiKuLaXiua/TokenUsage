@@ -307,13 +307,14 @@ export class TrayMenuManager {
       const mw = this.deps.getMainWindow();
 
       switch (action) {
-        case "show-main":
-          if (mw && !mw.isDestroyed()) {
+        case "toggle-main":
+          if (mw && !mw.isDestroyed() && mw.isVisible()) {
+            mw.hide();
+          } else if (mw && !mw.isDestroyed()) {
             if (mw.isMinimized()) mw.restore();
             mw.show();
             mw.focus();
           } else {
-            // 主窗口已销毁时重新创建（与双击托盘图标行为一致）
             this.deps.showOrCreateMain();
           }
           break;

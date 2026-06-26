@@ -26,9 +26,9 @@
     </template>
 
     <!-- 操作区 -->
-    <div class="tm-item" @click="act('show-main')">
+    <div class="tm-item" @click="act('toggle-main')">
       <el-icon :size="14"><Monitor /></el-icon>
-      <span>{{ mainWindowActive ? '聚焦主窗口' : '打开主窗口' }}</span>
+      <span>{{ mainWindowActive ? '隐藏主窗口' : '打开主窗口' }}</span>
     </div>
     <div class="tm-switch-row">
       <el-icon :size="14"><Grid /></el-icon>
