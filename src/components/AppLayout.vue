@@ -315,12 +315,20 @@ const accents: { name: AccentName; color: string; label: string }[] = [
   { name: 'forest', color: '#6b9e7a', label: '森林绿' },
   { name: 'moss',   color: '#8fa870', label: '苔藓绿' },
   { name: 'matcha', color: '#82a888', label: '抹茶绿' },
+  { name: 'cyber',  color: '#00e5ff', label: '霓虹青' },
+  { name: 'sunset', color: '#f97316', label: '暖琥珀' },
+  { name: 'sakura', color: '#f472b6', label: '樱花粉' },
+  { name: 'mono',   color: '#a3a3a3', label: '银灰' },
 ];
 
 const presets: { name: PresetName; preview: string; label: string }[] = [
   { name: 'default',  preview: 'linear-gradient(135deg, #6b9e7a 0%, #c4a882 100%)', label: '森林默认' },
   { name: 'midnight', preview: 'linear-gradient(135deg, #4f8cff 0%, #2ed573 100%)', label: 'Midnight Pro' },
   { name: 'aurora',   preview: 'linear-gradient(135deg, #a78bfa 0%, #22d3ee 100%)', label: 'Aurora Glass' },
+  { name: 'cyber',    preview: 'linear-gradient(135deg, #00e5ff 0%, #e040fb 100%)', label: 'Cyberpunk 霓虹' },
+  { name: 'sunset',   preview: 'linear-gradient(135deg, #f97316 0%, #fb7185 100%)', label: 'Sunset 暖阳' },
+  { name: 'sakura',   preview: 'linear-gradient(135deg, #f472b6 0%, #a78bfa 100%)', label: 'Sakura 粉彩' },
+  { name: 'mono',     preview: 'linear-gradient(135deg, #a3a3a3 0%, #e5e5e5 100%)', label: 'Mono 极简' },
 ];
 
 // 检测是否为 macOS

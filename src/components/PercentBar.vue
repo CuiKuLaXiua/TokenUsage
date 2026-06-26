@@ -23,17 +23,17 @@
             class="tier-fill"
             :style="{
               width: '100%',
-              background: getFillColor(tier.percent),
-              clipPath: `inset(0 calc(100% - ${tier.percent}%) 0 0)`
+              background: 'var(--progress-gradient)',
+              clipPath: `inset(0 ${safeClip(tier.percent)} 0 0)`
             }"
           >
-            <div class="tier-glow" :style="{ background: getColor(tier.percent) }"></div>
+            <div class="tier-glow"></div>
             <div class="tier-shine"></div>
           </div>
         </div>
         <!-- 百分比（进度条右侧） -->
-        <span class="tier-percent" :style="{ color: getColor(tier.percent) }">
-          {{ tier.percent.toFixed(1) }}%
+        <span class="tier-percent">
+          {{ (Number.isFinite(tier.percent) ? tier.percent : 0).toFixed(1) }}%
         </span>
       </div>
 
@@ -71,16 +71,10 @@ const props = withDefaults(defineProps<{
   variant: 'default'
 })
 
-function getColor(percent: number): string {
-  if (percent >= 90) return 'var(--neon-red)'
-  if (percent >= 70) return 'var(--neon-amber)'
-  return 'var(--neon-green)'
-}
-
-function getFillColor(percent: number): string {
-  if (percent >= 90) return 'var(--neon-red)'
-  if (percent >= 70) return 'var(--neon-amber)'
-  return 'var(--neon-green)'
+/** 计算 clip-path 右侧 inset，保证 0% 时完全隐藏，NaN 时安全回退 */
+function safeClip(percent: number): string {
+  const p = Number.isFinite(percent) ? Math.min(Math.max(percent, 0), 100) : 0
+  return p === 0 ? '100%' : `calc(100% - ${p}%)`
 }
 
 function formatFullNumber(num: number): string {
@@ -227,6 +221,7 @@ function formatResetTime(timeStr: string): string {
   position: absolute;
   inset: -3px;
   border-radius: 8px;
+  background: var(--progress-gradient);
   opacity: 0.4;
   filter: blur(6px);
 }

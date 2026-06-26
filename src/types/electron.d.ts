@@ -221,6 +221,12 @@ export interface ElectronAPI {
   // 数据导出
   showSaveDialog: (options: { title?: string; defaultPath?: string; filters?: { name: string; extensions: string[] }[] }) => Promise<{ canceled: boolean; filePath: string }>
   saveFile: (options: { filePath: string; content: string }) => Promise<boolean>
+  // 托盘菜单
+  getTrayMenuConfig: () => Promise<any>
+  sendTrayMenuAction: (action: string) => Promise<boolean>
+  onTrayMenuUpdate: (callback: (payload: any) => void) => () => void
+  onTraySetAccent: (callback: (accent: string) => void) => () => void
+  onTraySetPreset: (callback: (preset: string) => void) => () => void
 }
 
 declare global {

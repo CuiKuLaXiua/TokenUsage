@@ -8,7 +8,7 @@ export const DOCK_VISIBLE_WIDTH = 8; // 吸附后露出边缘的宽度
 export const EDGE_MARGIN = 2; // 贴边条与屏幕边缘的间距
 const EDGE_REVEAL_ZONE = 5; // 鼠标距离边缘 5px 内触发弹出
 const EDGE_HIDE_ZONE = 50; // 鼠标距离窗口 50px 外触发收起
-const HOVER_REVEAL_DELAY = 300; // 鼠标在检测区停留 300ms 才触发弹出（防划过误触）
+const HOVER_REVEAL_DELAY = 200; // 鼠标在检测区停留 200ms 才触发弹出（防划过误触）
 const DRAG_IDLE_THRESHOLD = 15; // 鼠标静止超过 15 帧（约 240ms）自动停止拖拽
 
 // ── 接口定义 ──
@@ -200,19 +200,13 @@ export class EdgeDockManager {
       });
     }
 
-    // 2. 等待 strip 吸入动画完成（220ms CSS + 130ms 视觉停顿）
+    // 2. 等待 strip 收入动画基本完成（200ms），提前显示悬浮窗消除空白
     setTimeout(() => {
-      // OS 级隐藏 strip
       const fsAfter = this.deps.getFloatStripWindow();
-      if (fsAfter && !fsAfter.isDestroyed()) {
-        fsAfter.hide();
-        fsAfter.setIgnoreMouseEvents(false);
-      }
-
       const fwAfter = this.deps.getFloatWindow();
       if (!fwAfter) { this.revealAnimating = false; return; }
 
-      // 3. 立即更新状态让 floatWindow 内容可见
+      // 3. 更新状态 + 显示悬浮窗（与 strip 收入动画重叠）
       this.edgeDockState.set(fwAfter.id, { ...state, isDocked: false });
       fwAfter.webContents.send("edge-dock-changed", {
         isDocked: false,
@@ -224,6 +218,14 @@ export class EdgeDockManager {
       fwAfter.show();
       fwAfter.moveTop();
 
+      // 5. strip 收入动画完成后 OS 级隐藏
+      setTimeout(() => {
+        if (fsAfter && !fsAfter.isDestroyed()) {
+          fsAfter.hide();
+          fsAfter.setIgnoreMouseEvents(false);
+        }
+      }, 80);
+
       this.animateWindowPosition(
         fwAfter,
         state.originalX,
@@ -233,7 +235,7 @@ export class EdgeDockManager {
       ).then(() => {
         this.revealAnimating = false;
       });
-    }, 350);
+    }, 200);
   }
 
   hideFloatWindow() {
@@ -245,6 +247,18 @@ export class EdgeDockManager {
     if (this.hideAnimating) return;
     this.hideAnimating = true;
 
+    // 悬浮窗收回过半（150ms）时提前展开 strip，消除空白
+    setTimeout(() => {
+      const fs = this.deps.getFloatStripWindow();
+      if (fs && !fs.isDestroyed()) {
+        this.positionStripWindow(state.edge, state.dockY);
+        fs.webContents.send("edge-dock-changed", {
+          isDocked: true,
+          edge: state.edge,
+        });
+      }
+    }, 150);
+
     this.animateWindowPosition(
       floatWindow,
       state.dockX,
@@ -253,23 +267,13 @@ export class EdgeDockManager {
       (p) => 1 - Math.pow(1 - p, 3),
     ).then(() => {
       const fw = this.deps.getFloatWindow();
-      const fs = this.deps.getFloatStripWindow();
       if (fw && !fw.isDestroyed()) {
         fw.hide();
-        if (fs && !fs.isDestroyed()) {
-          this.positionStripWindow(state.edge, state.dockY);
-          fs.webContents.send("edge-dock-changed", {
-            isDocked: true,
-            edge: state.edge,
-          });
-        }
-        if (fw && !fw.isDestroyed()) {
-          this.edgeDockState.set(fw.id, { ...state, isDocked: true });
-          fw.webContents.send("edge-dock-changed", {
-            isDocked: true,
-            edge: state.edge,
-          });
-        }
+        this.edgeDockState.set(fw.id, { ...state, isDocked: true });
+        fw.webContents.send("edge-dock-changed", {
+          isDocked: true,
+          edge: state.edge,
+        });
       }
       this.hideAnimating = false;
     });
@@ -429,11 +433,11 @@ export class EdgeDockManager {
         }
       }
 
-      const interval = state.isDocked ? 200 : 500;
+      const interval = state.isDocked ? 100 : 500;
       this.hoverPollTimer = setTimeout(pollHover, interval);
     };
 
-    this.hoverPollTimer = setTimeout(pollHover, 200);
+    this.hoverPollTimer = setTimeout(pollHover, 100);
   }
 
   stopHoverPolling() {

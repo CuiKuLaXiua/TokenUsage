@@ -160,7 +160,7 @@ export const useAppStore = defineStore('app', () => {
       // 写入错误状态到 modelUsageMap，让 UI 可以显示 Cookie 过期提示
       const model = models.value.find(m => m.id === modelId)
       const modelName = model?.name || modelId
-      console.log('[Store] 找到模型:', model ? model.name : '未找到', 'modelId:', modelId)
+      console.log('[Store] login-needed 查找模型:', modelId, '→', model ? `${model.name} (${model.provider})` : '未找到', '当前模型数:', models.value.length)
       if (modelUsageMap[modelId]) {
         modelUsageMap[modelId].usageType = 'error'
         modelUsageMap[modelId].error = 'Cookie 已过期，请重新登录'
@@ -182,10 +182,14 @@ export const useAppStore = defineStore('app', () => {
       }
 
       // 根据 provider 分派到正确的登录流程
-      if (model?.provider === 'opencode') {
+      if (!model) {
+        console.warn('[Store] login-needed: 未找到模型', modelId, '跳过自动登录')
+        return
+      }
+      if (model.provider === 'opencode') {
         console.log('[Store] 准备调用 startOpenCodeLogin(), modelId:', modelId)
         startOpenCodeLogin(modelId)
-      } else if (model?.provider === 'kimi') {
+      } else if (model.provider === 'kimi') {
         console.log('[Store] 准备调用 startKimiLogin(), modelId:', modelId)
         startKimiLogin(modelId)
       } else {
@@ -282,8 +286,9 @@ export const useAppStore = defineStore('app', () => {
     try {
       await window.electronAPI.refreshModel(modelId)
     } catch (error) {
-      fetching[modelId] = false
       throw error
+    } finally {
+      fetching[modelId] = false
     }
   }
 

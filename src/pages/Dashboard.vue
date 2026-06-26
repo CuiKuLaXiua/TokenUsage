@@ -200,8 +200,8 @@
                 class="tc-bar-fill"
                 :style="{
                   width: '100%',
-                  background: getProgressColor(agg.tokenAgg.value.percent),
-                  clipPath: `inset(0 calc(100% - ${Math.min(100, agg.tokenAgg.value.percent)}%) 0 0)`,
+                  background: 'var(--progress-gradient)',
+                  clipPath: `inset(0 ${safeClip(agg.tokenAgg.value.percent)} 0 0)`,
                 }"
               ></div>
             </div>
@@ -498,13 +498,19 @@ import {
 } from "@element-plus/icons-vue";
 import type { ModelConfig } from "@/stores/app";
 import { useAppStore } from "@/stores/app";
-import { formatTokens, getProgressColor } from "@/utils/format";
+import { formatTokens, getProgressColorSmooth } from "@/utils/format";
 import { useUsageAggregation } from "@/composables/useUsageAggregation";
 import draggable from "vuedraggable";
 import TokenRing from "@/components/TokenRing.vue";
 import PercentBar from "@/components/PercentBar.vue";
 import BalanceCard from "@/components/BalanceCard.vue";
 import CountUp from "@/components/CountUp.vue";
+
+/** 计算 clip-path 右侧 inset，保证 0% 时完全隐藏，NaN 时安全回退 */
+function safeClip(percent: number): string {
+  const p = Number.isFinite(percent) ? Math.min(Math.max(percent, 0), 100) : 0
+  return p === 0 ? '100%' : `calc(100% - ${p}%)`
+}
 
 const store = useAppStore();
 const agg = useUsageAggregation();
@@ -586,13 +592,9 @@ const singleStatusIcon = computed(() => {
 
 const singleStatusIconStyle = computed(() => {
   const summary = agg.singleModelSummary.value;
-  const glow =
-    summary?.type === "balance"
-      ? "var(--neon-green)"
-      : summary?.type === "percent"
-      ? "var(--neon-red)"
-      : "var(--neon-amber)";
-  return { "--glow": glow };
+  if (summary?.type === "balance") return { "--glow": "var(--neon-green)" };
+  const percent = summary?.primaryValue ?? 0;
+  return { "--glow": getProgressColorSmooth(percent) };
 });
 
 const singleStatusValue = computed(() => {
@@ -648,18 +650,7 @@ const singleKpiColor = computed(() => {
   const summary = agg.singleModelSummary.value;
   if (!summary) return "var(--text-primary)";
   if (summary.type === "balance") return "var(--neon-green)";
-  if (summary.type === "percent") {
-    return summary.primaryValue >= 90
-      ? "var(--neon-red)"
-      : summary.primaryValue >= 70
-      ? "var(--neon-amber)"
-      : "var(--neon-green)";
-  }
-  return summary.primaryValue >= 90
-    ? "var(--neon-red)"
-    : summary.primaryValue >= 70
-    ? "var(--neon-amber)"
-    : "var(--neon-green)";
+  return getProgressColorSmooth(summary.primaryValue);
 });
 
 const singleModelLastUpdated = computed(() => {

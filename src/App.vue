@@ -27,17 +27,26 @@ import { preloadMainRoutes } from '@/router'
 const route = useRoute()
 const themeStore = useThemeStore()
 const appStore = useAppStore()
-const isFloatRoute = computed(() => route.path.startsWith('/float') || route.path === '/ctx-menu')
+const isFloatRoute = computed(() => route.path.startsWith('/float') || route.path === '/ctx-menu' || route.path === '/tray-menu')
 
 let unsubTrayTheme: (() => void) | null = null
+let unsubTrayAccent: (() => void) | null = null
+let unsubTrayPreset: (() => void) | null = null
 
 onMounted(async () => {
   themeStore.initTheme()
   await appStore.loadConfig()
 
-  // 监听托盘菜单的"切换主题"点击
+  // 监听托盘菜单的主题相关 IPC
   unsubTrayTheme = window.electronAPI.onTrayToggleTheme(() => {
     themeStore.toggleTheme()
+  })
+  // 监听托盘菜单的强调色/预设切换
+  unsubTrayAccent = window.electronAPI.onTraySetAccent((accent) => {
+    themeStore.setAccent(accent)
+  })
+  unsubTrayPreset = window.electronAPI.onTraySetPreset((preset) => {
+    themeStore.setPreset(preset)
   })
   // 首屏渲染后后台预加载其他页面 chunk，消除切换 tab 的延迟
   preloadMainRoutes()
@@ -47,6 +56,14 @@ onUnmounted(() => {
   if (unsubTrayTheme) {
     unsubTrayTheme()
     unsubTrayTheme = null
+  }
+  if (unsubTrayAccent) {
+    unsubTrayAccent()
+    unsubTrayAccent = null
+  }
+  if (unsubTrayPreset) {
+    unsubTrayPreset()
+    unsubTrayPreset = null
   }
   // 首屏渲染后后台预加载其他页面 chunk，消除切换 tab 的延迟
   preloadMainRoutes()

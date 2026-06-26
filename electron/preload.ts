@@ -108,6 +108,7 @@ export interface ElectronAPI {
   // ── Usage refresh ──
   getCachedUsage: () => Promise<Record<string, any>>
   getFetchingState: () => Promise<Record<string, boolean>>
+  getStripData: () => Promise<{ fiveHour: number; sevenDay: number; hasTiers: boolean; mainPercent: number }>
   refreshAllModels: () => Promise<boolean>
   refreshModel: (modelId: string) => Promise<boolean>
   onUsageUpdated: (callback: (data: { modelId: string, data: any }) => void) => () => void
@@ -139,6 +140,13 @@ export interface ElectronAPI {
 
   // ── Tray ──
   onTrayToggleTheme: (callback: () => void) => () => void
+  onTraySetAccent: (callback: (accent: string) => void) => () => void
+  onTraySetPreset: (callback: (preset: string) => void) => () => void
+
+  // ── Tray menu ──
+  getTrayMenuConfig: () => Promise<any>
+  sendTrayMenuAction: (action: string) => Promise<boolean>
+  onTrayMenuUpdate: (callback: (payload: any) => void) => () => void
 
   // ── Export ──
   showSaveDialog: (options: { title?: string; defaultPath?: string; filters?: { name: string; extensions: string[] }[] }) => Promise<{ canceled: boolean; filePath: string }>
@@ -262,6 +270,7 @@ const electronAPI: ElectronAPI = {
   // Usage refresh
   getCachedUsage: () => ipcRenderer.invoke('get-cached-usage'),
   getFetchingState: () => ipcRenderer.invoke('get-fetching-state'),
+  getStripData: () => ipcRenderer.invoke('get-strip-data'),
   refreshAllModels: () => ipcRenderer.invoke('refresh-all-models'),
   refreshModel: (modelId) => ipcRenderer.invoke('refresh-model', modelId),
   onUsageUpdated: (callback) => {
@@ -315,6 +324,25 @@ const electronAPI: ElectronAPI = {
     const wrapper = () => callback()
     ipcRenderer.on('tray-toggle-theme', wrapper)
     return () => { ipcRenderer.removeListener('tray-toggle-theme', wrapper) }
+  },
+  onTraySetAccent: (callback) => {
+    const wrapper = (_: any, accent: string) => callback(accent)
+    ipcRenderer.on('tray-set-accent', wrapper)
+    return () => { ipcRenderer.removeListener('tray-set-accent', wrapper) }
+  },
+  onTraySetPreset: (callback) => {
+    const wrapper = (_: any, preset: string) => callback(preset)
+    ipcRenderer.on('tray-set-preset', wrapper)
+    return () => { ipcRenderer.removeListener('tray-set-preset', wrapper) }
+  },
+
+  // Tray menu
+  getTrayMenuConfig: () => ipcRenderer.invoke('get-tray-menu-config'),
+  sendTrayMenuAction: (action) => ipcRenderer.invoke('tray-menu-action', action),
+  onTrayMenuUpdate: (callback) => {
+    const wrapper = (_: any, payload: any) => callback(payload)
+    ipcRenderer.on('tray-menu-update', wrapper)
+    return () => { ipcRenderer.removeListener('tray-menu-update', wrapper) }
   },
 
   // Export

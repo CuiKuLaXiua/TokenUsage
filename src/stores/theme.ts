@@ -1,8 +1,11 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
-export type AccentName = 'forest' | 'moss' | 'matcha'
-export type PresetName = 'default' | 'midnight' | 'aurora'
+export type AccentName = 'forest' | 'moss' | 'matcha' | 'cyber' | 'sunset' | 'sakura' | 'mono'
+export type PresetName = 'default' | 'midnight' | 'aurora' | 'cyber' | 'sunset' | 'sakura' | 'mono'
+
+/** 仅支持暗色模式的预设 */
+const DARK_ONLY_PRESETS: PresetName[] = ['midnight', 'aurora']
 
 export const useThemeStore = defineStore('theme', () => {
   const isDark = ref(false)
@@ -12,8 +15,8 @@ export const useThemeStore = defineStore('theme', () => {
 
   function toggleTheme() {
     isDark.value = !isDark.value
-    // Midnight / Aurora 是暗色风格，切到浅色时自动回退到 default preset
-    if (!isDark.value && preset.value !== 'default') {
+    // 暗色独占预设切到浅色时自动回退到 default preset
+    if (!isDark.value && DARK_ONLY_PRESETS.includes(preset.value)) {
       preset.value = 'default'
       localStorage.setItem('preset', 'default')
     }
@@ -30,8 +33,8 @@ export const useThemeStore = defineStore('theme', () => {
   function setPreset(name: PresetName) {
     preset.value = name
     localStorage.setItem('preset', name)
-    // Midnight / Aurora 都是暗色风格，切换时保持最佳视觉体验
-    if (name !== 'default' && !isDark.value) {
+    // 暗色独占预设强制暗色模式
+    if (DARK_ONLY_PRESETS.includes(name) && !isDark.value) {
       isDark.value = true
       localStorage.setItem('theme', 'dark')
     }
@@ -41,7 +44,7 @@ export const useThemeStore = defineStore('theme', () => {
   function initTheme() {
     // 主题方案
     const savedPreset = localStorage.getItem('preset') as PresetName | null
-    if (savedPreset && ['default', 'midnight', 'aurora'].includes(savedPreset)) {
+    if (savedPreset && ['default', 'midnight', 'aurora', 'cyber', 'sunset', 'sakura', 'mono'].includes(savedPreset)) {
       preset.value = savedPreset
     } else {
       preset.value = 'midnight'
@@ -58,14 +61,14 @@ export const useThemeStore = defineStore('theme', () => {
       isDark.value = window.matchMedia('(prefers-color-scheme: dark)').matches
     }
 
-    // 非 default 预设强制暗色
-    if (preset.value !== 'default' && !isDark.value) {
+    // 暗色独占预设强制暗色
+    if (DARK_ONLY_PRESETS.includes(preset.value) && !isDark.value) {
       isDark.value = true
     }
 
     // 色调
     const savedAccent = localStorage.getItem('accent') as AccentName | null
-    if (savedAccent && ['forest', 'moss', 'matcha'].includes(savedAccent)) {
+    if (savedAccent && ['forest', 'moss', 'matcha', 'cyber', 'sunset', 'sakura', 'mono'].includes(savedAccent)) {
       accent.value = savedAccent
     }
     applyTheme()

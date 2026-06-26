@@ -181,7 +181,7 @@ function parseKimiSubscriptionResponse(response: any): ModelUsageStatus | null {
   // 5 小时速率限制
   const limit5h = response.ratelimitCode5h
   if (limit5h && typeof limit5h === 'object' && limit5h.enabled) {
-    const ratio = Number(limit5h.ratio) ?? 0
+    const ratio = Number(limit5h.ratio) || 0
     const percent = Math.round(ratio * 10000) / 100
     tiers.push({
       name: 'five_hour',
@@ -194,7 +194,7 @@ function parseKimiSubscriptionResponse(response: any): ModelUsageStatus | null {
   // 7 天速率限制
   const limit7d = response.ratelimitCode7d
   if (limit7d && typeof limit7d === 'object' && limit7d.enabled) {
-    const ratio = Number(limit7d.ratio) ?? 0
+    const ratio = Number(limit7d.ratio) || 0
     const percent = Math.round(ratio * 10000) / 100
     tiers.push({
       name: 'seven_day',
@@ -207,7 +207,7 @@ function parseKimiSubscriptionResponse(response: any): ModelUsageStatus | null {
   // 月度订阅额度 → 与 OpenCode 统一显示为 30D
   const subscription = response.subscriptionBalance
   if (subscription && typeof subscription === 'object') {
-    const ratio = Number(subscription.amountUsedRatio) ?? 0
+    const ratio = Number(subscription.amountUsedRatio) || 0
     const percent = Math.round(ratio * 10000) / 100
     tiers.push({
       name: 'subscription',

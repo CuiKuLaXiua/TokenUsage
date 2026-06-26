@@ -228,7 +228,7 @@ function parseKimiSubscriptionResponse(response: any): ModelUsageStatus | null {
   // 5 小时速率限制
   const limit5h = response.ratelimitCode5h;
   if (limit5h && typeof limit5h === "object" && limit5h.enabled) {
-    const ratio = Number(limit5h.ratio) ?? 0;
+    const ratio = Number(limit5h.ratio) || 0;
     const percent = Math.round(ratio * 10000) / 100;
     tiers.push({
       name: "five_hour",
@@ -242,7 +242,7 @@ function parseKimiSubscriptionResponse(response: any): ModelUsageStatus | null {
   // 7 天速率限制
   const limit7d = response.ratelimitCode7d;
   if (limit7d && typeof limit7d === "object" && limit7d.enabled) {
-    const ratio = Number(limit7d.ratio) ?? 0;
+    const ratio = Number(limit7d.ratio) || 0;
     const percent = Math.round(ratio * 10000) / 100;
     tiers.push({
       name: "seven_day",
@@ -256,7 +256,7 @@ function parseKimiSubscriptionResponse(response: any): ModelUsageStatus | null {
   // 月度订阅额度 → 与 OpenCode 统一显示为 30D
   const subscription = response.subscriptionBalance;
   if (subscription && typeof subscription === "object") {
-    const ratio = Number(subscription.amountUsedRatio) ?? 0;
+    const ratio = Number(subscription.amountUsedRatio) || 0;
     const percent = Math.round(ratio * 10000) / 100;
     tiers.push({
       name: "subscription",
@@ -500,6 +500,8 @@ export class UsageRefresher {
   private models: ModelConfig[] = [];
   private fetchInProgress: Set<string> = new Set();
   private loginNeededCooldown: Map<string, number> = new Map();
+  /** 数据更新后的回调（供外部如托盘菜单监听） */
+  onUpdate: (() => void) | null = null;
 
   constructor(configPath: string) {
     this.configPath = configPath;
@@ -670,6 +672,47 @@ export class UsageRefresher {
    */
   getCachedData(): Record<string, ModelUsageStatus> {
     return Object.fromEntries(this.modelUsageMap);
+  }
+
+  /**
+   * 获取吸附条（FloatStrip）专用的聚合数据
+   * 主进程直接计算，strip 无需加载完整 store
+   */
+  getStripData(): { fiveHour: number; sevenDay: number; hasTiers: boolean; mainPercent: number } {
+    let fiveHour = 0;
+    let sevenDay = 0;
+    let hasTiers = false;
+    let worstPercent = 0;
+    let hasToken = false;
+    let tokenTotal = 0;
+    let tokenUsed = 0;
+
+    for (const entry of this.modelUsageMap.values()) {
+      if (entry.usageType === "percent" && entry.tiers) {
+        hasTiers = true;
+        for (const t of entry.tiers) {
+          if (t.name === "five_hour" || t.name === "rolling") {
+            fiveHour = Math.max(fiveHour, t.percent);
+          }
+          if (t.name === "seven_day" || t.name === "weekly") {
+            sevenDay = Math.max(sevenDay, t.percent);
+          }
+          worstPercent = Math.max(worstPercent, t.percent);
+        }
+      }
+      if (entry.usageType === "token" && entry.total) {
+        hasToken = true;
+        tokenTotal += entry.total;
+        tokenUsed += entry.used || 0;
+      }
+    }
+
+    let mainPercent = worstPercent;
+    if (hasToken && tokenTotal > 0) {
+      mainPercent = Math.round((tokenUsed / tokenTotal) * 10000) / 100;
+    }
+
+    return { fiveHour, sevenDay, hasTiers, mainPercent };
   }
 
   /**
@@ -909,6 +952,7 @@ export class UsageRefresher {
         win.webContents.send("usage-updated", { modelId, data });
       }
     }
+    this.onUpdate?.();
   }
 
   private broadcastFetching(modelId: string, isFetching: boolean): void {
@@ -921,6 +965,7 @@ export class UsageRefresher {
         });
       }
     }
+    this.onUpdate?.();
   }
 
   private broadcastLoginNeeded(modelId: string): void {

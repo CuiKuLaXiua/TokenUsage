@@ -91,12 +91,12 @@
                               :style="{
                                 width: '100%',
                                 background: 'var(--progress-gradient)',
-                                clipPath: `inset(0 calc(100% - ${tier.percent}%) 0 0)`
+                                clipPath: `inset(0 ${safeClip(tier.percent)} 0 0)`
                               }"
                             ></div>
                           </div>
                           <!-- 百分比（进度条右侧） -->
-                          <span class="tier-percent">{{ tier.percent }}%</span>
+                          <span class="tier-percent">{{ Number.isFinite(tier.percent) ? tier.percent : 0 }}%</span>
                         </div>
                       </div>
                     </template>
@@ -116,7 +116,7 @@
                           :style="{
                             width: '100%',
                             background: 'var(--progress-gradient)',
-                            clipPath: `inset(0 calc(100% - ${(store.modelUsageMap[model.id].percent || 0)}%) 0 0)`
+                            clipPath: `inset(0 ${safeClip(store.modelUsageMap[model.id].percent || 0)} 0 0)`
                           }"
                         ></div>
                       </div>
@@ -216,10 +216,16 @@
             <!-- Kimi 认证方式 -->
             <div v-if="form.provider === 'kimi'" class="form-field form-field-inline">
               <label class="form-label">认证方式</label>
-              <select v-model="form.authMode" class="form-input form-select auth-mode-select">
-                <option value="apikey">API Key</option>
-                <option value="cookie">Cookie 登录</option>
-              </select>
+              <div class="auth-mode-wrap">
+                <select v-model="form.authMode" class="form-input form-select auth-mode-select">
+                  <option value="apikey">API Key（用量额度）</option>
+                  <option value="cookie">Cookie 登录（订阅详情）</option>
+                </select>
+                <p class="auth-mode-hint">
+                  <template v-if="form.authMode === 'apikey'">获取 Coding API 用量，需填入 API Key</template>
+                  <template v-else>获取完整订阅数据（5H/7D 限额 + 订阅额度），需登录 Kimi 账号</template>
+                </p>
+              </div>
             </div>
             <!-- API 密钥（OpenCode / Kimi Cookie 除外） -->
             <div v-if="form.provider !== 'mimo' && form.provider !== 'opencode' && !(form.provider === 'kimi' && form.authMode === 'cookie')" class="form-field">
@@ -434,6 +440,12 @@ import { useAppStore } from '@/stores/app'
 import type { CloseAction } from '@/types/electron'
 import { formatTokens, formatResetTime } from '@/utils/format'
 import draggable from 'vuedraggable'
+
+/** 计算 clip-path 右侧 inset，保证 0% 时完全隐藏，NaN 时安全回退 */
+function safeClip(percent: number): string {
+  const p = Number.isFinite(percent) ? Math.min(Math.max(percent, 0), 100) : 0
+  return p === 0 ? '100%' : `calc(100% - ${p}%)`
+}
 
 const store = useAppStore()
 
@@ -1080,15 +1092,30 @@ async function handleErrorAction(model: ModelConfig) {
 }
 
 .unit-select {
-  width: 72px !important;
+  width: 88px !important;
   text-align: center;
   cursor: pointer;
   padding-right: 20px !important;
 }
 
+.auth-mode-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
 .auth-mode-select {
-  width: 140px !important;
+  width: 180px !important;
   flex-shrink: 0;
+}
+
+.auth-mode-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-placeholder);
+  line-height: 1.4;
 }
 
 .interval-hint {

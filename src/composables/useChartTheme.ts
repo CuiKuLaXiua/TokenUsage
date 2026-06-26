@@ -8,6 +8,10 @@ const accentColorMap: Record<string, string> = {
   matcha: '#a8c27a',
   midnight: '#4f8cff',
   aurora: '#a78bfa',
+  cyber: '#00e5ff',
+  sunset: '#f97316',
+  sakura: '#f472b6',
+  mono: '#a3a3a3',
 }
 
 function readCSSVar(name: string, fallback: string): string {

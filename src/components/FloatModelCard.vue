@@ -42,7 +42,7 @@
                 :style="{
                   width: '100%',
                   background: 'var(--progress-gradient)',
-                  clipPath: `inset(0 calc(100% - ${tier.percent}%) 0 0)`,
+                  clipPath: `inset(0 ${safeClip(tier.percent)} 0 0)`,
                 }"
               ></div>
             </div>
@@ -76,7 +76,7 @@
               :style="{
                 width: '100%',
                 background: 'var(--progress-gradient)',
-                clipPath: `inset(0 calc(100% - ${usage.percent || 0}%) 0 0)`,
+                clipPath: `inset(0 ${safeClip(usage.percent || 0)} 0 0)`,
               }"
             ></div>
           </div>
@@ -145,6 +145,12 @@ const emit = defineEmits<{
 
 const store = useAppStore();
 const usage = computed(() => store.modelUsageMap[props.model.id]);
+
+/** 计算 clip-path 右侧 inset，保证 0% 时完全隐藏，NaN 时安全回退 */
+function safeClip(percent: number): string {
+  const p = Number.isFinite(percent) ? Math.min(Math.max(percent, 0), 100) : 0
+  return p === 0 ? '100%' : `calc(100% - ${p}%)`
+}
 </script>
 
 <style scoped>

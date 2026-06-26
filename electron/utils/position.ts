@@ -1,12 +1,18 @@
 // 窗口尺寸常量
 export const FLOAT_WIDTH = 240;
-export const FLOAT_HEIGHT = 88;
+export const FLOAT_HEIGHT = 82;
 export const DETAIL_WIDTH = 320;
 export const DETAIL_HEIGHT = 420;
 export const DETAIL_GAP = 8;
 export const CTX_MENU_WIDTH = 180;
-export const CTX_MENU_HEIGHT_NO_MODEL = 235;
-export const CTX_MENU_HEIGHT_WITH_MODEL = 295;
+export const CTX_MENU_HEIGHT_NO_MODEL = 198;
+export const CTX_MENU_HEIGHT_WITH_MODEL = 198;
+
+// ── 托盘菜单弹窗 ──
+export const TRAY_MENU_WIDTH = 280;
+export const TRAY_MENU_BASE_HEIGHT = 220;
+export const TRAY_MENU_MODEL_ROW_HEIGHT = 34;
+export const TRAY_MENU_MAX_HEIGHT = 520;
 
 /**
  * 计算详情窗口位置，支持边缘检测
@@ -80,13 +86,48 @@ export function computeCtxMenuPosition(
     x = Math.max(workX, workX + workW - CTX_MENU_WIDTH - 10);
   }
 
-  // 底部越界：翻转到光标上方
+  // 底部越界：翻转到光标上方（保持 2px 偏移对称）
   if (y + menuH > workY + workH - 10) {
-    y = Math.max(workY, anchorY - menuH);
+    y = Math.max(workY, anchorY - menuH - 2);
   }
 
   // 顶部安全边距
   if (y < workY) y = workY;
 
   return { x: Math.round(x), y: Math.round(y) };
+}
+
+/**
+ * 计算托盘菜单弹窗位置，锚定在光标附近
+ * 菜单优先出现在光标上方偏左
+ */
+export function computeTrayMenuPosition(
+  cursorX: number,
+  cursorY: number,
+  menuW: number,
+  menuH: number,
+): { x: number; y: number } {
+  const { screen } = require("electron");
+  const display = screen.getDisplayNearestPoint({ x: cursorX, y: cursorY });
+  const { x: workX, y: workY, width: workW, height: workH } = display.workArea;
+
+  // 水平：光标左侧对齐，留 4px 偏移
+  let x = cursorX - menuW + 4;
+  // 左侧越界
+  if (x < workX + 8) x = workX + 8;
+  // 右侧越界
+  if (x + menuW > workX + workW - 8) x = workX + workW - menuW - 8;
+
+  // 垂直：优先出现在光标上方
+  let y = cursorY - menuH - 4;
+  // 上方空间不足，放到光标下方
+  if (y < workY + 8) {
+    y = cursorY + 4;
+  }
+  // 底部越界
+  if (y + menuH > workY + workH - 8) {
+    y = workY + workH - menuH - 8;
+  }
+
+  return { x: Math.round(x), y: Math.round(Math.max(workY + 8, y)) };
 }

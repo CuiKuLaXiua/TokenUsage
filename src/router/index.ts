@@ -52,6 +52,11 @@ const router = createRouter({
       path: '/ctx-menu',
       name: 'CtxMenu',
       component: () => import('@/pages/CtxMenu.vue')
+    },
+    {
+      path: '/tray-menu',
+      name: 'TrayMenu',
+      component: () => import('@/pages/TrayMenu.vue')
     }
   ]
 })

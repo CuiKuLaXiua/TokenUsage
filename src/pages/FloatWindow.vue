@@ -79,8 +79,8 @@
                       class="ov-tier-fill"
                       :style="{
                         width: '100%',
-                        background: getTierGradient(tier.percent),
-                        clipPath: `inset(0 calc(100% - ${tier.percent}%) 0 0)`,
+                        background: 'var(--progress-gradient)',
+                        clipPath: `inset(0 ${safeClip(tier.percent)} 0 0)`,
                       }"
                     ></div>
                   </div>
@@ -88,9 +88,10 @@
                     <span class="ov-tier-label">{{ tier.label }}</span>
                     <span
                       class="ov-tier-pct"
-                      :style="{ color: getColor(tier.percent) }"
-                    >
-                      {{ tier.percent.toFixed(0) }}%
+                      :class="pctLevel(tier.percent)"
+                      :key="tier.percent.toFixed(0)"
+                      >
+                      {{ (Number.isFinite(tier.percent) ? tier.percent : 0).toFixed(0) }}%
                     </span>
                   </div>
                   <div v-if="tier.resetAt" class="ov-tier-reset">
@@ -305,14 +306,15 @@
                               class="sov-tier-fill"
                               :style="{
                                 width: '100%',
-                                background: getFillColor(tier.percent),
-                                clipPath: `inset(0 calc(100% - ${tier.percent}%) 0 0)`,
+                                background: 'var(--progress-gradient)',
+                                clipPath: `inset(0 ${safeClip(tier.percent)} 0 0)`,
                               }"
                             ></div>
                           </div>
                           <span
                             class="sov-tier-pct"
-                            :style="{ color: getColor(tier.percent) }"
+                            :class="pctLevel(tier.percent)"
+                            :key="tier.percent.toFixed(0)"
                           >
                             {{ tier.percent.toFixed(1) }}%
                           </span>
@@ -500,14 +502,13 @@
                               class="ms-bar-f"
                               :style="{
                                 width: '100%',
-                                background: getFillColor(tier.percent),
-                                clipPath: `inset(0 calc(100% - ${tier.percent}%) 0 0)`,
+                                background: 'var(--progress-gradient)',
+                                clipPath: `inset(0 ${safeClip(tier.percent)} 0 0)`,
                               }"
                             ></div>
                           </div>
                           <span
                             class="ms-tier-pc"
-                            :style="{ color: getColor(tier.percent) }"
                             >{{ fmtPct(tier.percent) }}%</span
                           >
                         </div>
@@ -569,8 +570,6 @@ import type { ModelConfig } from "@/stores/app";
 import {
   formatTokens,
   formatPercent,
-  getProgressColor,
-  getProgressGradient,
   formatResetTime,
 } from "@/utils/format";
 import { useUsageAggregation } from "@/composables/useUsageAggregation";
@@ -713,14 +712,15 @@ function fmtTk(v?: number) {
 function fmtPct(v: number) {
   return formatPercent(v);
 }
-function getColor(p: number) {
-  return getProgressColor(p);
+function pctLevel(p: number): string {
+  if (p >= 80) return 'danger'
+  if (p >= 60) return 'warn'
+  return 'ok'
 }
-function getFillColor(p: number) {
-  return getProgressColor(p);
-}
-function getTierGradient(p: number) {
-  return getProgressGradient(p);
+/** 计算 clip-path 右侧 inset，保证 0% 时完全隐藏，NaN 时安全回退 */
+function safeClip(percent: number): string {
+  const p = Number.isFinite(percent) ? Math.min(Math.max(percent, 0), 100) : 0
+  return p === 0 ? '100%' : `calc(100% - ${p}%)`
 }
 function fmtReset(s: string) {
   return formatResetTime(s);
@@ -735,7 +735,7 @@ function fmtLg(n: number) {
 
 // Resize — now only used for carousel mode
 const FLOAT_WIDTH = 260;
-const FLOAT_LIST_HEIGHT = 78;
+const FLOAT_LIST_HEIGHT = 82;
 const FLOAT_CAROUSEL_HEIGHT = 220;
 
 // 标记是否需要在 resize 完成后发送 ready 信号
@@ -1398,26 +1398,60 @@ watch(
 /* Percent 单模型复用 ov-nums */
 .ov-nums.percent-single {
   margin-top: 0;
-  gap: 5px;
+  gap: 4px;
 }
 .ov-nums.percent-single .ov-n.tier-card {
   flex: 1 1 0;
   min-width: 56px;
   max-width: 120px;
-  padding: 5px 5px 4px;
+  padding: 5px 6px;
   gap: 4px;
+  border-radius: 7px;
+  animation: tierEnter 0.4s var(--ease-spring) both;
+  transition: filter 0.2s ease, transform 0.2s var(--ease-spring);
+}
+.ov-nums.percent-single .ov-n.tier-card:nth-child(1) { animation-delay: 0s; }
+.ov-nums.percent-single .ov-n.tier-card:nth-child(2) { animation-delay: 0.08s; }
+.ov-nums.percent-single .ov-n.tier-card:nth-child(3) { animation-delay: 0.16s; }
+@keyframes tierEnter {
+  0%   { opacity: 0; transform: translateY(4px) scale(0.96); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.ov-nums.percent-single .ov-n.tier-card:hover {
+  filter: brightness(1.15) saturate(1.1);
+  transform: translateY(-1px);
 }
 .ov-tier-track {
   width: 100%;
   height: 6px;
   border-radius: 3px;
-  background: var(--border-light);
+  background: var(--glass-bg);
   overflow: hidden;
 }
 .ov-tier-fill {
   height: 100%;
   border-radius: 3px;
   transition: clip-path 0.8s var(--ease-spring);
+  position: relative;
+}
+.ov-tier-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.25) 50%,
+    transparent 100%
+  );
+  transform: translateX(-100%);
+  animation: tierShimmer 3s ease-in-out 1s infinite;
+  pointer-events: none;
+}
+@keyframes tierShimmer {
+  0%   { transform: translateX(-100%); }
+  40%  { transform: translateX(100%); }
+  100% { transform: translateX(100%); }
 }
 .ov-tier-hd {
   display: flex;
@@ -1428,14 +1462,32 @@ watch(
 .ov-tier-label {
   font-size: 12px;
   font-weight: 700;
-  color: var(--text-secondary);
+  color: var(--text-placeholder);
   line-height: 1;
 }
 .ov-tier-pct {
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
   line-height: 1;
+  transition: color 0.4s var(--ease-smooth);
+  animation: pctPop 0.4s var(--ease-spring) both;
+}
+@keyframes pctPop {
+  0%   { opacity: 0.4; transform: translateY(2px); }
+  100% { opacity: 1;   transform: translateY(0); }
+}
+.ov-tier-pct.ok,
+.sov-tier-pct.ok {
+  color: var(--neon-green);
+}
+.ov-tier-pct.warn,
+.sov-tier-pct.warn {
+  color: var(--neon-amber);
+}
+.ov-tier-pct.danger,
+.sov-tier-pct.danger {
+  color: var(--neon-red);
 }
 .ov-tier-reset {
   display: inline-flex;
@@ -1451,8 +1503,8 @@ watch(
 .ov-types.single-meta {
   justify-content: space-between;
   gap: 6px;
-  margin-top: 5px;
-  padding-top: 5px;
+  margin-top: 3px;
+  padding-top: 3px;
 }
 .ov-meta-tag {
   display: inline-flex;
@@ -1460,8 +1512,8 @@ watch(
   gap: 2px;
   font-size: 11px;
   font-weight: 600;
-  padding: 2px 6px;
-  border-radius: 3px;
+  padding: 2px 7px;
+  border-radius: 4px;
   white-space: nowrap;
 }
 .ov-meta-tag.name {
@@ -1936,7 +1988,11 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 3px;
+  animation: tierEnter 0.4s var(--ease-spring) both;
 }
+.sov-tier-carousel:nth-child(1) { animation-delay: 0s; }
+.sov-tier-carousel:nth-child(2) { animation-delay: 0.08s; }
+.sov-tier-carousel:nth-child(3) { animation-delay: 0.16s; }
 .sov-tier-hd {
   display: flex;
   justify-content: space-between;
@@ -1963,19 +2019,36 @@ watch(
   flex: 1;
   height: 6px;
   border-radius: 3px;
-  background: var(--border-light);
+  background: var(--glass-bg);
   overflow: hidden;
 }
 .sov-tier-fill {
   height: 100%;
   border-radius: 3px;
   transition: clip-path 0.8s var(--ease-spring);
+  position: relative;
+}
+.sov-tier-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.25) 50%,
+    transparent 100%
+  );
+  transform: translateX(-100%);
+  animation: tierShimmer 3s ease-in-out 1s infinite;
+  pointer-events: none;
 }
 .sov-tier-pct {
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
   min-width: 44px;
   text-align: right;
+  transition: color 0.4s var(--ease-smooth);
+  animation: pctPop 0.4s var(--ease-spring) both;
 }
 
 .sov-balance-carousel {
