@@ -292,6 +292,7 @@ import { useChartTheme } from "@/composables/useChartTheme";
 import { getMonthDays } from "@/composables/useMonthDays";
 import type { OpenCodeDailyItem, UsagePanelExpose } from "@/types/usage";
 import type { OpenCodeKey, OpenCodeUsageRecord } from "@/types/electron";
+import { extractOpencodeServerInfo } from "@/utils/provider";
 
 use([
   BarChart,
@@ -547,26 +548,10 @@ async function fetchRecords(page: number) {
   const model = currentModel.value;
   if (!model || model.provider !== "opencode" || !model.cookies) return;
 
-  let workspaceId = "";
-  if (model.baseUrl) {
-    try {
-      const u = new URL(model.baseUrl);
-      const argsStr = u.searchParams.get("args") || "";
-      if (argsStr) {
-        const args = JSON.parse(argsStr);
-        workspaceId = args?.t?.a?.[0]?.s || "";
-      }
-    } catch {}
-  }
-  let serverId =
-    model.recordsServerId || model.dailyServerId || model.serverId || "";
-  if (!serverId && model.baseUrl) {
-    try {
-      const u = new URL(model.baseUrl);
-      serverId = u.searchParams.get("id") || "";
-    } catch {}
-  }
-  if (!serverId || !workspaceId) return;
+  const info = extractOpencodeServerInfo(model, 'records');
+  if (!info) return;
+
+  const { workspaceId, serverId, serverInstance } = info;
 
   const body = JSON.stringify({
     t: {
@@ -588,11 +573,7 @@ async function fetchRecords(page: number) {
     const res = await window.electronAPI.fetchOpenCodeUsageRecords({
       cookies: model.cookies,
       serverId,
-      serverInstance:
-        model.recordsServerInstance ||
-        model.dailyServerInstance ||
-        model.serverInstance ||
-        "",
+      serverInstance,
       body,
     });
     const batch = (res.records ?? []) as OpenCodeUsageRecord[];
@@ -630,42 +611,14 @@ async function fetchData() {
   const year = Number(yearStr);
   const month = Number(monthStr);
 
-  // 从 baseUrl 提取 workspaceId
-  let workspaceId = "";
-  if (model.baseUrl) {
-    try {
-      const u = new URL(model.baseUrl);
-      const argsStr = u.searchParams.get("args") || "";
-      if (argsStr) {
-        const args = JSON.parse(argsStr);
-        workspaceId = args?.t?.a?.[0]?.s || "";
-      }
-    } catch {}
-  }
-  // serverId: API2 使用 dailyServerId，fallback 到 serverId
-  let serverId = model.dailyServerId || model.serverId || "";
-  if (!serverId && model.baseUrl) {
-    try {
-      const u = new URL(model.baseUrl);
-      serverId = u.searchParams.get("id") || "";
-    } catch {}
-  }
-  if (!serverId || !workspaceId) {
-    console.warn("[OpenCodeUsagePanel] 缺少 serverId 或 workspaceId", {
-      hasServerId: !!serverId,
-      hasWorkspaceId: !!workspaceId,
-    });
+  const info = extractOpencodeServerInfo(model, 'daily');
+  if (!info) {
     items.value = [];
     fetched.value = true;
     return;
   }
-  if (
-    !model.dailyServerInstance &&
-    !model.serverInstance &&
-    !model.postServerInstance
-  ) {
-    console.warn("[OpenCodeUsagePanel] 缺少 dailyServerInstance，请求可能失败");
-  }
+
+  const { workspaceId, serverId, serverInstance } = info;
 
   // 动态构造时区偏移
   const offsetMin = -new Date().getTimezoneOffset();
@@ -700,19 +653,12 @@ async function fetchData() {
     const res = await window.electronAPI.fetchOpenCodeUsageDetail({
       cookies: model.cookies,
       serverId,
-      serverInstance:
-        model.dailyServerInstance ||
-        model.serverInstance ||
-        model.postServerInstance ||
-        "",
+      serverInstance,
       body,
     });
     const monthPrefix = `${year}-${monthStr}`;
     ocKeys.value = res.keys ?? [];
     const monthItems: OpenCodeDailyItem[] = [];
-
-    // 调试：查看 API 返回的数据结构
-    console.log("[OpenCodeUsagePanel] API response usage sample:", res.usage?.[0]);
 
     for (const item of res.usage ?? []) {
       if (!item.date.startsWith(monthPrefix)) continue;

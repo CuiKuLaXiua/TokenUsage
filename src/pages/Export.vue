@@ -147,6 +147,7 @@ import type { ModelConfig } from '@/stores/app'
 import type { MimoTokenPlanItem, OpenCodeUsageItem, OpenCodeKey, OpenCodeUsageRecord } from '@/types/electron'
 import { arrayToCsv, downloadCsv } from '@/utils/export'
 import { formatCost } from '@/utils/format'
+import { providerColor, extractOpencodeParams } from '@/utils/provider'
 
 const store = useAppStore()
 
@@ -167,16 +168,6 @@ const currentModel = computed(() =>
 const isMimo = computed(() => currentModel.value?.provider === 'mimo')
 const isOpencode = computed(() => currentModel.value?.provider === 'opencode')
 const supportsExport = computed(() => isMimo.value || isOpencode.value)
-
-const providerColors: Record<string, string> = {
-  mimo: '#d4a855',
-  kimi: '#b8a088',
-  deepseek: '#7cc48a',
-  opencode: '#6b9e7a',
-}
-function providerColor(p: string) {
-  return providerColors[p] || 'var(--text-tertiary)'
-}
 
 const modelOptions = computed(() =>
   store.models.map((m) => ({
@@ -243,42 +234,6 @@ watch(
     }
   },
 )
-
-// ── OpenCode 参数提取（复用 OpenCodeUsagePanel 模式）──
-
-function extractOpencodeParams(model: ModelConfig) {
-  let workspaceId = ''
-  if (model.baseUrl) {
-    try {
-      const u = new URL(model.baseUrl)
-      const argsStr = u.searchParams.get('args') || ''
-      if (argsStr) {
-        const args = JSON.parse(argsStr)
-        workspaceId = args?.t?.a?.[0]?.s || ''
-      }
-    } catch {}
-  }
-
-  // 汇总用 dailyServerId，逐条用 recordsServerId
-  const dailyServerId = model.dailyServerId || model.serverId || ''
-  const recordsServerId = model.recordsServerId || model.dailyServerId || model.serverId || ''
-
-  let fallbackServerId = ''
-  if (model.baseUrl) {
-    try {
-      const u = new URL(model.baseUrl)
-      fallbackServerId = u.searchParams.get('id') || ''
-    } catch {}
-  }
-
-  return {
-    workspaceId,
-    dailyServerId: dailyServerId || fallbackServerId,
-    recordsServerId: recordsServerId || fallbackServerId,
-    dailyServerInstance: model.dailyServerInstance || model.serverInstance || model.postServerInstance || '',
-    recordsServerInstance: model.recordsServerInstance || model.dailyServerInstance || model.serverInstance || '',
-  }
-}
 
 // ── 数据获取 ──
 

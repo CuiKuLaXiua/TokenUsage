@@ -555,7 +555,6 @@ export class UsageRefresher {
    * 重新加载配置（config 变更时调用）
    */
   restart(): void {
-    console.log("[Refresher] 重启刷新服务");
     this.start();
   }
 
@@ -596,8 +595,6 @@ export class UsageRefresher {
       if (result) {
         this.modelUsageMap.set(model.id, result);
         this.broadcast(model.id, result);
-        console.log(`[Refresher] ${model.name} 数据更新成功`);
-        console.log(`[数据：] ${JSON.stringify(result)} `);
         return result;
       }
       return null;
@@ -611,7 +608,6 @@ export class UsageRefresher {
           (model.provider === "kimi" && (model as any).authMode === "cookie")) &&
         this.isCookieExpired(error)
       ) {
-        console.log("[Refresher] 检测到 Cookie 过期，广播 login-needed");
         this.broadcastLoginNeeded(model.id);
       }
 
@@ -619,7 +615,6 @@ export class UsageRefresher {
       if (
         this.isApiKeyInvalid(error, model.provider, (model as any).authMode)
       ) {
-        console.log(`[Refresher] 检测到 ${model.provider} API key 可能失效`);
         this.broadcastApiKeyInvalid(model);
       }
 
@@ -643,7 +638,6 @@ export class UsageRefresher {
    * 刷新所有模型
    */
   async refreshAll(): Promise<void> {
-    console.log("[Refresher] 开始刷新所有模型");
     for (const model of this.models) {
       let hasAuth = false;
       if (model.provider === "mimo" || model.provider === "opencode") {
@@ -664,7 +658,6 @@ export class UsageRefresher {
         }
       }
     }
-    console.log("[Refresher] 所有模型刷新完成");
   }
 
   /**
@@ -741,7 +734,6 @@ export class UsageRefresher {
       if (existsSync(this.configPath)) {
         const config = JSON.parse(readFileSync(this.configPath, "utf-8"));
         this.models = config.models || [];
-        console.log(`[Refresher] 加载配置成功，${this.models.length} 个模型`);
       }
     } catch (error) {
       console.error("[Refresher] 加载配置失败:", error);
@@ -866,10 +858,6 @@ export class UsageRefresher {
         });
         response.on("end", () => {
           try {
-            // 记录原始响应（调试用）
-            console.log(`[Refresher] ${url} 响应状态: ${response.statusCode}`);
-            console.log(`[Refresher] ${url} 响应内容前 500 字符:`, responseData.substring(0, 500))
-
             // 检测 MiMo 登录重定向
             if (url.includes("platform.xiaomimimo.com")) {
               if (response.statusCode === 401 || response.statusCode === 403) {
@@ -973,7 +961,6 @@ export class UsageRefresher {
     const lastSent = this.loginNeededCooldown.get(modelId);
     const now = Date.now();
     if (lastSent && now - lastSent < LOGIN_NEEDED_COOLDOWN_MS) {
-      console.log(`[Refresher] login-needed 冷却中，跳过模型 ${modelId}`);
       return;
     }
     this.loginNeededCooldown.set(modelId, now);

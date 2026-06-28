@@ -127,3 +127,32 @@ export function formatCostAxis(value: number): string {
   if (dollars >= 0.01) return '$' + dollars.toFixed(2)
   return '$' + dollars.toFixed(4)
 }
+
+/** 安全裁剪百分比到 0-100 范围，返回 CSS calc 字符串 */
+export function safeClip(percent: number): string {
+  const p = Number.isFinite(percent) ? Math.min(Math.max(percent, 0), 100) : 0
+  return p === 0 ? '100%' : `calc(100% - ${p}%)`
+}
+
+/** 大数字格式化（T/B/M/K） */
+export function formatLargeNumber(num: number): string {
+  if (num >= 1e12) return (num / 1e12).toFixed(2) + 'T'
+  if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B'
+  if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M'
+  if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K'
+  return num.toFixed(2)
+}
+
+/** Provider ID → 显示名称映射 */
+const PROVIDER_LABELS: Record<string, string> = {
+  mimo: 'MIMO',
+  openai: 'OpenAI',
+  claude: 'Claude',
+  deepseek: 'DeepSeek',
+  kimi: 'Kimi',
+  opencode: 'OpenCode',
+}
+
+export function getProviderLabel(provider: string): string {
+  return PROVIDER_LABELS[provider] || provider
+}

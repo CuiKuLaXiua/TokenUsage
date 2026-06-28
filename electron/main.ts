@@ -876,16 +876,8 @@ let loginInProgress = false;
 let loginPromise: Promise<string | null> | null = null;
 
 ipcMain.handle("open-mimo-login", async (_, modelId?: string) => {
-  console.log(
-    "[Login] open-mimo-login handler 被调用, loginInProgress:",
-    loginInProgress,
-    "modelId:",
-    modelId,
-  );
-
   // 如果已有登录在进行中，等待其完成
   if (loginInProgress && loginPromise) {
-    console.log("[Login] 登录已在进行中，等待结果");
     return loginPromise;
   }
 
@@ -902,10 +894,6 @@ ipcMain.handle("open-mimo-login", async (_, modelId?: string) => {
           : config.models?.find((m: any) => m.provider === "mimo");
         if (!mimoModel) {
           // 新添加尚未保存的模型：仍然打开登录窗口获取 Cookie，但不保存配置
-          console.log(
-            "[Login] 未在 config 中找到模型，按未保存模型处理，打开登录窗口:",
-            modelId,
-          );
           doLogin(loginUrl, resolve, modelId);
           return;
         }
@@ -939,7 +927,6 @@ ipcMain.handle("open-mimo-login", async (_, modelId?: string) => {
                 const data = JSON.parse(testData);
                 // 如果返回 code === 0，说明 cookie 有效
                 if (data.code === 0) {
-                  console.log("[Login] 已有 cookie 有效，跳过登录");
                   resolve(mimoModel.cookies);
                   return;
                 }
@@ -993,14 +980,9 @@ async function doLogin(
   resolve: (value: string | null) => void,
   modelId?: string,
 ): Promise<void> {
-  console.log("[Login] 打开登录窗口:", loginUrl);
   await loginManager.openLoginWindow(loginUrl, modelId, mainWindow || undefined);
   loginManager.onLoginComplete((cookies) => {
-    console.log("[Login] 登录完成，cookies:", cookies ? "已获取" : "未获取");
     if (cookies) {
-      // 打印 cookie 完整信息
-      console.log("[Login] Cookie 完整值:", cookies);
-
       // 将 cookies 保存到 config（按 modelId 精确查找）
       try {
         if (existsSync(configPath)) {
@@ -1011,17 +993,11 @@ async function doLogin(
           if (mimoModel) {
             mimoModel.cookies = cookies;
             writeFileSync(configPath, JSON.stringify(config, null, 2));
-            console.log(
-              "[Login] Cookies 已保存到 config, modelId:",
-              mimoModel.id,
-            );
           }
         }
       } catch (error) {
         console.error("[Login] 保存 cookies 失败:", error);
       }
-    } else {
-      console.warn("[Login] 未获取到 cookies（超时或用户未登录）");
     }
     resolve(cookies);
   });
@@ -1431,15 +1407,6 @@ ipcMain.handle(
       workspaceId = bodyObj?.t?.a?.[0]?.s || "";
     } catch {}
 
-    console.log("[OpenCode] 日明细请求(net.request):", {
-      serverId: serverId,
-      serverInstance,
-      workspaceId,
-      bodyLength: body?.length,
-      body: body,
-      cookieLength: cookies?.length,
-    });
-
     const url = "https://opencode.ai/_server";
     if (!isAllowedUrl(url)) {
       throw new Error("URL not allowed");
@@ -1479,14 +1446,6 @@ ipcMain.handle(
           responseData += chunk.toString();
         });
         response.on("end", () => {
-          console.log(
-            "[OpenCode] 响应状态:",
-            response.statusCode,
-            "长度:",
-            responseData.length,
-          );
-          // console.log("[OpenCode] 响应字符:", responseData);
-
           if (response.statusCode === 401 || response.statusCode === 403) {
             if (mainWindow && !mainWindow.isDestroyed()) {
               mainWindow.webContents.send("login-needed");
@@ -1500,34 +1459,6 @@ ipcMain.handle(
           }
 
           const parsed = parseOpenCodeDailyResponse(responseData);
-          console.log(
-            "[OpenCode] 解析结果: usage",
-            parsed.usage.length,
-            "条, keys",
-            parsed.keys.length,
-            "条",
-          );
-          if (parsed.usage.length > 0) {
-            console.log(
-              "[OpenCode] 首条 usage:",
-              JSON.stringify(parsed.usage[0]),
-            );
-          }
-          console.log(
-            "[OpenCode] API2 解析结果: usage=" +
-              parsed.usage.length +
-              "条, keys=" +
-              parsed.keys.length +
-              "条",
-          );
-          // console.log(
-          //   "[OpenCode] API2 usage:",
-          //   JSON.stringify(parsed.usage, null, 2),
-          // );
-          // console.log(
-          //   "[OpenCode] API2 keys:",
-          //   JSON.stringify(parsed.keys, null, 2),
-          // );
           resolve(parsed);
         });
       });
@@ -1561,13 +1492,6 @@ ipcMain.handle(
       workspaceId = bodyObj?.t?.a?.[0]?.s || "";
     } catch {}
 
-    console.log("[OpenCode] API3 明细请求:", {
-      serverId: serverId?.substring(0, 16) + "...",
-      serverInstance,
-      workspaceId,
-      bodyLength: body?.length,
-    });
-
     const url = "https://opencode.ai/_server";
     if (!isAllowedUrl(url)) {
       throw new Error("URL not allowed");
@@ -1607,13 +1531,6 @@ ipcMain.handle(
           responseData += chunk.toString();
         });
         response.on("end", () => {
-          console.log(
-            "[OpenCode] API3 响应状态:",
-            response.statusCode,
-            "长度:",
-            responseData.length,
-          );
-
           if (response.statusCode === 401 || response.statusCode === 403) {
             if (mainWindow && !mainWindow.isDestroyed()) {
               mainWindow.webContents.send("login-needed");
@@ -1627,8 +1544,6 @@ ipcMain.handle(
           }
 
           const parsed = parseOpenCodeRecordsResponse(responseData);
-          console.log("[OpenCode] API3 解析结果:", parsed.records.length, "条");
-          // console.log("[OpenCode] API3 records:", JSON.stringify(parsed.records, null, 2));
           resolve(parsed);
         });
       });
@@ -1656,16 +1571,8 @@ let openCodeLoginPromise: Promise<{
 }> | null = null;
 
 ipcMain.handle("open-opencode-login", async (_, modelId?: string) => {
-  console.log(
-    "[OpenCodeLogin] open-opencode-login handler 被调用, loginInProgress:",
-    openCodeLoginInProgress,
-    "modelId:",
-    modelId,
-  );
-
   // 如果已有登录在进行中，等待其完成
   if (openCodeLoginInProgress && openCodeLoginPromise) {
-    console.log("[OpenCodeLogin] 登录已在进行中，等待结果");
     return openCodeLoginPromise;
   }
 
@@ -1691,9 +1598,6 @@ ipcMain.handle("open-opencode-login", async (_, modelId?: string) => {
         ? config.models?.find((m: any) => m.id === modelId)
         : config.models?.find((m: any) => m.provider === "opencode");
       if (!opencodeModel) {
-        console.log(
-          "[OpenCodeLogin] 未找到已有 OpenCode 模型, 直接打开登录窗口",
-        );
         doOpenCodeLogin(loginUrl, resolvePromise, modelId);
         return;
       }
@@ -1721,7 +1625,6 @@ ipcMain.handle("open-opencode-login", async (_, modelId?: string) => {
           response.on("end", () => {
             // 如果返回的是 JavaScript（包含 usagePercent），说明 cookie 有效
             if (testData.includes("usagePercent")) {
-              console.log("[OpenCodeLogin] 已有 cookie 有效，跳过登录");
               resolvePromise({
                 cookies: opencodeModel.cookies,
                 baseUrl: opencodeModel.baseUrl,
@@ -1786,21 +1689,9 @@ async function doOpenCodeLogin(
   }) => void,
   modelId?: string,
 ): Promise<void> {
-  console.log("[OpenCodeLogin] 打开登录窗口:", loginUrl);
   await openCodeLoginManager.openLoginWindow(loginUrl, mainWindow || undefined);
   openCodeLoginManager.onLoginComplete((data) => {
-    console.log(
-      "[OpenCodeLogin] 登录完成回调，data:",
-      data ? "已获取" : "null",
-    );
-
     if (data) {
-      console.log("[OpenCodeLogin] Cookie 长度:", data.cookies.length);
-      console.log(
-        "[OpenCodeLogin] API URL:",
-        data.apiUrl ? "已捕获" : "未捕获",
-      );
-
       const baseUrl = data.apiUrl;
 
       // 保存到 config（按 modelId 精确查找）
@@ -1837,18 +1728,6 @@ async function doOpenCodeLogin(
               opencodeModel.recordsServerInstance = data.api3Instance;
             }
             writeFileSync(configPath, JSON.stringify(config, null, 2));
-            console.log(
-              "[OpenCodeLogin] 已保存到 config, modelId:",
-              opencodeModel.id,
-            );
-            console.log(
-              "[OpenCodeLogin] API1 instance:",
-              data.api1Instance,
-              "API2 instance:",
-              data.api2Instance,
-              "API3 instance:",
-              data.api3Instance,
-            );
           }
         }
       } catch (error) {
@@ -1866,7 +1745,6 @@ async function doOpenCodeLogin(
         api3Instance: data.api3Instance,
       });
     } else {
-      console.warn("[OpenCodeLogin] 登录失败或已取消");
       resolvePromise({
         cookies: null,
         baseUrl: null,
@@ -1890,15 +1768,7 @@ const KIMI_SUBSCRIPTION_URL =
   "https://www.kimi.com/apiv2/kimi.gateway.membership.v2.MembershipService/GetSubscriptionStat";
 
 ipcMain.handle("open-kimi-login", async (_, modelId?: string) => {
-  console.log(
-    "[KimiLogin] open-kimi-login handler 被调用, inProgress:",
-    kimiLoginInProgress,
-    "modelId:",
-    modelId,
-  );
-
   if (kimiLoginInProgress && kimiLoginPromise) {
-    console.log("[KimiLogin] 登录已在进行中，等待结果");
     return kimiLoginPromise;
   }
 
@@ -1914,10 +1784,6 @@ ipcMain.handle("open-kimi-login", async (_, modelId?: string) => {
           : config.models?.find((m: any) => m.provider === "kimi");
         if (!kimiModel) {
           // 新添加尚未保存的模型：仍然打开登录窗口获取 Cookie，但不保存配置
-          console.log(
-            "[KimiLogin] 未在 config 中找到模型，按未保存模型处理，打开登录窗口:",
-            modelId,
-          );
           doKimiLogin(loginUrl, resolvePromise, modelId);
           return;
         }
@@ -1944,7 +1810,6 @@ ipcMain.handle("open-kimi-login", async (_, modelId?: string) => {
                   response.statusCode === 200 &&
                   data?.subscriptionBalance
                 ) {
-                  console.log("[KimiLogin] 已有 cookie 有效，跳过登录");
                   resolvePromise({ cookies: kimiModel.cookies, token: kimiModel.apiKey || null });
                   return;
                 }
@@ -1993,15 +1858,9 @@ async function doKimiLogin(
   resolvePromise: (result: { cookies: string | null; token: string | null }) => void,
   modelId?: string,
 ): Promise<void> {
-  console.log("[KimiLogin] 打开登录窗口:", loginUrl);
   await kimiLoginManager.openLoginWindow(loginUrl, modelId, mainWindow || undefined);
   kimiLoginManager.onLoginComplete((data) => {
-    console.log(
-      "[KimiLogin] 登录完成回调，data:",
-      data ? "已获取" : "null",
-    );
-
-      if (data?.cookies) {
+    if (data?.cookies) {
       // 保存到 config
       try {
         if (existsSync(configPath)) {
@@ -2013,13 +1872,8 @@ async function doKimiLogin(
             kimiModel.cookies = data.cookies;
             if (data.token) {
               kimiModel.apiKey = data.token;
-              console.log("[KimiLogin] JWT token 已保存到 apiKey, modelId:", kimiModel.id);
             }
             writeFileSync(configPath, JSON.stringify(config, null, 2));
-            console.log(
-              "[KimiLogin] Cookies 已保存到 config, modelId:",
-              kimiModel.id,
-            );
           }
         }
       } catch (error) {

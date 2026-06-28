@@ -1,5 +1,6 @@
 import { ipcMain, BrowserWindow } from "electron";
-import { readFileSync, writeFileSync, existsSync } from "fs";
+import { readFileSync, existsSync } from "fs";
+import { writeFile } from "fs/promises";
 import { join } from "path";
 import { isValidMonth, isValidConfig, isValidUsageData } from "../ipc-validators";
 import { configPath, usagePath, dataDir } from "../services/persistence";
@@ -21,7 +22,7 @@ export function registerDataIpc(deps: DataIpcDeps) {
     }
   });
 
-  ipcMain.handle("save-config", (_, config) => {
+  ipcMain.handle("save-config", async (_, config) => {
     try {
       if (!isValidConfig(config)) {
         console.error("Invalid config structure");
@@ -36,7 +37,7 @@ export function registerDataIpc(deps: DataIpcDeps) {
       } catch {
         /* ignore */
       }
-      writeFileSync(configPath, JSON.stringify(fullConfig, null, 2));
+      await writeFile(configPath, JSON.stringify(fullConfig, null, 2));
 
       BrowserWindow.getAllWindows().forEach((win) => {
         win.webContents.send("config-updated");
@@ -68,7 +69,7 @@ export function registerDataIpc(deps: DataIpcDeps) {
     }
   });
 
-  ipcMain.handle("save-usage", (_, month, data) => {
+  ipcMain.handle("save-usage", async (_, month, data) => {
     try {
       if (!isValidMonth(month)) {
         console.error("Invalid month format:", month);
@@ -79,7 +80,7 @@ export function registerDataIpc(deps: DataIpcDeps) {
         return false;
       }
       const filePath = join(usagePath, `${month}.json`);
-      writeFileSync(filePath, JSON.stringify(data, null, 2));
+      await writeFile(filePath, JSON.stringify(data, null, 2));
       return true;
     } catch (error) {
       console.error("Error saving usage:", error);

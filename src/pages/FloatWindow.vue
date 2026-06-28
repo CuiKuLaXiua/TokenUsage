@@ -167,8 +167,8 @@
               <div class="ov-nums">
                 <div class="ov-n" v-if="agg.tokenAgg.value">
                   <span class="ov-nv"
-                    >{{ fmtLg(agg.tokenAgg.value.used) }}/{{
-                      fmtLg(agg.tokenAgg.value.total)
+                    >{{ formatLargeNumber(agg.tokenAgg.value.used) }}/{{
+                      formatLargeNumber(agg.tokenAgg.value.total)
                     }}</span
                   >
                   <span class="ov-nl"
@@ -378,8 +378,8 @@
                   <div class="ov-stats">
                     <div class="ov-st" v-if="agg.tokenAgg.value">
                       <span class="ov-stv"
-                        >{{ fmtLg(agg.tokenAgg.value.used) }}/{{
-                          fmtLg(agg.tokenAgg.value.total)
+                        >{{ formatLargeNumber(agg.tokenAgg.value.used) }}/{{
+                          formatLargeNumber(agg.tokenAgg.value.total)
                         }}</span
                       >
                       <span class="ov-stl"
@@ -571,6 +571,8 @@ import {
   formatTokens,
   formatPercent,
   formatResetTime,
+  formatLargeNumber,
+  safeClip,
 } from "@/utils/format";
 import { useUsageAggregation } from "@/composables/useUsageAggregation";
 import { usePopupMutex } from "@/composables/usePopupMutex";
@@ -717,20 +719,8 @@ function pctLevel(p: number): string {
   if (p >= 60) return 'warn'
   return 'ok'
 }
-/** 计算 clip-path 右侧 inset，保证 0% 时完全隐藏，NaN 时安全回退 */
-function safeClip(percent: number): string {
-  const p = Number.isFinite(percent) ? Math.min(Math.max(percent, 0), 100) : 0
-  return p === 0 ? '100%' : `calc(100% - ${p}%)`
-}
 function fmtReset(s: string) {
   return formatResetTime(s);
-}
-function fmtLg(n: number) {
-  if (n >= 1e12) return (n / 1e12).toFixed(2) + "T";
-  if (n >= 1e9) return (n / 1e9).toFixed(2) + "B";
-  if (n >= 1e6) return (n / 1e6).toFixed(2) + "M";
-  if (n >= 1e3) return (n / 1e3).toFixed(2) + "K";
-  return n.toFixed(2);
 }
 
 // Resize — now only used for carousel mode
@@ -976,7 +966,6 @@ function onDocMouseMove(e: MouseEvent) {
 
   // 检测鼠标左键是否释放（buttons bit 0 为 0 表示左键已释放）
   if ((e.buttons & 1) === 0) {
-    console.log("[FloatWindow] Left button released detected in mousemove");
     stopDrag();
     return;
   }
@@ -1003,7 +992,6 @@ function onDocMouseUp(e: MouseEvent) {
   // 只处理左键释放
   if (e.button !== 0) return;
 
-  console.log("[FloatWindow] mouseup detected (document), stopping drag");
   stopDrag();
 }
 
@@ -1011,15 +999,12 @@ function onWindowMouseUp(e: MouseEvent) {
   // 只处理左键释放（兜底）
   if (e.button !== 0) return;
 
-  console.log("[FloatWindow] mouseup detected (window), stopping drag");
   stopDrag();
 }
 
 function stopDrag() {
   // 防止重复调用
   if (!isDragging.value) return;
-
-  console.log("[FloatWindow] stopDrag called");
 
   // 立即清理所有事件监听器和定时器
   cleanupDragListeners();
@@ -1029,7 +1014,6 @@ function stopDrag() {
 
   // 总是调用 stopWindowDrag，确保主进程清理定时器
   if (hadMoved) {
-    console.log("[FloatWindow] Calling stopWindowDrag");
     window.electronAPI.stopWindowDrag();
   }
 }
@@ -1070,7 +1054,6 @@ function onDoubleClick(e: MouseEvent) {
   // 只响应左键双击，且不是拖拽状态
   if (e.button !== 0 || hasMoved.value) return;
 
-  console.log("[FloatWindow] 双击打开主窗口");
   window.electronAPI.showMainWindow();
 }
 

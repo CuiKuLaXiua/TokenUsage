@@ -71,6 +71,7 @@ import IconButton from '@/components/IconButton.vue'
 import MimoUsagePanel from '@/pages/MimoUsagePanel.vue'
 import OpenCodeUsagePanel from '@/pages/OpenCodeUsagePanel.vue'
 import type { UsagePanelExpose } from '@/types/usage'
+import { providerColor } from '@/utils/provider'
 
 const store = useAppStore()
 
@@ -88,16 +89,6 @@ const currentModel = computed(() =>
 const isMimo = computed(() => currentModel.value?.provider === 'mimo')
 const isOpenCode = computed(() => currentModel.value?.provider === 'opencode')
 const supportsDetail = computed(() => isMimo.value || isOpenCode.value)
-
-const providerColors: Record<string, string> = {
-  mimo: '#d4a855',
-  kimi: '#b8a088',
-  deepseek: '#7cc48a',
-  opencode: '#6b9e7a',
-}
-function providerColor(p: string) {
-  return providerColors[p] || 'var(--text-tertiary)'
-}
 
 const modelOptions = computed(() =>
   store.models.map((m) => ({

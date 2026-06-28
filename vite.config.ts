@@ -34,6 +34,7 @@ export default defineConfig(async () => {
       port: 14200,
     },
     build: {
+      target: 'chrome120',
       outDir: 'dist',
       emptyOutDir: true,
       chunkSizeWarningLimit: 1000,

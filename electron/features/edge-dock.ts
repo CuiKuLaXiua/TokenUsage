@@ -285,8 +285,6 @@ export class EdgeDockManager {
     const state = this.dragStateMap.get(windowId);
     if (!state) return;
 
-    console.log(`[Main] Stopping drag for window ${windowId}`);
-
     state.isDragging = false;
     if (state.intervalId) {
       clearInterval(state.intervalId);
@@ -520,7 +518,6 @@ export class EdgeDockManager {
     ipcMain.handle("stop-window-drag", async (event) => {
       const win = BrowserWindow.fromWebContents(event.sender);
       if (!win || win.isDestroyed()) return;
-      console.log(`[Main] stop-window-drag received for window ${win.id}`);
       this.stopDragForWindow(win.id);
     });
 

@@ -458,14 +458,8 @@ import {
 import type { ModelConfig } from '@/stores/app'
 import { useAppStore } from '@/stores/app'
 import type { CloseAction } from '@/types/electron'
-import { formatTokens, formatResetTime } from '@/utils/format'
+import { formatTokens, formatResetTime, safeClip } from '@/utils/format'
 import draggable from 'vuedraggable'
-
-/** 计算 clip-path 右侧 inset，保证 0% 时完全隐藏，NaN 时安全回退 */
-function safeClip(percent: number): string {
-  const p = Number.isFinite(percent) ? Math.min(Math.max(percent, 0), 100) : 0
-  return p === 0 ? '100%' : `calc(100% - ${p}%)`
-}
 
 const store = useAppStore()
 
@@ -591,7 +585,6 @@ async function saveModel() {
 }
 
 function deleteModel(id: string) {
-  console.log('[Config] 点击删除模型:', id)
   const model = store.models.find(m => m.id === id)
   modelToDeleteId.value = id
   modelToDeleteName.value = model?.name || '该模型'
@@ -604,7 +597,6 @@ async function confirmDelete() {
   try {
     await store.removeModel(id)
     ElMessage.success({ message: '删除成功', duration: 2000 })
-    console.log('[Config] 删除完成:', id)
   } catch (err: any) {
     console.error('[Config] 删除失败:', err)
     ElMessage.error({ message: '删除失败', duration: 2000 })

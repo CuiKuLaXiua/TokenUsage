@@ -20,6 +20,7 @@ interface Particle {
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 let animationId: number | null = null
 let particles: Particle[] = []
+let resizeHandler: (() => void) | null = null
 
 const colors = [
   'rgba(0, 212, 255, ',
@@ -80,13 +81,18 @@ onMounted(() => {
   }
 
   resize()
-  window.addEventListener('resize', resize)
+  resizeHandler = resize
+  window.addEventListener('resize', resizeHandler)
   draw(ctx)
 })
 
 onUnmounted(() => {
   if (animationId !== null) {
     cancelAnimationFrame(animationId)
+  }
+  if (resizeHandler) {
+    window.removeEventListener('resize', resizeHandler)
+    resizeHandler = null
   }
 })
 </script>

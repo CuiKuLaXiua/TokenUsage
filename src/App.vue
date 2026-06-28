@@ -65,13 +65,11 @@ onUnmounted(() => {
     unsubTrayPreset()
     unsubTrayPreset = null
   }
-  // 首屏渲染后后台预加载其他页面 chunk，消除切换 tab 的延迟
-  preloadMainRoutes()
 })
 </script>
 
 <style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,500;0,9..40,700;1,9..40,400&display=swap');
+/* DM Sans 通过系统字体栈回退，避免离线时 CDN 超时 */
 @import './styles/theme.css';
 
 /* ── Reset ── */

@@ -51,6 +51,7 @@
 
 <script setup lang="ts">
 import { Clock } from '@element-plus/icons-vue'
+import { safeClip, formatResetTime } from '@/utils/format'
 
 interface Tier {
   name: string
@@ -71,47 +72,10 @@ const props = withDefaults(defineProps<{
   variant: 'default'
 })
 
-/** 计算 clip-path 右侧 inset，保证 0% 时完全隐藏，NaN 时安全回退 */
-function safeClip(percent: number): string {
-  const p = Number.isFinite(percent) ? Math.min(Math.max(percent, 0), 100) : 0
-  return p === 0 ? '100%' : `calc(100% - ${p}%)`
-}
-
 function formatFullNumber(num: number): string {
   return num.toLocaleString('zh-CN')
 }
 
-function formatResetTime(timeStr: string): string {
-  try {
-    const date = new Date(timeStr)
-    const now = new Date()
-    const diff = date.getTime() - now.getTime()
-
-    if (diff <= 0) return '即将重置'
-
-    const totalMinutes = Math.floor(diff / (1000 * 60))
-    const hours = Math.floor(totalMinutes / 60)
-    const minutes = totalMinutes % 60
-    const days = Math.floor(hours / 24)
-    const remainHours = hours % 24
-
-    if (days > 0) {
-      if (remainHours > 0) {
-        return `${days}天${remainHours}时后`
-      }
-      return `${days}天后`
-    }
-    if (hours > 0) {
-      if (minutes > 0) {
-        return `${hours}时${minutes}分后`
-      }
-      return `${hours}时后`
-    }
-    return `${minutes}分后`
-  } catch {
-    return timeStr
-  }
-}
 </script>
 
 <style scoped>

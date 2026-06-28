@@ -37,15 +37,12 @@ export class KimiLoginWindowManager {
 
     // 清理该 partition 下的 Kimi cookies，避免旧账号残留
     const loginSession = session.fromPartition(this.partition);
-    console.log(`[KimiLogin] 使用独立 partition: ${this.partition}`);
-    console.log("[KimiLogin] 清除当前 partition 的 Kimi cookies...");
     const existingCookies = await loginSession.cookies.get({});
     for (const cookie of existingCookies) {
       if (cookie.domain?.includes(KIMI_TOP_DOMAIN)) {
         await loginSession.cookies.remove(cookie.domain, cookie.name);
       }
     }
-    console.log("[KimiLogin] 已清除当前 partition 的 Kimi 相关 cookies");
     await new Promise((resolve) => setTimeout(resolve, 500));
 
     // 注册请求拦截器：捕获 GetSubscriptionStat 请求中的 JWT（唯一有效来源）
@@ -57,7 +54,6 @@ export class KimiLoginWindowManager {
           const jwt = auth.slice(7);
           if (jwt.startsWith("eyJ") && !this.interceptedJwt) {
             this.interceptedJwt = jwt;
-            console.log("[KimiLogin] ✅ 从 GetSubscriptionStat 请求拦截到 JWT，长度:", jwt.length);
 
             // 弹窗提示
             new Notification({
@@ -68,7 +64,6 @@ export class KimiLoginWindowManager {
             // 1 秒后自动关闭登录窗口
             setTimeout(() => {
               if (this.loginWindow && !this.loginWindow.isDestroyed()) {
-                console.log("[KimiLogin] 自动关闭登录窗口");
                 this.loginWindow.close();
               }
             }, 1000);
@@ -77,7 +72,6 @@ export class KimiLoginWindowManager {
         callback({ requestHeaders: details.requestHeaders });
       }
     );
-    console.log("[KimiLogin] 已注册 GetSubscriptionStat 请求拦截器");
 
     const windowOptions: Electron.BrowserWindowConstructorOptions = {
       width: 900,
@@ -94,20 +88,15 @@ export class KimiLoginWindowManager {
     }
 
     this.loginWindow = new BrowserWindow(windowOptions);
-    this.loginWindow.webContents.openDevTools();
 
-    console.log("[KimiLogin] 加载登录页:", url);
     this.loginWindow.loadURL(url);
 
     // 监听导航事件：用户登录后可能跳转到订阅页，触发检查
-    this.loginWindow.webContents.on("did-navigate", () => {
-      console.log("[KimiLogin] 页面导航，等待 GetSubscriptionStat 请求拦截...");
-    });
+    this.loginWindow.webContents.on("did-navigate", () => {});
 
     // 窗口关闭前提取 cookies
     this.loginWindow.on("close", () => {
-      console.log("[KimiLogin] 窗口即将关闭，提取 cookies");
-      this.extractCookiesFromSession(true);
+      this.extractCookiesFromSession();
       // 清理请求拦截器
       try {
         loginSession.webRequest.onBeforeSendHeaders(null as any, null as any);
@@ -121,7 +110,6 @@ export class KimiLoginWindowManager {
 
     // 超时保护：自动关闭窗口并通知
     this.timeoutTimer = setTimeout(() => {
-      console.warn("[KimiLogin] 登录超时，自动关闭窗口");
       new Notification({
         title: "Kimi 登录超时",
         body: "未捕获到订阅接口 JWT，请重试",
@@ -144,7 +132,7 @@ export class KimiLoginWindowManager {
    * 从 session 提取 cookies 并触发回调。
    * JWT 只来自 GetSubscriptionStat 请求拦截（interceptedJwt），无回退。
    */
-  private async extractCookiesFromSession(verbose = false): Promise<void> {
+  private async extractCookiesFromSession(): Promise<void> {
     if (this.resolved) return;
 
     try {
@@ -153,36 +141,19 @@ export class KimiLoginWindowManager {
         (c) => c.domain?.includes(KIMI_TOP_DOMAIN),
       );
 
-      console.log("[KimiLogin] 从 session 提取 cookies:", kimiCookies.length, "个");
-      if (verbose) {
-        for (const cookie of kimiCookies) {
-          console.log(
-            `[KimiLogin] Cookie: name=${cookie.name}, domain=${cookie.domain}, value 长度=${cookie.value?.length || 0}`,
-          );
-        }
-      }
-
       if (kimiCookies.length > 0) {
         const cookieString = kimiCookies
           .map((c) => `${c.name}=${c.value}`)
           .join("; ");
-        console.log("[KimiLogin] Cookie 字符串总长度:", cookieString.length);
 
         // JWT 只来自 GetSubscriptionStat 拦截
         const token = this.interceptedJwt ?? undefined;
-        if (token) {
-          console.log(`[KimiLogin] ✅ JWT 来源: GetSubscriptionStat 拦截，长度: ${token.length}`);
-        } else {
-          console.warn("[KimiLogin] ⚠️ 未拦截到 GetSubscriptionStat JWT，登录可能未完成");
-        }
 
         this.triggerCallback({ cookies: cookieString, token });
       } else {
-        console.warn("[KimiLogin] 未提取到 cookies");
         this.triggerCallback(null);
       }
     } catch (error) {
-      console.error("[KimiLogin] 提取 cookies 失败:", error);
       this.triggerCallback(null);
     }
   }

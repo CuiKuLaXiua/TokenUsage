@@ -109,18 +109,6 @@ export const useAppStore = defineStore('app', () => {
       const cached = await window.electronAPI.getCachedUsage()
       Object.assign(modelUsageMap, cached)
 
-      // 临时测试：强制设置MIMO模型的错误状态
-      const mimoModel = models.value.find(m => m.provider === 'mimo')
-      if (mimoModel && !modelUsageMap[mimoModel.id]) {
-        console.log('[Store] 🧪 测试：强制设置MIMO模型的错误状态', mimoModel.id)
-        modelUsageMap[mimoModel.id] = {
-          usageType: 'error',
-          planName: mimoModel.name,
-          lastUpdated: Date.now(),
-          error: 'Cookie 已过期，请重新登录'
-        }
-      }
-
       // 订阅后续更新
       initSubscription()
 
@@ -154,13 +142,9 @@ export const useAppStore = defineStore('app', () => {
 
     // 监听 login-needed
     unsubLogin = window.electronAPI.onLoginNeeded(({ modelId }) => {
-      console.log('[Store] ✅ 收到 login-needed 事件，当前 loginState:', loginState.value, 'modelId:', modelId)
-      console.log('[Store] 当前 modelUsageMap:', JSON.stringify(modelUsageMap, null, 2))
-
       // 写入错误状态到 modelUsageMap，让 UI 可以显示 Cookie 过期提示
       const model = models.value.find(m => m.id === modelId)
       const modelName = model?.name || modelId
-      console.log('[Store] login-needed 查找模型:', modelId, '→', model ? `${model.name} (${model.provider})` : '未找到', '当前模型数:', models.value.length)
       if (modelUsageMap[modelId]) {
         modelUsageMap[modelId].usageType = 'error'
         modelUsageMap[modelId].error = 'Cookie 已过期，请重新登录'
@@ -177,30 +161,24 @@ export const useAppStore = defineStore('app', () => {
 
       // 如果已经在登录中，跳过
       if (loginState.value === 'logging-in') {
-        console.log('[Store] 已经在登录中，跳过重复调用')
         return
       }
 
       // 根据 provider 分派到正确的登录流程
       if (!model) {
-        console.warn('[Store] login-needed: 未找到模型', modelId, '跳过自动登录')
         return
       }
       if (model.provider === 'opencode') {
-        console.log('[Store] 准备调用 startOpenCodeLogin(), modelId:', modelId)
         startOpenCodeLogin(modelId)
       } else if (model.provider === 'kimi') {
-        console.log('[Store] 准备调用 startKimiLogin(), modelId:', modelId)
         startKimiLogin(modelId)
       } else {
-        console.log('[Store] 准备调用 startMimoLogin(), modelId:', modelId)
         startMimoLogin(modelId)
       }
     })
 
     // 监听 API key 失效
-    unsubApiKeyInvalid = window.electronAPI.onApiKeyInvalid(({ modelId, modelName, provider }) => {
-      console.log(`[Store] 收到 api-key-invalid 事件: ${modelName} (${provider})`)
+    unsubApiKeyInvalid = window.electronAPI.onApiKeyInvalid(({ modelId, modelName }) => {
       // 设置错误状态，让 UI 可以显示提示
       if (modelUsageMap[modelId]) {
         modelUsageMap[modelId].usageType = 'error'
@@ -252,11 +230,9 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function removeModel(id: string) {
-    console.log('[Store] 删除模型:', id)
     models.value = models.value.filter(m => m.id !== id)
     delete modelUsageMap[id]
     await saveConfig()
-    console.log('[Store] 模型已删除并保存:', id)
   }
 
   async function reorderModels(fromIndex: number, toIndex: number, persist = true) {
@@ -297,10 +273,8 @@ export const useAppStore = defineStore('app', () => {
    */
   async function requestRefreshAll() {
     if (refreshing.value) {
-      console.log('[Store] 已在刷新中，跳过')
       return
     }
-    console.log('[Store] 请求刷新所有模型')
     refreshing.value = true
     try {
       await window.electronAPI.refreshAllModels()
@@ -333,18 +307,14 @@ export const useAppStore = defineStore('app', () => {
    */
   async function startMimoLogin(modelId?: string): Promise<void> {
     if (loginState.value === 'logging-in') {
-      console.log('[Login] 已经在登录中，跳过')
       return
     }
 
-    console.log('[Login] 开始登录流程，准备调用 openMimoLogin(), modelId:', modelId)
     loginState.value = 'logging-in'
     loginError.value = null
 
     try {
-      console.log('[Login] 调用 window.electronAPI.openMimoLogin()')
       const cookies = await window.electronAPI.openMimoLogin(modelId)
-      console.log('[Login] openMimoLogin 返回:', cookies ? 'cookies 已获取' : 'cookies 为空')
 
       if (cookies) {
         // 只更新指定模型的 cookies
@@ -363,7 +333,6 @@ export const useAppStore = defineStore('app', () => {
         }
         await saveConfig()
         loginState.value = 'complete'
-        console.log('[Login] 登录完成，cookies 已保存')
 
         // 2 秒后恢复 idle
         setTimeout(() => {
@@ -386,18 +355,14 @@ export const useAppStore = defineStore('app', () => {
    */
   async function startKimiLogin(modelId?: string): Promise<void> {
     if (loginState.value === 'logging-in') {
-      console.log('[KimiLogin] 已经在登录中，跳过')
       return
     }
 
-    console.log('[KimiLogin] 开始登录流程，准备调用 openKimiLogin(), modelId:', modelId)
     loginState.value = 'logging-in'
     loginError.value = null
 
     try {
-      console.log('[KimiLogin] 调用 window.electronAPI.openKimiLogin()')
       const result = await window.electronAPI.openKimiLogin(modelId)
-      console.log('[KimiLogin] openKimiLogin 返回:', result?.cookies ? 'cookies 已获取' : 'cookies 为空')
 
       if (result?.cookies) {
         if (modelId) {
@@ -422,7 +387,6 @@ export const useAppStore = defineStore('app', () => {
         }
         await saveConfig()
         loginState.value = 'complete'
-        console.log('[KimiLogin] 登录完成，cookies 已保存')
 
         setTimeout(() => {
           if (loginState.value === 'complete') {
@@ -444,30 +408,19 @@ export const useAppStore = defineStore('app', () => {
    */
   async function startOpenCodeLogin(modelId?: string): Promise<void> {
     if (loginState.value === 'logging-in') {
-      console.log('[OpenCodeLogin] 已经在登录中，跳过')
       return
     }
 
-    console.log('[OpenCodeLogin] 开始登录流程，准备调用 openOpencodeLogin(), modelId:', modelId)
     loginState.value = 'logging-in'
     loginError.value = null
 
     try {
-      console.log('[OpenCodeLogin] 调用 window.electronAPI.openOpencodeLogin()')
       const result = await window.electronAPI.openOpencodeLogin(modelId)
-      console.log('[OpenCodeLogin] openOpencodeLogin 返回:', {
-        hasCookies: !!result.cookies,
-        hasBaseUrl: !!result.baseUrl,
-        api1Instance: result.api1Instance,
-        api2Instance: result.api2Instance,
-        api3Instance: result.api3Instance,
-      })
 
       if (result.cookies) {
         // 只更新指定模型的 cookies 和 baseUrl
         if (modelId) {
           const model = models.value.find(m => m.id === modelId)
-          console.log('[OpenCodeLogin] 按 modelId 查找模型:', modelId, '找到:', !!model)
           if (model) {
             model.cookies = result.cookies
             if (result.baseUrl) model.baseUrl = result.baseUrl
@@ -477,11 +430,9 @@ export const useAppStore = defineStore('app', () => {
             if (result.api2Instance) model.dailyServerInstance = result.api2Instance
             if (result.api3ServerId) model.recordsServerId = result.api3ServerId
             if (result.api3Instance) model.recordsServerInstance = result.api3Instance
-            console.log('[OpenCodeLogin] 模型已更新, API1 instance:', model.serverInstance, 'API2 instance:', model.dailyServerInstance, 'API3 instance:', model.recordsServerInstance)
           }
         } else {
           // 兼容：无 modelId 时更新所有 OpenCode 模型
-          let updated = 0
           for (const model of models.value) {
             if (model.provider === 'opencode') {
               model.cookies = result.cookies
@@ -492,15 +443,11 @@ export const useAppStore = defineStore('app', () => {
               if (result.api2Instance) model.dailyServerInstance = result.api2Instance
               if (result.api3ServerId) model.recordsServerId = result.api3ServerId
               if (result.api3Instance) model.recordsServerInstance = result.api3Instance
-              updated++
-              console.log('[OpenCodeLogin] 模型已更新:', model.name)
             }
           }
-          console.log('[OpenCodeLogin] 共更新', updated, '个 OpenCode 模型')
         }
         await saveConfig()
         loginState.value = 'complete'
-        console.log('[OpenCodeLogin] 登录完成，cookies 和 baseUrl 已保存')
 
         // 2 秒后恢复 idle
         setTimeout(() => {

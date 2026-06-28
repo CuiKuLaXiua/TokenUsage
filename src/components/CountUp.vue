@@ -21,8 +21,14 @@ const props = withDefaults(defineProps<{
 })
 
 const displayValue = ref(props.prefix + '0' + props.suffix)
+let currentAnimId: number | null = null
 
 function animateValue(target: number) {
+  if (currentAnimId !== null) {
+    cancelAnimationFrame(currentAnimId)
+    currentAnimId = null
+  }
+
   const startTime = performance.now()
   const startVal = 0
 
@@ -35,11 +41,13 @@ function animateValue(target: number) {
     displayValue.value = props.prefix + current.toFixed(props.decimals) + props.suffix
 
     if (progress < 1) {
-      requestAnimationFrame(tick)
+      currentAnimId = requestAnimationFrame(tick)
+    } else {
+      currentAnimId = null
     }
   }
 
-  requestAnimationFrame(tick)
+  currentAnimId = requestAnimationFrame(tick)
 }
 
 onMounted(() => {

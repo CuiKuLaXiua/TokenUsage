@@ -37,11 +37,10 @@ import { DataAnalysis } from "@element-plus/icons-vue";
 import { useAppStore } from "@/stores/app";
 import type { ModelConfig } from "@/stores/app";
 import FloatModelCard from "@/components/FloatModelCard.vue";
+import { useThemeSync } from "@/composables/useThemeSync";
 
 const store = useAppStore();
-const theme = ref("light");
-const accent = ref(localStorage.getItem("accent") || "forest");
-const preset = ref(localStorage.getItem("preset") || "midnight");
+const { theme, accent, preset } = useThemeSync();
 const detailRef = ref<HTMLElement | null>(null);
 const enabledModels = computed(() => store.models.filter((m) => m.enabled));
 let unsubCfg: (() => void) | null = null;
@@ -92,20 +91,6 @@ function fitHeight() {
 
 // ── Lifecycle ──
 onMounted(async () => {
-  // 先从主进程拉取当前主题（单一真相源）
-  try {
-    const t = await window.electronAPI.getTheme();
-    if (t) {
-      theme.value = t.mode;
-      accent.value = t.accent;
-      preset.value = t.preset;
-    }
-  } catch {
-    // 回退到 localStorage
-    const s = localStorage.getItem("theme");
-    if (s) theme.value = s;
-  }
-
   try {
     await store.loadConfig();
   } catch {}

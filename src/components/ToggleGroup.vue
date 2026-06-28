@@ -27,7 +27,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 
 const props = withDefaults(defineProps<{
   modelValue: string | number
@@ -93,6 +93,13 @@ onMounted(() => {
 
 watch(() => props.modelValue, () => {
   nextTick(updateSlider)
+})
+
+onUnmounted(() => {
+  if (observer) {
+    observer.disconnect()
+    observer = null
+  }
 })
 
 watch(() => props.options, () => {

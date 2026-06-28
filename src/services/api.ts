@@ -106,6 +106,46 @@ function parseMimoResponse(response: MimoApiResponse): ModelUsageStatus | null {
 // ── Kimi (Coding Plan) ──
 // 响应格式: { limits: [{ detail: { limit, used, remaining, resetTime } }], usage: { limit, used, remaining, resetTime } }
 
+interface KimiLimitDetail {
+  limit?: number | string
+  used?: number | string
+  remaining?: number | string
+  resetTime?: string
+}
+
+interface KimiLimitItem {
+  detail?: KimiLimitDetail
+}
+
+interface KimiUsageDetail {
+  limit?: number | string
+  used?: number | string
+  remaining?: number | string
+  resetTime?: string
+}
+
+interface KimiRateLimit {
+  enabled?: boolean
+  ratio?: number | string
+  resetTime?: string
+}
+
+interface KimiSubscriptionBalance {
+  amountUsedRatio?: number | string
+  expireTime?: string
+}
+
+interface KimiResponse {
+  limits?: KimiLimitItem[]
+  usage?: KimiUsageDetail
+}
+
+interface KimiSubscriptionResponse {
+  ratelimitCode5h?: KimiRateLimit
+  ratelimitCode7d?: KimiRateLimit
+  subscriptionBalance?: KimiSubscriptionBalance
+}
+
 function parseF64(value: unknown): number | null {
   if (typeof value === 'number') return value
   if (typeof value === 'string') {
@@ -118,7 +158,7 @@ function parseF64(value: unknown): number | null {
 function makeTier(
   name: string,
   label: string,
-  detail: any
+  detail: KimiLimitDetail
 ): UsageTier | null {
   const total = parseF64(detail.limit) ?? 0
   const used = parseF64(detail.used) ?? 0
@@ -136,7 +176,7 @@ function makeTier(
   }
 }
 
-function parseKimiResponse(response: any): ModelUsageStatus | null {
+function parseKimiResponse(response: KimiResponse): ModelUsageStatus | null {
   if (!response || typeof response !== 'object') return null
 
   const tiers: UsageTier[] = []
@@ -173,7 +213,7 @@ function parseKimiResponse(response: any): ModelUsageStatus | null {
   }
 }
 
-function parseKimiSubscriptionResponse(response: any): ModelUsageStatus | null {
+function parseKimiSubscriptionResponse(response: KimiSubscriptionResponse): ModelUsageStatus | null {
   if (!response || typeof response !== 'object') return null
 
   const tiers: UsageTier[] = []

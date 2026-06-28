@@ -49,10 +49,9 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { Refresh, Close, Grid, List, Top, Check } from '@element-plus/icons-vue'
+import { useThemeSync } from '@/composables/useThemeSync'
 
-const theme = ref('dark')
-const accent = ref(localStorage.getItem('accent') || 'forest')
-const preset = ref(localStorage.getItem('preset') || 'midnight')
+const { theme, accent, preset } = useThemeSync()
 const modelId = ref<string | null>(null)
 const modelName = ref<string | null>(null)
 const layoutMode = ref('list')
@@ -63,16 +62,6 @@ let unsubCfg: (() => void) | null = null
 let leaveTimer: ReturnType<typeof setTimeout> | null = null
 
 onMounted(async () => {
-  // 先尝试从主进程拉取当前主题
-  try {
-    const t = await window.electronAPI.getTheme()
-    if (t) {
-      theme.value = t.mode
-      accent.value = t.accent
-      preset.value = t.preset
-    }
-  } catch {}
-
   // 主动拉取配置（避免页面加载与 IPC 推送的竞态问题）
   try {
     const config = await window.electronAPI.getCtxMenuConfig()

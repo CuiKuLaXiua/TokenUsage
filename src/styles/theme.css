@@ -63,6 +63,7 @@
 :root,
 [data-accent="forest"] {
   --accent:        #6b9e7a;
+  --accent-rgb:    107, 158, 122;
   --accent-light:  #8fbc8f;
   --accent-gradient: linear-gradient(135deg, #6b9e7a 0%, #c4a882 100%);
   --accent-glow:   rgba(107, 158, 122, 0.2);
@@ -91,6 +92,7 @@
    ────────────────────────────────── */
 [data-accent="moss"] {
   --accent:        #8fa870;
+  --accent-rgb:    143, 168, 112;
   --accent-light:  #a8c48a;
   --accent-gradient: linear-gradient(135deg, #8fa870 0%, #d4a855 100%);
   --accent-glow:   rgba(143, 168, 112, 0.2);
@@ -119,6 +121,7 @@
    ────────────────────────────────── */
 [data-accent="matcha"] {
   --accent:        #82a888;
+  --accent-rgb:    130, 168, 136;
   --accent-light:  #a8c8a8;
   --accent-gradient: linear-gradient(135deg, #82a888 0%, #e8a0b4 100%);
   --accent-glow:   rgba(130, 168, 136, 0.2);
@@ -147,6 +150,7 @@
    ────────────────────────────────── */
 [data-accent="cyber"] {
   --accent:        #00e5ff;
+  --accent-rgb:    0, 229, 255;
   --accent-light:  #33ecff;
   --accent-gradient: linear-gradient(135deg, #00e5ff 0%, #e040fb 100%);
   --accent-glow:   rgba(0, 229, 255, 0.2);
@@ -175,6 +179,7 @@
    ────────────────────────────────── */
 [data-accent="sunset"] {
   --accent:        #f97316;
+  --accent-rgb:    249, 115, 22;
   --accent-light:  #fb923c;
   --accent-gradient: linear-gradient(135deg, #f97316 0%, #fb7185 100%);
   --accent-glow:   rgba(249, 115, 22, 0.2);
@@ -203,6 +208,7 @@
    ────────────────────────────────── */
 [data-accent="sakura"] {
   --accent:        #f472b6;
+  --accent-rgb:    244, 114, 182;
   --accent-light:  #f9a8d4;
   --accent-gradient: linear-gradient(135deg, #f472b6 0%, #a78bfa 100%);
   --accent-glow:   rgba(244, 114, 182, 0.2);
@@ -231,6 +237,7 @@
    ────────────────────────────────── */
 [data-accent="mono"] {
   --accent:        #a3a3a3;
+  --accent-rgb:    163, 163, 163;
   --accent-light:  #d4d4d4;
   --accent-gradient: linear-gradient(135deg, #a3a3a3 0%, #e5e5e5 100%);
   --accent-glow:   rgba(163, 163, 163, 0.15);
@@ -417,6 +424,7 @@
   --border-light:  rgba(79, 140, 255, 0.06);
 
   --accent:        #4f8cff;
+  --accent-rgb:    79, 140, 255;
   --accent-light:  #7aa8ff;
   --accent-gradient: linear-gradient(135deg, #4f8cff 0%, #2ed573 100%);
   --accent-glow:   rgba(79, 140, 255, 0.22);
@@ -470,6 +478,7 @@
   --border-light:  rgba(167, 139, 250, 0.06);
 
   --accent:        #a78bfa;
+  --accent-rgb:    167, 139, 250;
   --accent-light:  #c4b5fd;
   --accent-gradient: linear-gradient(135deg, #a78bfa 0%, #22d3ee 100%);
   --accent-glow:   rgba(167, 139, 250, 0.25);
@@ -523,6 +532,7 @@
   --border-light:  rgba(0, 229, 255, 0.06);
 
   --accent:        #00e5ff;
+  --accent-rgb:    0, 229, 255;
   --accent-light:  #33ecff;
   --accent-gradient: linear-gradient(135deg, #00e5ff 0%, #e040fb 100%);
   --accent-glow:   rgba(0, 229, 255, 0.22);
@@ -575,6 +585,7 @@
   --border-light:  rgba(0, 150, 200, 0.06);
 
   --accent:        #0090b8;
+  --accent-rgb:    0, 144, 184;
   --accent-light:  #06b6d4;
   --accent-gradient: linear-gradient(135deg, #0090b8 0%, #9333ea 100%);
   --accent-glow:   rgba(0, 144, 184, 0.15);
@@ -628,6 +639,7 @@
   --border-light:  rgba(249, 115, 22, 0.06);
 
   --accent:        #f97316;
+  --accent-rgb:    249, 115, 22;
   --accent-light:  #fb923c;
   --accent-gradient: linear-gradient(135deg, #f97316 0%, #fb7185 100%);
   --accent-glow:   rgba(249, 115, 22, 0.22);
@@ -680,6 +692,7 @@
   --border-light:  rgba(180, 100, 20, 0.06);
 
   --accent:        #ea580c;
+  --accent-rgb:    234, 88, 12;
   --accent-light:  #f97316;
   --accent-gradient: linear-gradient(135deg, #ea580c 0%, #e11d48 100%);
   --accent-glow:   rgba(234, 88, 12, 0.15);
@@ -733,6 +746,7 @@
   --border-light:  rgba(244, 114, 182, 0.06);
 
   --accent:        #f472b6;
+  --accent-rgb:    244, 114, 182;
   --accent-light:  #f9a8d4;
   --accent-gradient: linear-gradient(135deg, #f472b6 0%, #a78bfa 100%);
   --accent-glow:   rgba(244, 114, 182, 0.22);
@@ -785,6 +799,7 @@
   --border-light:  rgba(236, 72, 153, 0.05);
 
   --accent:        #ec4899;
+  --accent-rgb:    236, 72, 153;
   --accent-light:  #f472b6;
   --accent-gradient: linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%);
   --accent-glow:   rgba(236, 72, 153, 0.12);
@@ -838,6 +853,7 @@
   --border-light:  rgba(163, 163, 163, 0.05);
 
   --accent:        #e5e5e5;
+  --accent-rgb:    229, 229, 229;
   --accent-light:  #f5f5f5;
   --accent-gradient: linear-gradient(135deg, #e5e5e5 0%, #a3a3a3 100%);
   --accent-glow:   rgba(229, 229, 229, 0.15);
@@ -890,6 +906,7 @@
   --border-light:  rgba(0, 0, 0, 0.04);
 
   --accent:        #404040;
+  --accent-rgb:    64, 64, 64;
   --accent-light:  #525252;
   --accent-gradient: linear-gradient(135deg, #404040 0%, #737373 100%);
   --accent-glow:   rgba(64, 64, 64, 0.1);

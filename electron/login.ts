@@ -33,8 +33,6 @@ export class LoginWindowManager {
       : "persist:mimo-shared";
 
     const loginSession = session.fromPartition(this.partition);
-    console.log(`[LoginWindow] 使用独立 partition: ${this.partition}`);
-    console.log("[LoginWindow] 清除当前 partition 的 cookies...");
     // 清除该 partition 下所有 cookies（不仅是 mimo 域，避免任何残留）
     await loginSession.clearStorageData({
       storages: ["cookies"],
@@ -47,12 +45,6 @@ export class LoginWindowManager {
     const remainingCookies = await loginSession.cookies.get({
       domain: MIMO_COOKIE_DOMAIN,
     });
-    console.log(
-      "[LoginWindow] 清除后剩余 cookies:",
-      remainingCookies.length,
-      "个",
-    );
-
     const windowOptions: Electron.BrowserWindowConstructorOptions = {
       width: 800,
       height: 700,
@@ -70,12 +62,10 @@ export class LoginWindowManager {
     this.loginWindow = new BrowserWindow(windowOptions);
 
     // 加载登录页
-    console.log("[LoginWindow] 加载登录页:", url);
     this.loginWindow.loadURL(url);
 
     // 页面加载完成后检查 cookies
     this.loginWindow.webContents.on("did-finish-load", () => {
-      console.log("[LoginWindow] 页面加载完成，1秒后检查 cookies");
       setTimeout(() => {
         this.checkAndExtractCookies();
       }, 1000);
@@ -83,7 +73,6 @@ export class LoginWindowManager {
 
     // 窗口关闭前提取 cookies
     this.loginWindow.on("close", () => {
-      console.log("[LoginWindow] 窗口即将关闭，立即提取 cookies");
       this.extractCookiesFromSession();
     });
 
@@ -127,43 +116,26 @@ export class LoginWindowManager {
       // 从登录窗口的 webContents session 提取 cookies
       const cookies = await this.getSession().cookies.get({});
 
-      console.log("[LoginWindow] 检查 cookies:", cookies.length, "个");
       if (cookies.length > 0) {
-        // 打印所有 cookie 完整信息
-        for (const cookie of cookies) {
-          console.log(
-            `[LoginWindow] Cookie: ${cookie.name}=${cookie.value} (domain: ${cookie.domain}, path: ${cookie.path})`,
-          );
-        }
-
         // 检查是否有 platform.xiaomimimo.com 的 cookies
         const hasPlatformCookies = cookies.some(
           (c) => c.domain?.includes("xiaomimimo.com"),
         );
 
         if (hasPlatformCookies) {
-          console.log(
-            "[LoginWindow] 检测到 xiaomimimo.com 的 cookies，立即提取",
-          );
           const cookieString = cookies
             .map((c) => `${c.name}=${c.value}`)
             .join("; ");
-          console.log("[LoginWindow] 最终 cookie 字符串:", cookieString);
-          console.log("[LoginWindow] 准备关闭登录窗口...");
           this.triggerCallback(cookieString);
           // 关闭窗口
           if (this.loginWindow && !this.loginWindow.isDestroyed()) {
-            console.log("[LoginWindow] 执行关闭窗口操作");
             this.loginWindow.close();
-            console.log("[LoginWindow] 窗口关闭命令已发送");
           }
         } else {
-          console.log(
-            "[LoginWindow] 未检测到 xiaomimimo.com 的 cookies，等待用户登录",
-          );
+          // 未检测到 xiaomimimo.com 的 cookies，等待用户登录
         }
       } else {
-        console.log("[LoginWindow] 未检测到 cookies，等待用户登录");
+        // 未检测到 cookies，等待用户登录
       }
     } catch (error) {
       console.error("[LoginWindow] 检查 cookies 失败:", error);
@@ -180,24 +152,11 @@ export class LoginWindowManager {
       // 从当前 partition session 提取 cookies
       const cookies = await this.getSession().cookies.get({});
 
-      console.log(
-        "[LoginWindow] 从 session 提取 cookies:",
-        cookies.length,
-        "个",
-      );
       if (cookies.length > 0) {
-        // 打印所有 cookie 完整信息
-        for (const cookie of cookies) {
-          console.log(
-            `[LoginWindow] Cookie: ${cookie.name}=${cookie.value} (domain: ${cookie.domain}, path: ${cookie.path})`,
-          );
-        }
-
         // 使用所有 cookies（不过滤域名）
         const cookieString = cookies
           .map((c) => `${c.name}=${c.value}`)
           .join("; ");
-        console.log("[LoginWindow] 最终 cookie 字符串:", cookieString);
         this.triggerCallback(cookieString);
       } else {
         console.warn("[LoginWindow] 未提取到 cookies");

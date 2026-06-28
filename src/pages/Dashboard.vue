@@ -498,19 +498,13 @@ import {
 } from "@element-plus/icons-vue";
 import type { ModelConfig } from "@/stores/app";
 import { useAppStore } from "@/stores/app";
-import { formatTokens, getProgressColorSmooth } from "@/utils/format";
+import { formatTokens, getProgressColorSmooth, safeClip, formatLargeNumber, getProviderLabel } from "@/utils/format";
 import { useUsageAggregation } from "@/composables/useUsageAggregation";
 import draggable from "vuedraggable";
 import TokenRing from "@/components/TokenRing.vue";
 import PercentBar from "@/components/PercentBar.vue";
 import BalanceCard from "@/components/BalanceCard.vue";
 import CountUp from "@/components/CountUp.vue";
-
-/** 计算 clip-path 右侧 inset，保证 0% 时完全隐藏，NaN 时安全回退 */
-function safeClip(percent: number): string {
-  const p = Number.isFinite(percent) ? Math.min(Math.max(percent, 0), 100) : 0
-  return p === 0 ? '100%' : `calc(100% - ${p}%)`
-}
 
 const store = useAppStore();
 const agg = useUsageAggregation();
@@ -532,26 +526,6 @@ const enabledModels = computed(() => {
 
 function getUsage(modelId: string) {
   return store.modelUsageMap[modelId];
-}
-
-function getProviderLabel(provider: string): string {
-  const labels: Record<string, string> = {
-    mimo: "MIMO",
-    openai: "OpenAI",
-    claude: "Claude",
-    deepseek: "DeepSeek",
-    kimi: "Kimi",
-    opencode: "OpenCode",
-  };
-  return labels[provider] || provider;
-}
-
-function formatLargeNumber(num: number): string {
-  if (num >= 1e12) return (num / 1e12).toFixed(2) + "T";
-  if (num >= 1e9) return (num / 1e9).toFixed(2) + "B";
-  if (num >= 1e6) return (num / 1e6).toFixed(2) + "M";
-  if (num >= 1e3) return (num / 1e3).toFixed(2) + "K";
-  return num.toFixed(2);
 }
 
 function formatFullNumber(num: number): string {
@@ -604,46 +578,6 @@ const singleStatusValue = computed(() => {
     return `${summary.usage.currency === "CNY" ? "¥" : summary.usage.currency || ""}${(summary.usage.balance || 0).toFixed(2)}`;
   }
   return summary.primaryLabel;
-});
-
-// ── 单模型 Hero 右侧关键指标 --
-const singleKpiValue = computed(() => {
-  const summary = agg.singleModelSummary.value;
-  if (!summary) return "—";
-  if (summary.type === "token") {
-    return summary.primaryLabel;
-  }
-  if (summary.type === "percent") {
-    return summary.primaryLabel;
-  }
-  return summary.primaryLabel;
-});
-
-const singleKpiLabel = computed(() => {
-  const summary = agg.singleModelSummary.value;
-  if (!summary) return "状态";
-  if (summary.type === "token") return "已用比例";
-  if (summary.type === "percent") return "最紧张窗口";
-  return "账户余额";
-});
-
-const singleKpiIcon = computed(() => {
-  const summary = agg.singleModelSummary.value;
-  if (!summary) return MostlyCloudy;
-  if (summary.type === "token") return Histogram;
-  if (summary.type === "percent") return Clock;
-  return Wallet;
-});
-
-const singleKpiIconStyle = computed(() => {
-  const summary = agg.singleModelSummary.value;
-  const glow =
-    summary?.type === "balance"
-      ? "var(--neon-green)"
-      : summary?.type === "percent"
-      ? "var(--neon-red)"
-      : "var(--neon-amber)";
-  return { "--glow": glow };
 });
 
 const singleKpiColor = computed(() => {

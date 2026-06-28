@@ -1,3 +1,4 @@
+import { writeFile } from "fs/promises";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
@@ -66,10 +67,9 @@ export function readJsonFile(path: string): any | null {
   return null;
 }
 
+/** 异步写入 JSON 文件（fire-and-forget，不阻塞事件循环） */
 export function writeJsonFile(path: string, data: any): void {
-  try {
-    writeFileSync(path, JSON.stringify(data, null, 2));
-  } catch { /* ignore */ }
+  writeFile(path, JSON.stringify(data, null, 2)).catch(() => {});
 }
 
 // ── 窗口状态持久化 ──
@@ -114,7 +114,8 @@ export function saveWindowState(win: BrowserWindow) {
       y: bounds.y,
       isMaximized,
     };
-    writeFileSync(windowStatePath, JSON.stringify(state));
+    // 异步写入：不阻塞事件循环（resize/move 时高频调用）
+    writeFile(windowStatePath, JSON.stringify(state)).catch(() => {});
   } catch {
     /* ignore */
   }
@@ -148,7 +149,7 @@ export function saveFloatPosition(win: BrowserWindow) {
   try {
     if (!win || win.isDestroyed()) return;
     const [x, y] = win.getPosition();
-    writeFileSync(floatWindowStatePath, JSON.stringify({ x, y }));
+    writeFile(floatWindowStatePath, JSON.stringify({ x, y })).catch(() => {});
   } catch {
     /* ignore */
   }
@@ -173,7 +174,7 @@ export function saveCloseActionToConfig(action: CloseAction | null) {
     if (existsSync(configPath)) {
       const config = JSON.parse(readFileSync(configPath, "utf-8"));
       config.closeAction = action;
-      writeFileSync(configPath, JSON.stringify(config, null, 2));
+      writeFile(configPath, JSON.stringify(config, null, 2)).catch(() => {});
     }
   } catch {
     /* ignore */

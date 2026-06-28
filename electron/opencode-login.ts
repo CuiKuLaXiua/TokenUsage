@@ -49,15 +49,12 @@ export class OpenCodeLoginWindowManager {
     this.workspaceId = null
     this.currentPhase = 'login'
 
-    // 清除 OpenCode cookies
-    console.log('[OpenCodeLogin] 清除 OpenCode cookies...')
     const cookies = await session.defaultSession.cookies.get({ domain: OPENCODE_DOMAIN })
     for (const cookie of cookies) {
       if (cookie.domain) {
         await session.defaultSession.cookies.remove(cookie.domain, cookie.name)
       }
     }
-    console.log('[OpenCodeLogin] 已清除', cookies.length, '个 cookies')
     await new Promise(resolve => setTimeout(resolve, 500))
 
     const windowOptions: Electron.BrowserWindowConstructorOptions = {
@@ -79,20 +76,16 @@ export class OpenCodeLoginWindowManager {
     this.loginWindow.webContents.on('did-navigate', (_event, navUrl) => {
       if (navUrl.includes('/go')) {
         this.currentPhase = 'go'
-        console.log('[OpenCodeLogin] ★ URL → /go, phase=go')
       } else if (navUrl.includes('/usage')) {
         this.currentPhase = 'usage'
-        console.log('[OpenCodeLogin] ★ URL → /usage, phase=usage')
       }
     })
     // SPA 内部导航也监听
     this.loginWindow.webContents.on('did-navigate-in-page', (_event, navUrl) => {
       if (navUrl.includes('/go')) {
         this.currentPhase = 'go'
-        console.log('[OpenCodeLogin] ★ SPA → /go, phase=go')
       } else if (navUrl.includes('/usage')) {
         this.currentPhase = 'usage'
-        console.log('[OpenCodeLogin] ★ SPA → /usage, phase=usage')
       }
     })
 
@@ -101,10 +94,8 @@ export class OpenCodeLoginWindowManager {
       { urls: ['*://opencode.ai/_server*'] },
       (details, callback) => {
         if (details.method === 'GET' && details.url.includes('_server?id=')) {
-          console.log(`[OpenCodeLogin] GET URL: ${details.url.substring(0, 150)}`)
           if (!this.capturedApiUrl) {
             this.capturedApiUrl = details.url
-            console.log('[OpenCodeLogin] ★ 已捕获 GET API URL')
           }
           try {
             const u = new URL(details.url)
@@ -115,7 +106,6 @@ export class OpenCodeLoginWindowManager {
               if (wid && typeof wid === 'string' && wid.startsWith('wrk_')) {
                 if (!this.workspaceId) {
                   this.workspaceId = wid
-                  console.log('[OpenCodeLogin] ★ 提取到 workspaceId:', wid)
                 }
               }
             }
@@ -136,23 +126,16 @@ export class OpenCodeLoginWindowManager {
           const method = details.method as 'GET' | 'POST'
           const phase = this.currentPhase
           this.capturedRequests.push({ serverId, instance: serverInstance, method, phase })
-          console.log(`[OpenCodeLogin] ${method} phase=${phase}  #${this.capturedRequests.length}  id=${serverId.substring(0, 24)}...  instance=${serverInstance}`)
         }
 
         callback({ requestHeaders: details.requestHeaders })
       }
     )
 
-    console.log('[OpenCodeLogin] 加载登录页:', url)
     this.loginWindow.loadURL(url)
 
     // 用户手动关闭窗口时提取数据
     this.loginWindow.on('close', () => {
-      console.log('[OpenCodeLogin] 用户关闭了窗口，提取数据...')
-      console.log('[OpenCodeLogin] 捕获状态:', {
-        requestCount: this.capturedRequests.length,
-        workspaceId: this.workspaceId
-      })
       this.resolveFromCaptured()
     })
 
@@ -199,7 +182,6 @@ export class OpenCodeLoginWindowManager {
         return
       }
       const cookieString = opencodeCookies.map(c => `${c.name}=${c.value}`).join('; ')
-      console.log('[OpenCodeLogin] 提取到', opencodeCookies.length, '个 cookies')
 
       // 按 phase 分组
       const goRequests = this.capturedRequests.filter(r => r.phase === 'go')
@@ -209,24 +191,14 @@ export class OpenCodeLoginWindowManager {
         (a, b) => extractInstanceNum(a.instance) - extractInstanceNum(b.instance)
       )
 
-      console.log('[OpenCodeLogin] go 页请求数:', goRequests.length,
-        '  GET:', goGets.map(r => r.instance).join(', '),
-        '  POST:', goRequests.filter(r => r.method === 'POST').map(r => r.instance).join(', '))
-      console.log('[OpenCodeLogin] usage 页请求数:', usageRequests.length,
-        '  GET:', usageRequests.filter(r => r.method === 'GET').map(r => r.instance).join(', '),
-        '  POST:', usageRequests.filter(r => r.method === 'POST').map(r => r.instance).join(', '))
-
       // ── API1: Go 页 GET 请求中居中值(>=3个)或大值(2个) ──
       let api1: CapturedRequest | null = null
       if (goSort.length >= 3) {
         api1 = goSort[Math.floor(goSort.length / 2)] // 居中
-        console.log('[OpenCodeLogin] API1 (go页GET居中):', api1.instance)
       } else if (goSort.length >= 2) {
         api1 = goSort[goSort.length - 1] // 大值
-        console.log('[OpenCodeLogin] API1 (go页GET大值):', api1.instance)
       } else if (goSort.length === 1) {
         api1 = goSort[0]
-        console.log('[OpenCodeLogin] API1 (go页仅1个GET):', api1.instance)
       }
 
       // ── API2/API3: 使用量页请求，按 instance 排序，小=API2(POST), 大=API3(GET) ──
@@ -238,22 +210,14 @@ export class OpenCodeLoginWindowManager {
         )
         api2 = usageSort[0]                   // instance 较小 → API2 (POST)
         api3 = usageSort[usageSort.length - 1] // instance 较大 → API3 (GET)
-        console.log('[OpenCodeLogin] API2 (usage小值):', { method: api2.method, instance: api2.instance })
-        console.log('[OpenCodeLogin] API3 (usage大值):', { method: api3.method, instance: api3.instance })
       } else if (usageRequests.length === 1) {
         const req = usageRequests[0]
         if (req.method === 'POST') {
           api2 = req
-          console.log('[OpenCodeLogin] API2 (usage仅POST):', req.instance)
         } else {
           api3 = req
-          console.log('[OpenCodeLogin] API3 (usage仅GET):', req.instance)
         }
       }
-
-      if (api1) console.log('[OpenCodeLogin] API1 id:', api1.serverId.substring(0, 24) + '...', 'instance:', api1.instance)
-      if (api2) console.log('[OpenCodeLogin] API2 id:', api2.serverId.substring(0, 24) + '...', 'instance:', api2.instance)
-      if (api3) console.log('[OpenCodeLogin] API3 id:', api3.serverId.substring(0, 24) + '...', 'instance:', api3.instance)
 
       this.triggerCallback({
         cookies: cookieString,

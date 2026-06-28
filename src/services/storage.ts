@@ -1,11 +1,13 @@
 import { type ModelConfig, type UsageRecord } from '@/stores/app'
 
+export interface AppConfig {
+  models: ModelConfig[]
+}
+
 export interface BackupData {
   version: string
   timestamp: number
-  config: {
-    models: ModelConfig[]
-  }
+  config: AppConfig
   usage: Record<string, UsageRecord[]>
 }
 
@@ -19,16 +21,16 @@ export class StorageService {
     return StorageService.instance
   }
 
-  async loadConfig(): Promise<any> {
+  async loadConfig(): Promise<AppConfig> {
     try {
       return await window.electronAPI.loadConfig()
     } catch (error) {
       console.error('Error loading config:', error)
-      return {}
+      return { models: [] }
     }
   }
 
-  async saveConfig(config: any): Promise<boolean> {
+  async saveConfig(config: AppConfig): Promise<boolean> {
     try {
       return await window.electronAPI.saveConfig(config)
     } catch (error) {
