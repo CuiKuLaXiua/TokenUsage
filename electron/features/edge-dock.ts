@@ -1,5 +1,9 @@
 import { BrowserWindow, ipcMain, screen } from "electron";
 import { FLOAT_WIDTH, FLOAT_HEIGHT } from "../utils/position";
+import { animateWindowPosition, rafLike } from "../core/animation";
+import { windowLifecycle } from "../core/window-lifecycle";
+import { saveFloatDockState, saveFloatPosition, type FloatDockState } from "../services/persistence";
+import { IPC } from "../core/ipc-channels";
 
 // ── 常量 ──
 
@@ -105,6 +109,21 @@ export class EdgeDockManager {
     duration: number = 400,
     easing: (p: number) => number = springOvershoot,
   ): Promise<void> {
+    const name = this.findWindowName(win);
+    if (!name) {
+      // 非托管窗口：使用内部兼容实现
+      return this.legacyAnimateWindowPosition(win, targetX, targetY, duration, easing);
+    }
+    return animateWindowPosition(name, { win, targetX, targetY, duration, easing });
+  }
+
+  private legacyAnimateWindowPosition(
+    win: BrowserWindow,
+    targetX: number,
+    targetY: number,
+    duration: number,
+    easing: (p: number) => number,
+  ): Promise<void> {
     return new Promise((resolve) => {
       const [startX, startY] = win.getPosition();
       const startTime = performance.now();
@@ -114,25 +133,30 @@ export class EdgeDockManager {
           resolve();
           return;
         }
-
         const elapsed = performance.now() - startTime;
         const progress = Math.min(elapsed / duration, 1);
         const t = easing(progress);
-
         const x = Math.round(startX + (targetX - startX) * t);
         const y = Math.round(startY + (targetY - startY) * t);
-
         win.setPosition(x, y);
-
         if (progress < 1) {
-          setTimeout(animate, 16);
+          rafLike(animate);
         } else {
           resolve();
         }
       };
 
-      animate();
+      rafLike(animate);
     });
+  }
+
+  private findWindowName(win: BrowserWindow): string | null {
+    // 通过 windowLifecycle 反向查找名称
+    for (const name of ["float", "floatStrip", "detail"] as const) {
+      const w = windowLifecycle.get(name);
+      if (w?.id === win.id) return name;
+    }
+    return null;
   }
 
   // ── 边缘吸附检测 ──
@@ -194,7 +218,7 @@ export class EdgeDockManager {
     // 1. strip 吸入动画（CSS），同时屏蔽鼠标事件防止动画期间误触
     if (floatStripWindow && !floatStripWindow.isDestroyed()) {
       floatStripWindow.setIgnoreMouseEvents(true, { forward: true });
-      floatStripWindow.webContents.send("edge-dock-changed", {
+      floatStripWindow.webContents.send(IPC.EDGE_DOCK.CHANGED, {
         isDocked: false,
         edge: state.edge,
       });
@@ -208,7 +232,7 @@ export class EdgeDockManager {
 
       // 3. 更新状态 + 显示悬浮窗（与 strip 收入动画重叠）
       this.edgeDockState.set(fwAfter.id, { ...state, isDocked: false });
-      fwAfter.webContents.send("edge-dock-changed", {
+      fwAfter.webContents.send(IPC.EDGE_DOCK.CHANGED, {
         isDocked: false,
         edge: state.edge,
       });
@@ -252,7 +276,7 @@ export class EdgeDockManager {
       const fs = this.deps.getFloatStripWindow();
       if (fs && !fs.isDestroyed()) {
         this.positionStripWindow(state.edge, state.dockY);
-        fs.webContents.send("edge-dock-changed", {
+        fs.webContents.send(IPC.EDGE_DOCK.CHANGED, {
           isDocked: true,
           edge: state.edge,
         });
@@ -269,10 +293,17 @@ export class EdgeDockManager {
       const fw = this.deps.getFloatWindow();
       if (fw && !fw.isDestroyed()) {
         fw.hide();
-        this.edgeDockState.set(fw.id, { ...state, isDocked: true });
-        fw.webContents.send("edge-dock-changed", {
+        const dockedState = { ...state, isDocked: true };
+        this.edgeDockState.set(fw.id, dockedState);
+        fw.webContents.send(IPC.EDGE_DOCK.CHANGED, {
           isDocked: true,
           edge: state.edge,
+        });
+        // 持久化吸附状态
+        saveFloatDockState({
+          edge: state.edge!,
+          originalX: state.originalX,
+          originalY: state.originalY,
         });
       }
       this.hideAnimating = false;
@@ -315,14 +346,20 @@ export class EdgeDockManager {
             setTimeout(() => {
               this.edgeDockState.set(windowId, dockState);
               this.startHoverPolling();
-              win?.webContents.send("edge-dock-changed", {
+              win?.webContents.send(IPC.EDGE_DOCK.CHANGED, {
                 isDocked: true,
                 edge: dockState.edge,
               });
               const floatStripWindow = this.deps.getFloatStripWindow();
-              floatStripWindow?.webContents.send("edge-dock-changed", {
+              floatStripWindow?.webContents.send(IPC.EDGE_DOCK.CHANGED, {
                 isDocked: true,
                 edge: dockState.edge,
+              });
+              // 持久化吸附状态
+              saveFloatDockState({
+                edge: dockState.edge!,
+                originalX: dockState.originalX,
+                originalY: dockState.originalY,
               });
             }, 150);
           }
@@ -331,8 +368,9 @@ export class EdgeDockManager {
         // 离开边缘
         if (this.edgeDockState.has(windowId)) {
           this.edgeDockState.delete(windowId);
+          saveFloatDockState(null);
           if (!win.isVisible()) win.show();
-          win.webContents.send("edge-dock-changed", {
+          win.webContents.send(IPC.EDGE_DOCK.CHANGED, {
             isDocked: false,
             edge: null,
           });
@@ -449,7 +487,7 @@ export class EdgeDockManager {
 
   registerIpc(): void {
     ipcMain.handle(
-      "start-window-drag",
+      IPC.DRAG.START,
       (event, options: { mouseX: number; mouseY: number }) => {
         const win = BrowserWindow.fromWebContents(event.sender);
         if (!win || win.isDestroyed()) return;
@@ -462,7 +500,7 @@ export class EdgeDockManager {
 
         const existingState = this.dragStateMap.get(win.id);
         if (existingState) {
-          if (existingState.intervalId) clearInterval(existingState.intervalId);
+          if (existingState.intervalId) clearInterval(existingState.intervalId as any);
         }
 
         // 缓存显示区域和窗口尺寸，避免每 tick 重复调用原生 API
@@ -483,12 +521,11 @@ export class EdgeDockManager {
           winSize: [winW, winH],
         };
 
-        state.intervalId = setInterval(() => {
-          if (!state.isDragging || win.isDestroyed()) {
-            if (state.intervalId) {
-              clearInterval(state.intervalId);
-              state.intervalId = null;
-            }
+        // 使用 setImmediate 循环替代高频 setInterval，降低 CPU 占用
+        let cancelled = false;
+        const tick = () => {
+          if (cancelled || !state.isDragging || win.isDestroyed()) {
+            cancelled = true;
             return;
           }
 
@@ -509,20 +546,31 @@ export class EdgeDockManager {
             state.lastSetY = newY;
             win.setPosition(Math.round(newX), Math.round(newY));
           }
-        }, 16);
+
+          rafLike(tick);
+        };
+
+        state.intervalId = {
+          // 兼容旧代码的 intervalId 接口
+          [Symbol.toPrimitive]: () => 0,
+          ref: () => state.intervalId as any,
+          unref: () => state.intervalId as any,
+          refresh: () => state.intervalId as any,
+        } as unknown as ReturnType<typeof setInterval>;
 
         this.dragStateMap.set(win.id, state);
+        rafLike(tick);
       },
     );
 
-    ipcMain.handle("stop-window-drag", async (event) => {
+    ipcMain.handle(IPC.DRAG.STOP, async (event) => {
       const win = BrowserWindow.fromWebContents(event.sender);
       if (!win || win.isDestroyed()) return;
       this.stopDragForWindow(win.id);
     });
 
     ipcMain.handle(
-      "dock-float-window",
+      IPC.EDGE_DOCK.DOCK,
       async (_, edge: "left" | "right" | "top") => {
         const floatWindow = this.deps.getFloatWindow();
         if (!floatWindow || floatWindow.isDestroyed()) return false;
@@ -571,20 +619,21 @@ export class EdgeDockManager {
         this.edgeDockState.set(floatWindow.id, dockState);
         floatWindow.hide();
         this.startHoverPolling();
-        floatWindow.webContents.send("edge-dock-changed", {
+        floatWindow.webContents.send(IPC.EDGE_DOCK.CHANGED, {
           isDocked: true,
           edge,
         });
-        this.deps.getFloatStripWindow()?.webContents.send("edge-dock-changed", {
+        this.deps.getFloatStripWindow()?.webContents.send(IPC.EDGE_DOCK.CHANGED, {
           isDocked: true,
           edge,
         });
+        saveFloatDockState({ edge, originalX: x, originalY: y });
 
         return true;
       },
     );
 
-    ipcMain.handle("undock-float-window", async () => {
+    ipcMain.handle(IPC.EDGE_DOCK.UNDOCK, async () => {
       const floatWindow = this.deps.getFloatWindow();
       if (!floatWindow || floatWindow.isDestroyed()) return false;
 
@@ -600,13 +649,14 @@ export class EdgeDockManager {
         (p) => 1 - Math.pow(1 - p, 3),
       );
       this.edgeDockState.delete(floatWindow.id);
+      saveFloatDockState(null);
       this.stopHoverPolling();
       const floatStripWindow = this.deps.getFloatStripWindow();
       if (floatStripWindow && !floatStripWindow.isDestroyed()) {
         floatStripWindow.close();
         this.deps.setFloatStripWindow(null);
       }
-      floatWindow.webContents.send("edge-dock-changed", {
+      floatWindow.webContents.send(IPC.EDGE_DOCK.CHANGED, {
         isDocked: false,
         edge: null,
       });
@@ -614,13 +664,13 @@ export class EdgeDockManager {
       return true;
     });
 
-    ipcMain.handle("get-edge-dock-state", () => {
+    ipcMain.handle(IPC.EDGE_DOCK.GET_STATE, () => {
       const floatWindow = this.deps.getFloatWindow();
       if (!floatWindow || floatWindow.isDestroyed()) return null;
       return this.edgeDockState.get(floatWindow.id) || null;
     });
 
-    ipcMain.handle("strip-mousedown", () => {
+    ipcMain.handle(IPC.EDGE_DOCK.STRIP_MOUSEDOWN, () => {
       const floatWindow = this.deps.getFloatWindow();
       if (!floatWindow || floatWindow.isDestroyed()) return;
       const state = this.edgeDockState.get(floatWindow.id);
@@ -630,7 +680,7 @@ export class EdgeDockManager {
     });
 
     ipcMain.handle(
-      "resize-float-window-animated",
+      IPC.FLOAT.RESIZE_ANIMATED,
       (_, width: number, height: number, duration: number = 300) => {
         const floatWindow = this.deps.getFloatWindow();
         if (!floatWindow || floatWindow.isDestroyed()) return false;
@@ -652,10 +702,10 @@ export class EdgeDockManager {
             floatStripWindow.setSize(DOCK_VISIBLE_WIDTH, curH);
           }
           if (progress < 1) {
-            setTimeout(step, 16);
+            rafLike(step);
           }
         };
-        step();
+        rafLike(step);
         return true;
       },
     );

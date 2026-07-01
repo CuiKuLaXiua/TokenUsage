@@ -52,3 +52,7 @@ tsconfig.node.tsbuildinfo
 data/*.json
 data/usage/*.json
 config/*.json
+
+# Temporary directories
+.codex/
+temp-app/

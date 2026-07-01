@@ -4,25 +4,37 @@ import { writeFile } from "fs/promises";
 import { join } from "path";
 import { isValidMonth, isValidConfig, isValidUsageData } from "../ipc-validators";
 import { configPath, usagePath, dataDir } from "../services/persistence";
+import { IPC } from "../core/ipc-channels";
 
 export interface DataIpcDeps {
   getRefresher: () => { restart: () => void };
 }
 
+let cachedConfig: Record<string, any> | null = null;
+let configLoaded = false;
+
 export function registerDataIpc(deps: DataIpcDeps) {
-  ipcMain.handle("load-config", () => {
+  ipcMain.handle(IPC.CONFIG.LOAD, () => {
+    if (configLoaded) {
+      return cachedConfig;
+    }
     try {
       if (existsSync(configPath)) {
-        return JSON.parse(readFileSync(configPath, "utf-8"));
+        cachedConfig = JSON.parse(readFileSync(configPath, "utf-8"));
+      } else {
+        cachedConfig = {};
       }
-      return {};
+      configLoaded = true;
+      return cachedConfig;
     } catch (error) {
       console.error("Error loading config:", error);
-      return {};
+      cachedConfig = {};
+      configLoaded = true;
+      return cachedConfig;
     }
   });
 
-  ipcMain.handle("save-config", async (_, config) => {
+  ipcMain.handle(IPC.CONFIG.SAVE, async (_, config) => {
     try {
       if (!isValidConfig(config)) {
         console.error("Invalid config structure");
@@ -39,8 +51,12 @@ export function registerDataIpc(deps: DataIpcDeps) {
       }
       await writeFile(configPath, JSON.stringify(fullConfig, null, 2));
 
+      // 清空缓存，使后续 load-config 读到最新数据
+      cachedConfig = null;
+      configLoaded = false;
+
       BrowserWindow.getAllWindows().forEach((win) => {
-        win.webContents.send("config-updated");
+        win.webContents.send(IPC.CONFIG_UPDATED);
       });
 
       deps.getRefresher().restart();
@@ -52,7 +68,7 @@ export function registerDataIpc(deps: DataIpcDeps) {
     }
   });
 
-  ipcMain.handle("load-usage", (_, month) => {
+  ipcMain.handle(IPC.USAGE.LOAD, (_, month) => {
     try {
       if (!isValidMonth(month)) {
         console.error("Invalid month format:", month);
@@ -69,7 +85,7 @@ export function registerDataIpc(deps: DataIpcDeps) {
     }
   });
 
-  ipcMain.handle("save-usage", async (_, month, data) => {
+  ipcMain.handle(IPC.USAGE.SAVE, async (_, month, data) => {
     try {
       if (!isValidMonth(month)) {
         console.error("Invalid month format:", month);
@@ -88,7 +104,7 @@ export function registerDataIpc(deps: DataIpcDeps) {
     }
   });
 
-  ipcMain.handle("get-data-path", () => {
+  ipcMain.handle(IPC.DATA_PATH, () => {
     return dataDir;
   });
 }

@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
 import { screen, BrowserWindow } from "electron";
+import { screenManager } from "../core/screen-manager";
 
 // ── 路径常量 ──
 
@@ -11,6 +12,7 @@ export const configPath = join(dataDir, "config.json");
 export const usagePath = join(dataDir, "usage");
 export const windowStatePath = join(dataDir, "window-state.json");
 export const floatWindowStatePath = join(dataDir, "float-window-state.json");
+export const floatDockStatePath = join(dataDir, "float-dock-state.json");
 
 // ── ensureDataDir ──
 
@@ -82,19 +84,10 @@ export function loadWindowState(): WindowState | null {
       return null;
     // 验证位置是否在可见屏幕内
     if (raw.x !== undefined && raw.y !== undefined) {
-      const displays = screen.getAllDisplays();
-      const visible = displays.some((d) => {
-        const { x, y, width, height } = d.bounds;
-        return (
-          raw.x >= x - 50 &&
-          raw.x < x + width - 50 &&
-          raw.y >= y - 50 &&
-          raw.y < y + height - 50
-        );
-      });
-      if (!visible) {
-        raw.x = undefined;
-        raw.y = undefined;
+      if (!screenManager.isVisibleOnAnyDisplay({ x: raw.x, y: raw.y, width: raw.width, height: raw.height })) {
+        const primary = screenManager.getPrimaryDisplay();
+        raw.x = primary.workArea.x + Math.round((primary.workAreaSize.width - raw.width) / 2);
+        raw.y = primary.workArea.y + Math.round((primary.workAreaSize.height - raw.height) / 2);
       }
     }
     return raw;
@@ -128,18 +121,14 @@ export function loadFloatPosition(): { x: number; y: number } | null {
     if (!existsSync(floatWindowStatePath)) return null;
     const raw = JSON.parse(readFileSync(floatWindowStatePath, "utf-8"));
     if (typeof raw.x !== "number" || typeof raw.y !== "number") return null;
-    // 验证位置是否在可见屏幕内
-    const displays = screen.getAllDisplays();
-    const visible = displays.some((d) => {
-      const { x, y, width, height } = d.workArea;
-      return (
-        raw.x >= x - 50 &&
-        raw.x < x + width - 50 &&
-        raw.y >= y - 50 &&
-        raw.y < y + height - 50
-      );
+    // 使用 ScreenManager 验证并修正位置
+    const clamped = screenManager.bringBackToVisible({
+      x: raw.x,
+      y: raw.y,
+      width: 1,
+      height: 1,
     });
-    return visible ? raw : null;
+    return { x: clamped.x, y: clamped.y };
   } catch {
     return null;
   }
@@ -150,6 +139,45 @@ export function saveFloatPosition(win: BrowserWindow) {
     if (!win || win.isDestroyed()) return;
     const [x, y] = win.getPosition();
     writeFile(floatWindowStatePath, JSON.stringify({ x, y })).catch(() => {});
+  } catch {
+    /* ignore */
+  }
+}
+
+// ── 悬浮窗边缘吸附状态持久化 ──
+
+export interface FloatDockState {
+  edge: "left" | "right" | "top";
+  originalX: number;
+  originalY: number;
+}
+
+export function loadFloatDockState(): FloatDockState | null {
+  try {
+    if (!existsSync(floatDockStatePath)) return null;
+    const raw = JSON.parse(readFileSync(floatDockStatePath, "utf-8"));
+    if (!["left", "right", "top"].includes(raw.edge)) return null;
+    if (typeof raw.originalX !== "number" || typeof raw.originalY !== "number") return null;
+    // 验证原始位置是否仍在可见屏幕内
+    const clamped = screenManager.bringBackToVisible({
+      x: raw.originalX,
+      y: raw.originalY,
+      width: 1,
+      height: 1,
+    });
+    return { edge: raw.edge, originalX: clamped.x, originalY: clamped.y };
+  } catch {
+    return null;
+  }
+}
+
+export function saveFloatDockState(state: FloatDockState | null): void {
+  try {
+    if (!state) {
+      writeFile(floatDockStatePath, JSON.stringify(null)).catch(() => {});
+      return;
+    }
+    writeFile(floatDockStatePath, JSON.stringify(state)).catch(() => {});
   } catch {
     /* ignore */
   }
@@ -180,3 +208,6 @@ export function saveCloseActionToConfig(action: CloseAction | null) {
     /* ignore */
   }
 }
+
+// 保留 screen 导入兼容旧代码
+export { screen };

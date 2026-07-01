@@ -18,6 +18,10 @@
     "!electron/**"
   ],
   "asar": true,
+  "asarUnpack": [
+    "dist/logo_tray.png",
+    "dist/logo_rounded.png"
+  ],
   "compression": "maximum",
   "removePackageScripts": true,
   "removePackageKeywords": true,

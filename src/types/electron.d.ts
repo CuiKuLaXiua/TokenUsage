@@ -5,6 +5,11 @@ export type CloseAction = 'minimize-to-tray' | 'quit'
 export interface AppConfig {
   models: ModelConfig[]
   closeAction?: CloseAction | null  // null/undefined = 未设置，首次询问
+  theme?: {
+    mode: string
+    accent: string
+    preset: string
+  }
 }
 
 interface MimoResponseItem {
@@ -113,6 +118,7 @@ export interface ElectronAPI {
   fetchMimoTokenPlanDetail: (options: { cookies: string }) => Promise<MimoTokenPlanDetailResponse>
   fetchOpenCodeUsageDetail: (options: { cookies: string; serverId: string; serverInstance: string; body: string }) => Promise<OpenCodeUsageDetailResponse>
   fetchOpenCodeUsageRecords: (options: { cookies: string; serverId: string; serverInstance: string; body: string }) => Promise<{ records: OpenCodeUsageRecord[] }>
+  fetchKimiSubscription: (options: { cookies: string; token?: string; baseUrl?: string }) => Promise<any>
   openFloatWindow: () => Promise<boolean>
   closeFloatWindow: () => Promise<boolean>
   getFloatWindowState: () => Promise<{ active: boolean }>
@@ -148,8 +154,10 @@ export interface ElectronAPI {
     api3ServerId: string | null
     api3Instance: string | null
   }>
+  openKimiLogin: (modelId?: string) => Promise<{ cookies: string | null; token: string | null }>
   onLoginNeeded: (callback: (data: { modelId: string }) => void) => () => void
   onApiKeyInvalid: (callback: (data: { modelId: string, modelName: string, provider: string }) => void) => () => void
+  onKimiLoginSuccess: (callback: (data: { modelId: string; hasToken: boolean }) => void) => () => void
   showMainWindow: () => Promise<boolean>
   onConfigUpdated: (callback: () => void) => () => void
   windowMinimize: () => Promise<void>
@@ -198,7 +206,6 @@ export interface ElectronAPI {
     layoutMode: string
     alwaysOnTop: boolean
   }) => void) => () => void
-  onNativeContextMenu: (callback: (pos: { x: number; y: number }) => void) => () => void
   onExecuteCtxMenuAction: (callback: (action: string) => void) => () => void
   onCtxMenuClosed: (callback: () => void) => () => void
   // 靠边隐藏相关
@@ -211,6 +218,7 @@ export interface ElectronAPI {
   getTheme: () => Promise<{ mode: string; accent: string; preset: string }>
   notifyThemeChanged: (theme: { mode: string; accent: string; preset: string }) => Promise<boolean>
   onThemeChanged: (callback: (theme: { mode: string; accent: string; preset: string }) => void) => () => void
+  onThemeInit: (callback: (theme: { mode: string; accent: string; preset: string }) => void) => () => void
   // 关闭行为
   getCloseAction: () => Promise<CloseAction | null>
   setCloseAction: (action: CloseAction | null) => Promise<boolean>
@@ -223,8 +231,9 @@ export interface ElectronAPI {
   saveFile: (options: { filePath: string; content: string }) => Promise<boolean>
   // 托盘菜单
   getTrayMenuConfig: () => Promise<any>
-  sendTrayMenuAction: (action: string) => Promise<boolean>
+  sendTrayMenuAction: (action: string) => Promise<any>
   onTrayMenuUpdate: (callback: (payload: any) => void) => () => void
+  onTrayToggleTheme: (callback: () => void) => () => void
   onTraySetAccent: (callback: (accent: string) => void) => () => void
   onTraySetPreset: (callback: (preset: string) => void) => () => void
 }

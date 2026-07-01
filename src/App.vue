@@ -22,7 +22,7 @@ import { useAppStore } from '@/stores/app'
 import { useRoute } from 'vue-router'
 import { computed, onMounted, onUnmounted } from 'vue'
 import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
-import { preloadMainRoutes } from '@/router'
+import { preloadMainRoutes, preloadPopupRoutes } from '@/router'
 
 const route = useRoute()
 const themeStore = useThemeStore()
@@ -50,6 +50,8 @@ onMounted(async () => {
   })
   // 首屏渲染后后台预加载其他页面 chunk，消除切换 tab 的延迟
   preloadMainRoutes()
+  // 预加载弹窗 chunk，让悬浮窗/菜单弹出时无需等待 JS 加载
+  preloadPopupRoutes()
 })
 
 onUnmounted(() => {

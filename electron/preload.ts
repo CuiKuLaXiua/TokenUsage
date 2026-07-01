@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import { IPC } from './core/ipc-channels'
 
 export interface ElectronAPI {
   // ── Config / data ──
@@ -86,7 +87,6 @@ export interface ElectronAPI {
     layoutMode: string
     alwaysOnTop: boolean
   }) => void) => () => void
-  onNativeContextMenu: (callback: (pos: { x: number; y: number }) => void) => () => void
   onExecuteCtxMenuAction: (callback: (action: string) => void) => () => void
   onCtxMenuClosed: (callback: () => void) => () => void
 
@@ -101,6 +101,7 @@ export interface ElectronAPI {
   getTheme: () => Promise<{ mode: string; accent: string; preset: string }>
   notifyThemeChanged: (theme: { mode: string; accent: string; preset: string }) => Promise<boolean>
   onThemeChanged: (callback: (theme: { mode: string; accent: string; preset: string }) => void) => () => void
+  onThemeInit: (callback: (theme: { mode: string; accent: string; preset: string }) => void) => () => void
 
   // ── Config update ──
   onConfigUpdated: (callback: () => void) => () => void
@@ -146,7 +147,7 @@ export interface ElectronAPI {
 
   // ── Tray menu ──
   getTrayMenuConfig: () => Promise<any>
-  sendTrayMenuAction: (action: string) => Promise<boolean>
+  sendTrayMenuAction: (action: string) => Promise<any>
   onTrayMenuUpdate: (callback: (payload: any) => void) => () => void
 
   // ── Export ──
@@ -160,204 +161,204 @@ export interface ElectronAPI {
 
 const electronAPI: ElectronAPI = {
   // Config / data
-  loadConfig: () => ipcRenderer.invoke('load-config'),
-  saveConfig: (config) => ipcRenderer.invoke('save-config', config),
-  loadUsage: (month) => ipcRenderer.invoke('load-usage', month),
-  saveUsage: (month, data) => ipcRenderer.invoke('save-usage', month, data),
-  getDataPath: () => ipcRenderer.invoke('get-data-path'),
+  loadConfig: () => ipcRenderer.invoke(IPC.CONFIG.LOAD),
+  saveConfig: (config) => ipcRenderer.invoke(IPC.CONFIG.SAVE, config),
+  loadUsage: (month) => ipcRenderer.invoke(IPC.USAGE.LOAD, month),
+  saveUsage: (month, data) => ipcRenderer.invoke(IPC.USAGE.SAVE, month, data),
+  getDataPath: () => ipcRenderer.invoke(IPC.DATA_PATH),
 
   // API proxies
-  fetchMimoUsage: (options) => ipcRenderer.invoke('fetch-mimo-usage', options),
-  fetchMimoTokenPlan: (options) => ipcRenderer.invoke('fetch-mimo-token-plan', options),
-  fetchMimoTokenPlanDetail: (options) => ipcRenderer.invoke('fetch-mimo-token-plan-detail', options),
-  fetchKimiSubscription: (options) => ipcRenderer.invoke('fetch-kimi-subscription', options),
-  fetchOpenCodeUsageDetail: (options) => ipcRenderer.invoke('fetch-opencode-usage-detail', options),
-  fetchOpenCodeUsageRecords: (options) => ipcRenderer.invoke('fetch-opencode-usage-records', options),
+  fetchMimoUsage: (options) => ipcRenderer.invoke(IPC.API.MIMO_USAGE, options),
+  fetchMimoTokenPlan: (options) => ipcRenderer.invoke(IPC.API.MIMO_TOKEN_PLAN, options),
+  fetchMimoTokenPlanDetail: (options) => ipcRenderer.invoke(IPC.API.MIMO_TOKEN_PLAN_DETAIL, options),
+  fetchKimiSubscription: (options) => ipcRenderer.invoke(IPC.API.KIMI_SUBSCRIPTION, options),
+  fetchOpenCodeUsageDetail: (options) => ipcRenderer.invoke(IPC.API.OPCODE_USAGE_DETAIL, options),
+  fetchOpenCodeUsageRecords: (options) => ipcRenderer.invoke(IPC.API.OPCODE_USAGE_RECORDS, options),
 
   // Main window
-  showMainWindow: () => ipcRenderer.invoke('show-main-window'),
-  windowMinimize: () => ipcRenderer.invoke('window-minimize'),
-  windowMaximize: () => ipcRenderer.invoke('window-maximize'),
-  windowClose: () => ipcRenderer.invoke('window-close'),
+  showMainWindow: () => ipcRenderer.invoke(IPC.MAIN_WINDOW.SHOW),
+  windowMinimize: () => ipcRenderer.invoke(IPC.MAIN_WINDOW.MINIMIZE),
+  windowMaximize: () => ipcRenderer.invoke(IPC.MAIN_WINDOW.MAXIMIZE),
+  windowClose: () => ipcRenderer.invoke(IPC.MAIN_WINDOW.CLOSE),
 
   // Float window
-  openFloatWindow: () => ipcRenderer.invoke('open-float-window'),
-  closeFloatWindow: () => ipcRenderer.invoke('close-float-window'),
-  getFloatWindowState: () => ipcRenderer.invoke('get-float-window-state'),
-  focusFloatWindow: () => ipcRenderer.invoke('focus-float-window'),
-  setFloatAlwaysOnTop: (value) => ipcRenderer.invoke('set-float-always-on-top', value),
-  setFloatWindowPosition: (x, y) => ipcRenderer.invoke('set-float-window-position', x, y),
-  getFloatWindowBounds: () => ipcRenderer.invoke('get-float-window-bounds'),
-  resizeFloatWindow: (width, height) => ipcRenderer.invoke('resize-float-window', width, height),
-  resizeFloatWindowAnimated: (width, height, duration) => ipcRenderer.invoke('resize-float-window-animated', width, height, duration),
-  startWindowDrag: (options) => ipcRenderer.invoke('start-window-drag', options),
-  stopWindowDrag: () => ipcRenderer.invoke('stop-window-drag'),
+  openFloatWindow: () => ipcRenderer.invoke(IPC.FLOAT.OPEN),
+  closeFloatWindow: () => ipcRenderer.invoke(IPC.FLOAT.CLOSE),
+  getFloatWindowState: () => ipcRenderer.invoke(IPC.FLOAT.STATE),
+  focusFloatWindow: () => ipcRenderer.invoke(IPC.FLOAT.FOCUS),
+  setFloatAlwaysOnTop: (value) => ipcRenderer.invoke(IPC.FLOAT.SET_ALWAYS_ON_TOP, value),
+  setFloatWindowPosition: (x, y) => ipcRenderer.invoke(IPC.FLOAT.SET_POSITION, x, y),
+  getFloatWindowBounds: () => ipcRenderer.invoke(IPC.FLOAT.GET_BOUNDS),
+  resizeFloatWindow: (width, height) => ipcRenderer.invoke(IPC.FLOAT.RESIZE, width, height),
+  resizeFloatWindowAnimated: (width, height, duration) => ipcRenderer.invoke(IPC.FLOAT.RESIZE_ANIMATED, width, height, duration),
+  startWindowDrag: (options) => ipcRenderer.invoke(IPC.DRAG.START, options),
+  stopWindowDrag: () => ipcRenderer.invoke(IPC.DRAG.STOP),
   onFloatWindowClosed: (callback) => {
     const handler = () => callback()
-    ipcRenderer.on('float-window-closed', handler)
-    return () => { ipcRenderer.removeListener('float-window-closed', handler) }
+    ipcRenderer.on(IPC.FLOAT.CLOSED, handler)
+    return () => { ipcRenderer.removeListener(IPC.FLOAT.CLOSED, handler) }
   },
   onFloatWindowOpened: (callback) => {
     const handler = () => callback()
-    ipcRenderer.on('float-window-opened', handler)
-    return () => { ipcRenderer.removeListener('float-window-opened', handler) }
+    ipcRenderer.on(IPC.FLOAT.OPENED, handler)
+    return () => { ipcRenderer.removeListener(IPC.FLOAT.OPENED, handler) }
   },
 
   // Detail popup
-  showFloatDetail: (options) => ipcRenderer.invoke('show-float-detail', options),
-  hideFloatDetail: () => ipcRenderer.invoke('hide-float-detail'),
-  resizeDetailWindow: (width, height) => ipcRenderer.invoke('resize-detail-window', width, height),
-  notifyDetailHover: (state) => ipcRenderer.send('notify-detail-hover', state),
-  detailReady: () => ipcRenderer.invoke('detail-ready'),
+  showFloatDetail: (options) => ipcRenderer.invoke(IPC.DETAIL.SHOW, options),
+  hideFloatDetail: () => ipcRenderer.invoke(IPC.DETAIL.HIDE),
+  resizeDetailWindow: (width, height) => ipcRenderer.invoke(IPC.DETAIL.RESIZE, width, height),
+  notifyDetailHover: (state) => ipcRenderer.send(IPC.DETAIL.HOVER_NOTIFY, state),
+  detailReady: () => ipcRenderer.invoke(IPC.DETAIL.READY),
   onDetailHoverChanged: (callback) => {
     const handler = (_: any, state: 'enter' | 'leave') => callback(state)
-    ipcRenderer.on('detail-hover-changed', handler)
-    return () => { ipcRenderer.removeListener('detail-hover-changed', handler) }
+    ipcRenderer.on(IPC.DETAIL.HOVER_CHANGED, handler)
+    return () => { ipcRenderer.removeListener(IPC.DETAIL.HOVER_CHANGED, handler) }
   },
 
   // Context menu popup
-  showCtxMenu: (options) => ipcRenderer.invoke('show-ctx-menu', options),
-  hideCtxMenu: () => ipcRenderer.invoke('hide-ctx-menu'),
-  sendCtxMenuAction: (action) => ipcRenderer.invoke('ctx-menu-action', action),
-  getCtxMenuConfig: () => ipcRenderer.invoke('get-ctx-menu-config'),
+  showCtxMenu: (options) => ipcRenderer.invoke(IPC.CTX_MENU.SHOW, options),
+  hideCtxMenu: () => ipcRenderer.invoke(IPC.CTX_MENU.HIDE),
+  sendCtxMenuAction: (action) => ipcRenderer.invoke(IPC.CTX_MENU.ACTION, action),
+  getCtxMenuConfig: () => ipcRenderer.invoke(IPC.CTX_MENU.GET_CONFIG),
   onCtxMenuConfig: (callback) => {
     const wrapper = (_: any, config: any) => callback(config)
-    ipcRenderer.on('ctx-menu-config', wrapper)
-    return () => { ipcRenderer.removeListener('ctx-menu-config', wrapper) }
-  },
-  onNativeContextMenu: (callback) => {
-    const wrapper = (_: any, pos: { x: number; y: number }) => callback(pos)
-    ipcRenderer.on('native-context-menu', wrapper)
-    return () => { ipcRenderer.removeListener('native-context-menu', wrapper) }
+    ipcRenderer.on(IPC.CTX_MENU.CONFIG, wrapper)
+    return () => { ipcRenderer.removeListener(IPC.CTX_MENU.CONFIG, wrapper) }
   },
   onExecuteCtxMenuAction: (callback) => {
     const wrapper = (_: any, action: string) => callback(action)
-    ipcRenderer.on('execute-ctx-menu-action', wrapper)
-    return () => { ipcRenderer.removeListener('execute-ctx-menu-action', wrapper) }
+    ipcRenderer.on(IPC.CTX_MENU.ACTION_EXECUTE, wrapper)
+    return () => { ipcRenderer.removeListener(IPC.CTX_MENU.ACTION_EXECUTE, wrapper) }
   },
   onCtxMenuClosed: (callback) => {
     const wrapper = () => callback()
-    ipcRenderer.on('ctx-menu-closed', wrapper)
-    return () => { ipcRenderer.removeListener('ctx-menu-closed', wrapper) }
+    ipcRenderer.on(IPC.CTX_MENU.CLOSED, wrapper)
+    return () => { ipcRenderer.removeListener(IPC.CTX_MENU.CLOSED, wrapper) }
   },
 
   // Edge docking
-  dockFloatWindow: (edge) => ipcRenderer.invoke('dock-float-window', edge),
-  undockFloatWindow: () => ipcRenderer.invoke('undock-float-window'),
-  getEdgeDockState: () => ipcRenderer.invoke('get-edge-dock-state'),
+  dockFloatWindow: (edge) => ipcRenderer.invoke(IPC.EDGE_DOCK.DOCK, edge),
+  undockFloatWindow: () => ipcRenderer.invoke(IPC.EDGE_DOCK.UNDOCK),
+  getEdgeDockState: () => ipcRenderer.invoke(IPC.EDGE_DOCK.GET_STATE),
   onEdgeDockChanged: (callback) => {
     const wrapper = (_: any, state: any) => callback(state)
-    ipcRenderer.on('edge-dock-changed', wrapper)
-    return () => { ipcRenderer.removeListener('edge-dock-changed', wrapper) }
+    ipcRenderer.on(IPC.EDGE_DOCK.CHANGED, wrapper)
+    return () => { ipcRenderer.removeListener(IPC.EDGE_DOCK.CHANGED, wrapper) }
   },
-  stripMousedown: () => ipcRenderer.invoke('strip-mousedown'),
+  stripMousedown: () => ipcRenderer.invoke(IPC.EDGE_DOCK.STRIP_MOUSEDOWN),
 
   // Theme sync
-  getTheme: () => ipcRenderer.invoke('theme:get'),
-  notifyThemeChanged: (theme) => ipcRenderer.invoke('notify-theme-changed', theme),
+  getTheme: () => ipcRenderer.invoke(IPC.THEME.GET),
+  notifyThemeChanged: (theme) => ipcRenderer.invoke(IPC.THEME.NOTIFY_CHANGED, theme),
   onThemeChanged: (callback) => {
     const wrapper = (_: any, theme: { mode: string; accent: string; preset: string }) => callback(theme)
-    ipcRenderer.on('theme-changed', wrapper)
-    return () => { ipcRenderer.removeListener('theme-changed', wrapper) }
+    ipcRenderer.on(IPC.THEME.CHANGED, wrapper)
+    return () => { ipcRenderer.removeListener(IPC.THEME.CHANGED, wrapper) }
+  },
+  onThemeInit: (callback) => {
+    const wrapper = (_: any, theme: { mode: string; accent: string; preset: string }) => callback(theme)
+    ipcRenderer.on(IPC.THEME.INIT, wrapper)
+    return () => { ipcRenderer.removeListener(IPC.THEME.INIT, wrapper) }
   },
 
   // Config update
   onConfigUpdated: (callback) => {
     const wrapper = () => callback()
-    ipcRenderer.on('config-updated', wrapper)
-    return () => { ipcRenderer.removeListener('config-updated', wrapper) }
+    ipcRenderer.on(IPC.CONFIG_UPDATED, wrapper)
+    return () => { ipcRenderer.removeListener(IPC.CONFIG_UPDATED, wrapper) }
   },
 
   // Usage refresh
-  getCachedUsage: () => ipcRenderer.invoke('get-cached-usage'),
-  getFetchingState: () => ipcRenderer.invoke('get-fetching-state'),
-  getStripData: () => ipcRenderer.invoke('get-strip-data'),
-  refreshAllModels: () => ipcRenderer.invoke('refresh-all-models'),
-  refreshModel: (modelId) => ipcRenderer.invoke('refresh-model', modelId),
+  getCachedUsage: () => ipcRenderer.invoke(IPC.USAGE_REFRESH.CACHED),
+  getFetchingState: () => ipcRenderer.invoke(IPC.USAGE_REFRESH.FETCHING),
+  getStripData: () => ipcRenderer.invoke(IPC.USAGE_REFRESH.STRIP_DATA),
+  refreshAllModels: () => ipcRenderer.invoke(IPC.USAGE_REFRESH.REFRESH_ALL),
+  refreshModel: (modelId) => ipcRenderer.invoke(IPC.USAGE_REFRESH.REFRESH_MODEL, modelId),
   onUsageUpdated: (callback) => {
     const wrapper = (_: any, data: any) => callback(data)
-    ipcRenderer.on('usage-updated', wrapper)
-    return () => { ipcRenderer.removeListener('usage-updated', wrapper) }
+    ipcRenderer.on(IPC.USAGE_REFRESH.UPDATED, wrapper)
+    return () => { ipcRenderer.removeListener(IPC.USAGE_REFRESH.UPDATED, wrapper) }
   },
   onUsageFetching: (callback) => {
     const wrapper = (_: any, data: any) => callback(data)
-    ipcRenderer.on('usage-fetching', wrapper)
-    return () => { ipcRenderer.removeListener('usage-fetching', wrapper) }
+    ipcRenderer.on(IPC.USAGE_REFRESH.FETCHING_CHANGED, wrapper)
+    return () => { ipcRenderer.removeListener(IPC.USAGE_REFRESH.FETCHING_CHANGED, wrapper) }
   },
 
   // Login
-  openMimoLogin: (modelId) => ipcRenderer.invoke('open-mimo-login', modelId),
-  openOpencodeLogin: (modelId) => ipcRenderer.invoke('open-opencode-login', modelId),
-  openKimiLogin: (modelId) => ipcRenderer.invoke('open-kimi-login', modelId),
+  openMimoLogin: (modelId) => ipcRenderer.invoke(IPC.LOGIN.MIMO, modelId),
+  openOpencodeLogin: (modelId) => ipcRenderer.invoke(IPC.LOGIN.OPCODE, modelId),
+  openKimiLogin: (modelId) => ipcRenderer.invoke(IPC.LOGIN.KIMI, modelId),
   onKimiLoginSuccess: (callback) => {
     const wrapper = (_: any, data: { modelId: string; hasToken: boolean }) => callback(data)
-    ipcRenderer.on('kimi-login-success', wrapper)
-    return () => { ipcRenderer.removeListener('kimi-login-success', wrapper) }
+    ipcRenderer.on(IPC.LOGIN.KIMI_SUCCESS, wrapper)
+    return () => { ipcRenderer.removeListener(IPC.LOGIN.KIMI_SUCCESS, wrapper) }
   },
   onLoginNeeded: (callback) => {
     const wrapper = (_: any, data: { modelId: string }) => callback(data)
-    ipcRenderer.on('login-needed', wrapper)
-    return () => { ipcRenderer.removeListener('login-needed', wrapper) }
+    ipcRenderer.on(IPC.LOGIN.NEEDED, wrapper)
+    return () => { ipcRenderer.removeListener(IPC.LOGIN.NEEDED, wrapper) }
   },
   onApiKeyInvalid: (callback) => {
     const wrapper = (_: any, data: { modelId: string, modelName: string, provider: string }) => callback(data)
-    ipcRenderer.on('api-key-invalid', wrapper)
-    return () => { ipcRenderer.removeListener('api-key-invalid', wrapper) }
+    ipcRenderer.on(IPC.LOGIN.API_KEY_INVALID, wrapper)
+    return () => { ipcRenderer.removeListener(IPC.LOGIN.API_KEY_INVALID, wrapper) }
   },
 
   // Close action
-  getCloseAction: () => ipcRenderer.invoke('get-close-action'),
-  setCloseAction: (action) => ipcRenderer.invoke('set-close-action', action),
-  closeActionChosen: (action, remember) => ipcRenderer.invoke('close-action-chosen', action, remember),
+  getCloseAction: () => ipcRenderer.invoke(IPC.CLOSE_ACTION.GET),
+  setCloseAction: (action) => ipcRenderer.invoke(IPC.CLOSE_ACTION.SET, action),
+  closeActionChosen: (action, remember) => ipcRenderer.invoke(IPC.CLOSE_ACTION.CHOSEN, action, remember),
   onCloseActionUpdated: (callback) => {
     const wrapper = (_: any, action: string | null) => callback(action)
-    ipcRenderer.on('close-action-updated', wrapper)
-    return () => { ipcRenderer.removeListener('close-action-updated', wrapper) }
+    ipcRenderer.on(IPC.CLOSE_ACTION.UPDATED, wrapper)
+    return () => { ipcRenderer.removeListener(IPC.CLOSE_ACTION.UPDATED, wrapper) }
   },
   onShowCloseDialog: (callback) => {
     const wrapper = () => callback()
-    ipcRenderer.on('show-close-dialog', wrapper)
-    return () => { ipcRenderer.removeListener('show-close-dialog', wrapper) }
+    ipcRenderer.on(IPC.CLOSE_ACTION.SHOW_DIALOG, wrapper)
+    return () => { ipcRenderer.removeListener(IPC.CLOSE_ACTION.SHOW_DIALOG, wrapper) }
   },
   onResetCloseDialog: (callback) => {
     const wrapper = () => callback()
-    ipcRenderer.on('reset-close-dialog', wrapper)
-    return () => { ipcRenderer.removeListener('reset-close-dialog', wrapper) }
+    ipcRenderer.on(IPC.CLOSE_ACTION.RESET_DIALOG, wrapper)
+    return () => { ipcRenderer.removeListener(IPC.CLOSE_ACTION.RESET_DIALOG, wrapper) }
   },
 
   // Tray
   onTrayToggleTheme: (callback) => {
     const wrapper = () => callback()
-    ipcRenderer.on('tray-toggle-theme', wrapper)
-    return () => { ipcRenderer.removeListener('tray-toggle-theme', wrapper) }
+    ipcRenderer.on(IPC.TRAY.TOGGLE_THEME, wrapper)
+    return () => { ipcRenderer.removeListener(IPC.TRAY.TOGGLE_THEME, wrapper) }
   },
   onTraySetAccent: (callback) => {
     const wrapper = (_: any, accent: string) => callback(accent)
-    ipcRenderer.on('tray-set-accent', wrapper)
-    return () => { ipcRenderer.removeListener('tray-set-accent', wrapper) }
+    ipcRenderer.on(IPC.TRAY.SET_ACCENT, wrapper)
+    return () => { ipcRenderer.removeListener(IPC.TRAY.SET_ACCENT, wrapper) }
   },
   onTraySetPreset: (callback) => {
     const wrapper = (_: any, preset: string) => callback(preset)
-    ipcRenderer.on('tray-set-preset', wrapper)
-    return () => { ipcRenderer.removeListener('tray-set-preset', wrapper) }
+    ipcRenderer.on(IPC.TRAY.SET_PRESET, wrapper)
+    return () => { ipcRenderer.removeListener(IPC.TRAY.SET_PRESET, wrapper) }
   },
 
   // Tray menu
-  getTrayMenuConfig: () => ipcRenderer.invoke('get-tray-menu-config'),
-  sendTrayMenuAction: (action) => ipcRenderer.invoke('tray-menu-action', action),
+  getTrayMenuConfig: () => ipcRenderer.invoke(IPC.TRAY_MENU.GET_CONFIG),
+  sendTrayMenuAction: (action) => ipcRenderer.invoke(IPC.TRAY_MENU.ACTION, action),
   onTrayMenuUpdate: (callback) => {
     const wrapper = (_: any, payload: any) => callback(payload)
-    ipcRenderer.on('tray-menu-update', wrapper)
-    return () => { ipcRenderer.removeListener('tray-menu-update', wrapper) }
+    ipcRenderer.on(IPC.TRAY_MENU.UPDATE, wrapper)
+    return () => { ipcRenderer.removeListener(IPC.TRAY_MENU.UPDATE, wrapper) }
   },
 
   // Export
-  showSaveDialog: (options) => ipcRenderer.invoke('show-save-dialog', options),
-  saveFile: (options) => ipcRenderer.invoke('save-file', options),
+  showSaveDialog: (options) => ipcRenderer.invoke(IPC.EXPORT.SAVE_DIALOG, options),
+  saveFile: (options) => ipcRenderer.invoke(IPC.EXPORT.SAVE_FILE, options),
 
   // Debug
-  debugLog: (msg) => ipcRenderer.invoke('debug-log', msg),
-  floatReady: () => ipcRenderer.invoke('float-ready'),
+  debugLog: (msg) => ipcRenderer.invoke(IPC.DEBUG_LOG, msg),
+  floatReady: () => ipcRenderer.invoke(IPC.FLOAT.READY),
 }
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI)

@@ -32,6 +32,7 @@ export default defineConfig(async () => {
     },
     server: {
       port: 14200,
+      host: '127.0.0.1',
     },
     build: {
       target: 'chrome120',
@@ -42,6 +43,7 @@ export default defineConfig(async () => {
         output: {
           manualChunks: {
             'vue-vendor': ['vue', 'vue-router', 'pinia'],
+            'element-plus': ['element-plus', '@element-plus/icons-vue'],
             'echarts': ['echarts', 'vue-echarts'],
           },
         },

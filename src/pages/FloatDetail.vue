@@ -44,7 +44,6 @@ const { theme, accent, preset } = useThemeSync();
 const detailRef = ref<HTMLElement | null>(null);
 const enabledModels = computed(() => store.models.filter((m) => m.enabled));
 let unsubCfg: (() => void) | null = null;
-let unsubThemeChanged: (() => void) | null = null;
 let onWindowFocus: (() => void) | null = null;
 
 // ── Hover bridge ──
@@ -91,6 +90,9 @@ function fitHeight() {
 
 // ── Lifecycle ──
 onMounted(async () => {
+  // 关键：立即通知主进程窗口已就绪，主进程可立刻 show/focus
+  window.electronAPI.detailReady();
+
   try {
     await store.loadConfig();
   } catch {}
@@ -106,28 +108,15 @@ onMounted(async () => {
       .then(() => fitHeight())
       .catch(() => {});
   });
-  unsubThemeChanged = window.electronAPI.onThemeChanged((t) => {
-    theme.value = t.mode;
-    accent.value = t.accent;
-    preset.value = t.preset;
-    localStorage.setItem("theme", t.mode);
-    localStorage.setItem("accent", t.accent);
-    localStorage.setItem("preset", t.preset);
-  });
   onWindowFocus = () => {
     detailRef.value?.scrollTo(0, 0);
   };
   window.addEventListener("focus", onWindowFocus);
-
-  nextTick(() => {
-    window.electronAPI.detailReady();
-  });
 });
 
 onUnmounted(() => {
   store.stopSubscription();
   unsubCfg?.();
-  unsubThemeChanged?.();
   if (onWindowFocus) window.removeEventListener("focus", onWindowFocus);
 });
 

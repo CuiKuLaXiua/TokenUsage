@@ -1,5 +1,6 @@
 import { BrowserWindow, net } from "electron";
 import { readFileSync, existsSync } from "fs";
+import { IPC } from "./core/ipc-channels";
 
 // ── 工具函数 ──
 
@@ -937,7 +938,7 @@ export class UsageRefresher {
     const windows = BrowserWindow.getAllWindows();
     for (const win of windows) {
       if (!win.isDestroyed()) {
-        win.webContents.send("usage-updated", { modelId, data });
+        win.webContents.send(IPC.USAGE_REFRESH.UPDATED, { modelId, data });
       }
     }
     this.onUpdate?.();
@@ -947,7 +948,7 @@ export class UsageRefresher {
     const windows = BrowserWindow.getAllWindows();
     for (const win of windows) {
       if (!win.isDestroyed()) {
-        win.webContents.send("usage-fetching", {
+        win.webContents.send(IPC.USAGE_REFRESH.FETCHING_CHANGED, {
           modelId,
           fetching: isFetching,
         });
@@ -968,7 +969,7 @@ export class UsageRefresher {
     const windows = BrowserWindow.getAllWindows();
     for (const win of windows) {
       if (!win.isDestroyed()) {
-        win.webContents.send("login-needed", { modelId });
+        win.webContents.send(IPC.LOGIN.NEEDED, { modelId });
       }
     }
   }
@@ -1004,7 +1005,7 @@ export class UsageRefresher {
     const windows = BrowserWindow.getAllWindows();
     for (const win of windows) {
       if (!win.isDestroyed()) {
-        win.webContents.send("api-key-invalid", {
+        win.webContents.send(IPC.LOGIN.API_KEY_INVALID, {
           modelId: model.id,
           modelName: model.name,
           provider: model.provider,

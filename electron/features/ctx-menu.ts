@@ -1,52 +1,55 @@
-import { BrowserWindow, ipcMain } from "electron";
-import { CTX_MENU_WIDTH, CTX_MENU_HEIGHT_NO_MODEL, CTX_MENU_HEIGHT_WITH_MODEL, computeCtxMenuPosition } from "../utils/position";
+import { BrowserWindow, ipcMain } from 'electron'
+import { PopupWindowManager, type Point, type PopupOptions } from '../core/popup-window'
+import { CTX_MENU_WIDTH, CTX_MENU_HEIGHT_NO_MODEL, CTX_MENU_HEIGHT_WITH_MODEL, computeCtxMenuPosition } from '../utils/position'
+import { IPC } from '../core/ipc-channels'
+import { windowLifecycle } from '../core/window-lifecycle'
 
 export interface CtxMenuConfig {
-  modelId: string | null;
-  modelName: string | null;
-  theme: string;
-  preset: string;
-  layoutMode: string;
-  alwaysOnTop: boolean;
+  modelId: string | null
+  modelName: string | null
+  theme: string
+  preset: string
+  layoutMode: string
+  alwaysOnTop: boolean
 }
 
 export interface CtxMenuDeps {
-  ensureCtxMenuWindow: () => BrowserWindow | null;
-  getFloatWindow: () => BrowserWindow | null;
+  getFloatWindow: () => BrowserWindow | null
 }
 
-export class CtxMenuManager {
-  private lastConfig: CtxMenuConfig | null = null;
-  private gen = 0;
-  private genAtShow = 0;
-  private closing = false;
-  private showing = false;
-  private blurTimer: ReturnType<typeof setTimeout> | null = null;
-  private focusTimer: ReturnType<typeof setTimeout> | null = null;
+interface ShowOptions extends CtxMenuConfig {
+  screenX: number
+  screenY: number
+}
 
-  constructor(private deps: CtxMenuDeps) {}
+/**
+ * 右键菜单管理器：基于 PopupWindowManager 实现。
+ *
+ * 修复原版的 blur 竞态问题：
+ * - 通过 keepOpen/release 机制支持子对话框期间不关闭。
+ * - show/hide 期间使用 WindowLifecycleManager 状态机防止误关。
+ */
+export class CtxMenuManager extends PopupWindowManager<CtxMenuConfig> {
+  protected readonly options: PopupOptions = {
+    name: 'ctxMenu',
+    route: '/ctx-menu',
+    defaultWidth: CTX_MENU_WIDTH,
+    defaultHeight: CTX_MENU_HEIGHT_NO_MODEL,
+    autoCloseOnBlur: true,
+    level: 'pop-up-menu',
+  }
 
-  show(options: {
-    screenX: number;
-    screenY: number;
-  } & CtxMenuConfig): boolean {
-    const win = this.deps.ensureCtxMenuWindow();
-    if (!win) return false;
+  private lastConfig: CtxMenuConfig | null = null
+  private anchor: Point = { x: 0, y: 0 }
+  private deps: CtxMenuDeps
 
-    this.gen++;
-    this.genAtShow = this.gen;
+  constructor(deps: CtxMenuDeps) {
+    super()
+    this.deps = deps
+  }
 
-    const menuHeight = options.modelName
-      ? CTX_MENU_HEIGHT_WITH_MODEL
-      : CTX_MENU_HEIGHT_NO_MODEL;
-    const { x, y } = computeCtxMenuPosition(
-      options.screenX,
-      options.screenY,
-      menuHeight,
-    );
-    win.setSize(CTX_MENU_WIDTH, menuHeight);
-    win.setPosition(x, y);
-
+  show(options: ShowOptions): boolean {
+    this.anchor = { x: options.screenX, y: options.screenY }
     const config: CtxMenuConfig = {
       modelId: options.modelId,
       modelName: options.modelName,
@@ -54,124 +57,74 @@ export class CtxMenuManager {
       preset: options.preset,
       layoutMode: options.layoutMode,
       alwaysOnTop: options.alwaysOnTop,
-    };
-    this.lastConfig = config;
-    win.webContents.send("ctx-menu-config", config);
-
-    this.showing = true;
-    win.showInactive();
-    if (this.focusTimer) {
-      clearTimeout(this.focusTimer);
-      this.focusTimer = null;
     }
-    this.focusTimer = setTimeout(() => {
-      this.focusTimer = null;
-      this.showing = false;
-      if (win && !win.isDestroyed()) {
-        win.focus();
-      }
-    }, 80);
-
-    return true;
+    this.lastConfig = config
+    return super.show()
   }
 
   hide(): void {
-    this.showing = false;
-    if (this.blurTimer) {
-      clearTimeout(this.blurTimer);
-      this.blurTimer = null;
-    }
-    if (this.focusTimer) {
-      clearTimeout(this.focusTimer);
-      this.focusTimer = null;
-    }
-    this.closing = true;
-    const win = this.deps.ensureCtxMenuWindow();
-    if (win && !win.isDestroyed()) {
-      win.hide();
-      win.blur();
-    }
-    this.closing = false;
-    const fw = this.deps.getFloatWindow();
-    if (fw && !fw.isDestroyed()) {
-      fw.webContents.send("ctx-menu-closed");
-    }
-  }
-
-  destroy(): void {
-    if (this.blurTimer) {
-      clearTimeout(this.blurTimer);
-      this.blurTimer = null;
-    }
-    if (this.focusTimer) {
-      clearTimeout(this.focusTimer);
-      this.focusTimer = null;
-    }
-    const win = this.deps.ensureCtxMenuWindow();
-    if (win && !win.isDestroyed()) {
-      win.destroy();
-    }
+    super.hide()
   }
 
   get lastConfigValue(): CtxMenuConfig | null {
-    return this.lastConfig;
+    return this.lastConfig
   }
 
-  get isClosing(): boolean { return this.closing; }
-  get isShowing(): boolean { return this.showing; }
-  get generation(): number { return this.gen; }
-  get genAtShowValue(): number { return this.genAtShow; }
+  // ── PopupWindowManager 抽象实现 ──
 
-  // 点击外部关闭 — 注册 blur/closed 事件，含 showing 守卫防止 show 过程中误关
-  onBlur(): void {
-    if (this.closing) return;
-    if (this.showing) return;
-    if (this.blurTimer) clearTimeout(this.blurTimer);
-    this.blurTimer = setTimeout(() => {
-      this.blurTimer = null;
-      if (this.closing || this.showing) return;
-      if (this.gen !== this.genAtShow) return;
-      this.hide();
-    }, 120);
+  protected buildPayload(): CtxMenuConfig {
+    return this.lastConfig ?? {
+      modelId: null,
+      modelName: null,
+      theme: 'dark',
+      preset: 'midnight',
+      layoutMode: 'list',
+      alwaysOnTop: true,
+    }
   }
 
-  registerWindow(win: BrowserWindow): void {
-    win.on("blur", () => this.onBlur());
-    win.on("closed", () => {
-      if (this.blurTimer) {
-        clearTimeout(this.blurTimer);
-        this.blurTimer = null;
-      }
-    });
+  protected getAnchor(): Point {
+    return this.anchor
   }
+
+  protected computePosition(anchor: Point, size: { width: number; height: number }): Point {
+    return computeCtxMenuPosition(anchor.x, anchor.y, size.width, size.height)
+  }
+
+  protected computeSize(payload: CtxMenuConfig): { width: number; height: number } {
+    return {
+      width: CTX_MENU_WIDTH,
+      height: payload.modelName ? CTX_MENU_HEIGHT_WITH_MODEL : CTX_MENU_HEIGHT_NO_MODEL,
+    }
+  }
+
+  protected getChannelName(): string {
+    return IPC.CTX_MENU.CONFIG
+  }
+
+  protected onHidden(): void {
+    const fw = this.deps.getFloatWindow()
+    if (fw && !fw.isDestroyed()) {
+      fw.webContents.send(IPC.CTX_MENU.CLOSED)
+    }
+  }
+
+  // ── IPC ──
 
   registerIpc(): void {
-    ipcMain.handle(
-      "show-ctx-menu",
-      (_, options: {
-        screenX: number;
-        screenY: number;
-      } & CtxMenuConfig) => {
-        return this.show(options);
-      },
-    );
-
-    ipcMain.handle("hide-ctx-menu", () => {
-      this.hide();
-      return true;
-    });
-
-    ipcMain.handle("get-ctx-menu-config", () => {
-      return this.lastConfig;
-    });
-
-    ipcMain.handle("ctx-menu-action", (_, action: string) => {
-      const fw = this.deps.getFloatWindow();
+    ipcMain.handle(IPC.CTX_MENU.SHOW, (_, options: ShowOptions) => this.show(options))
+    ipcMain.handle(IPC.CTX_MENU.HIDE, () => {
+      this.hide()
+      return true
+    })
+    ipcMain.handle(IPC.CTX_MENU.GET_CONFIG, () => this.lastConfig)
+    ipcMain.handle(IPC.CTX_MENU.ACTION, (_, action: string) => {
+      const fw = this.deps.getFloatWindow()
       if (fw && !fw.isDestroyed()) {
-        fw.webContents.send("execute-ctx-menu-action", action);
+        fw.webContents.send(IPC.CTX_MENU.ACTION_EXECUTE, action)
       }
-      this.hide();
-      return true;
-    });
+      this.hide()
+      return true
+    })
   }
 }

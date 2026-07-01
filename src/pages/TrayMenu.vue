@@ -1,99 +1,161 @@
 <template>
   <div
+    ref="menuRef"
     class="tray-menu"
+    :class="{ ready: isReady }"
+    role="menu"
+    aria-label="托盘菜单"
+    tabindex="-1"
     :data-theme="theme"
     :data-accent="accent"
     :data-preset="preset"
     @mouseenter="onMouseEnter"
     @mouseleave="onMouseLeave"
+    @keydown="onMenuKeydown"
   >
     <!-- 模型状态区 -->
     <template v-if="models.length > 0">
-      <div class="tm-section-label">模型状态</div>
-      <div class="tm-models">
-        <div v-for="m in models" :key="m.id" class="tm-model-row" @click="act('refresh-model:' + m.id)">
-          <span class="tm-dot" :class="m.status"></span>
+      <div class="tm-section-label" aria-hidden="true">模型状态</div>
+      <div class="tm-models" role="group" aria-label="模型状态">
+        <div
+          v-for="m in models"
+          :key="m.id"
+          class="tm-model-row"
+          role="menuitem"
+          tabindex="-1"
+          :aria-label="`刷新模型 ${m.name}`"
+          :class="{ active: isActiveItem(m.id) }"
+          @mouseenter="focusItemById(m.id)"
+          @click="act('refresh-model:' + m.id)"
+        >
+          <span class="tm-dot" :class="m.status" aria-hidden="true"></span>
           <span class="tm-model-name">{{ m.name }}</span>
-          <span v-if="m.status === 'normal' && m.percent != null" class="tm-pct">
+          <span v-if="m.status === 'normal' && m.percent != null" class="tm-pct" aria-hidden="true">
             {{ m.percent.toFixed(0) }}%
           </span>
-          <span v-if="m.status === 'refreshing'" class="tm-spinner"></span>
-          <span v-if="m.status === 'error'" class="tm-error">错误</span>
-          <span v-if="m.status === 'needs-login'" class="tm-login">登录</span>
+          <span v-if="m.status === 'refreshing'" class="tm-spinner" aria-hidden="true"></span>
+          <span v-if="m.status === 'error'" class="tm-error" aria-hidden="true">错误</span>
+          <span v-if="m.status === 'needs-login'" class="tm-login" aria-hidden="true">登录</span>
         </div>
       </div>
-      <div class="tm-sep"></div>
+      <div class="tm-sep" role="separator" aria-hidden="true"></div>
     </template>
 
     <!-- 操作区 -->
-    <div class="tm-item" @click="act('toggle-main')">
+    <div
+      data-menu-id="toggle-main"
+      class="tm-item"
+      role="menuitem"
+      tabindex="-1"
+      :aria-label="mainWindowActive ? '隐藏主窗口' : '打开主窗口'"
+      :class="{ active: isActiveItem('toggle-main') }"
+      @mouseenter="focusItemById('toggle-main')"
+      @click="act('toggle-main')"
+    >
       <el-icon :size="14"><Monitor /></el-icon>
       <span>{{ mainWindowActive ? '隐藏主窗口' : '打开主窗口' }}</span>
     </div>
-    <div class="tm-switch-row">
+    <div
+      data-menu-id="toggle-float"
+      class="tm-switch-row"
+      role="menuitem"
+      tabindex="-1"
+      aria-label="切换悬浮窗显示"
+      :aria-checked="floatActive ? 'true' : 'false'"
+      :class="{ active: isActiveItem('toggle-float') }"
+      @mouseenter="focusItemById('toggle-float')"
+      @click="toggleFloat"
+    >
       <el-icon :size="14"><Grid /></el-icon>
       <span class="tm-switch-label">悬浮窗</span>
-      <div class="tm-switch" :class="{ on: floatActive }" @click="toggleFloat">
+      <div class="tm-switch" :class="{ on: floatActive }" aria-hidden="true">
         <div class="tm-switch-thumb"></div>
       </div>
     </div>
-    <div class="tm-item" @click="act('refresh-all')">
+    <div
+      data-menu-id="refresh-all"
+      class="tm-item"
+      role="menuitem"
+      tabindex="-1"
+      aria-label="刷新全部数据"
+      :class="{ active: isActiveItem('refresh-all') }"
+      @mouseenter="focusItemById('refresh-all')"
+      @click="act('refresh-all')"
+    >
       <el-icon :size="14"><Refresh /></el-icon><span>刷新全部数据</span>
     </div>
 
-    <div class="tm-sep"></div>
+    <div class="tm-sep" role="separator" aria-hidden="true"></div>
 
     <!-- 快捷设置 -->
-    <div class="tm-item" @click="act('toggle-theme')">
+    <div
+      data-menu-id="toggle-theme"
+      class="tm-item"
+      role="menuitem"
+      tabindex="-1"
+      :aria-label="theme === 'dark' ? '切换浅色模式' : '切换深色模式'"
+      :class="{ active: isActiveItem('toggle-theme') }"
+      @mouseenter="focusItemById('toggle-theme')"
+      @click="act('toggle-theme')"
+    >
       <el-icon :size="14"><Moon /></el-icon>
       <span>{{ theme === 'dark' ? '切换浅色模式' : '切换深色模式' }}</span>
     </div>
 
     <!-- 强调色色盘 -->
-    <div class="tm-accent-row">
+    <div class="tm-accent-row" role="group" aria-label="选择强调色">
       <span
         v-for="c in accentColors"
         :key="c.name"
+        :data-menu-id="'accent:' + c.name"
         class="tm-swatch"
-        :class="{ active: accent === c.name }"
+        role="menuitem"
+        tabindex="-1"
+        :aria-label="`强调色 ${c.name}`"
+        :class="{ active: accent.value === c.name }"
         :style="{ background: c.color }"
+        @mouseenter="focusItemById('accent:' + c.name)"
         @click.stop="act('set-accent:' + c.name)"
       ></span>
     </div>
 
     <!-- 预设标签 -->
-    <div class="tm-preset-row">
+    <div class="tm-preset-row" role="group" aria-label="选择预设主题">
       <span
         v-for="p in presetNames"
         :key="p.key"
+        :data-menu-id="'preset:' + p.key"
         class="tm-preset"
-        :class="{ active: preset === p.key }"
+        role="menuitem"
+        tabindex="-1"
+        :aria-label="`预设 ${p.label}`"
+        :class="{ active: preset.value === p.key }"
+        @mouseenter="focusItemById('preset:' + p.key)"
         @click.stop="act('set-preset:' + p.key)"
       >{{ p.label }}</span>
     </div>
 
-    <div class="tm-sep"></div>
+    <div class="tm-sep" role="separator" aria-hidden="true"></div>
 
     <!-- 退出 -->
-    <div class="tm-item danger" @click="act('quit')">
+    <div
+      data-menu-id="quit"
+      class="tm-item danger"
+      role="menuitem"
+      tabindex="-1"
+      aria-label="退出应用"
+      :class="{ active: isActiveItem('quit') }"
+      @mouseenter="focusItemById('quit')"
+      @click="act('quit')"
+    >
       <el-icon :size="14"><Close /></el-icon><span>退出</span>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, onUpdated, watch, computed } from 'vue'
 import { Monitor, Grid, Refresh, Moon, Close } from '@element-plus/icons-vue'
-
-// ── 关键：同步设置 html 元素主题属性，确保 CSS 变量立即可用
-// （script setup 在 DOM 挂载前执行，比 onMounted 更早）
-const html = document.documentElement
-const savedTheme = localStorage.getItem('theme') || 'dark'
-const savedAccent = localStorage.getItem('accent') || 'forest'
-const savedPreset = localStorage.getItem('preset') || 'midnight'
-html.setAttribute('data-theme', savedTheme)
-html.setAttribute('data-accent', savedAccent)
-html.setAttribute('data-preset', savedPreset)
 
 // ── 数据 ──
 
@@ -106,16 +168,101 @@ interface ModelStatus {
   percent?: number
 }
 
-const theme = ref(savedTheme)
-const accent = ref(savedAccent)
-const preset = ref(savedPreset)
+const theme = ref('dark')
+const accent = ref('forest')
+const preset = ref('default')
 const models = ref<ModelStatus[]>([])
 const floatActive = ref(false)
 const mainWindowActive = ref(false)
+const isReady = ref(false)
 
 let unsubUpdate: (() => void) | null = null
 let leaveTimer: ReturnType<typeof setTimeout> | null = null
 let suppressUntilApplied = false  // toggle 期间屏蔽事件，直到 IPC 返回值被应用后解除
+
+function applyThemeToHtml(t: { mode: string, accent: string, preset: string }) {
+  const html = document.documentElement
+  html.setAttribute('data-theme', t.mode)
+  html.setAttribute('data-accent', t.accent)
+  html.setAttribute('data-preset', t.preset)
+}
+
+// ── 键盘导航 ──
+
+const menuRef = ref<HTMLElement | null>(null)
+const itemEls = ref<HTMLElement[]>([])
+const activeId = ref<string | null>(null)
+
+const orderedIds = computed(() => {
+  const ids: string[] = []
+  for (const m of models.value) ids.push(m.id)
+  ids.push('toggle-main', 'toggle-float', 'refresh-all', 'toggle-theme')
+  for (const c of accentColors) ids.push('accent:' + c.name)
+  for (const p of presetNames) ids.push('preset:' + p.key)
+  ids.push('quit')
+  return ids
+})
+
+function refreshItems() {
+  itemEls.value = Array.from(menuRef.value?.querySelectorAll('[role="menuitem"]') ?? [])
+}
+
+function isActiveItem(id: string) {
+  return activeId.value === id
+}
+
+function focusItemById(id: string) {
+  activeId.value = id
+  const el = itemEls.value.find((item) => item.getAttribute('data-menu-id') === id)
+  el?.focus()
+}
+
+function focusNext() {
+  if (orderedIds.value.length === 0) return
+  const currentIndex = activeId.value ? orderedIds.value.indexOf(activeId.value) : -1
+  const nextIndex = currentIndex < orderedIds.value.length - 1 ? currentIndex + 1 : 0
+  focusItemById(orderedIds.value[nextIndex])
+}
+
+function focusPrev() {
+  if (orderedIds.value.length === 0) return
+  const currentIndex = activeId.value ? orderedIds.value.indexOf(activeId.value) : 0
+  const prevIndex = currentIndex > 0 ? currentIndex - 1 : orderedIds.value.length - 1
+  focusItemById(orderedIds.value[prevIndex])
+}
+
+function onMenuKeydown(e: KeyboardEvent) {
+  switch (e.key) {
+    case 'ArrowDown':
+      e.preventDefault()
+      focusNext()
+      break
+    case 'ArrowUp':
+      e.preventDefault()
+      focusPrev()
+      break
+    case 'Home':
+      e.preventDefault()
+      focusItemById(orderedIds.value[0])
+      break
+    case 'End':
+      e.preventDefault()
+      focusItemById(orderedIds.value[orderedIds.value.length - 1])
+      break
+    case 'Enter':
+    case ' ':
+      e.preventDefault()
+      if (activeId.value) {
+        const el = itemEls.value.find((item) => item.getAttribute('data-menu-id') === activeId.value)
+        el?.click()
+      }
+      break
+    case 'Escape':
+      e.preventDefault()
+      window.electronAPI.sendTrayMenuAction('__hide').catch(() => {})
+      break
+  }
+}
 
 // ── 强调色数据（与 theme.css 对应） ──
 
@@ -144,18 +291,7 @@ const presetNames = [
 // ── 生命周期 ──
 
 onMounted(async () => {
-  // 拉取最新主题（可能与 localStorage 不同步）
-  try {
-    const t = await window.electronAPI.getTheme()
-    if (t) {
-      theme.value = t.mode
-      accent.value = t.accent
-      preset.value = t.preset
-      html.setAttribute('data-theme', t.mode)
-      html.setAttribute('data-accent', t.accent)
-      html.setAttribute('data-preset', t.preset)
-    }
-  } catch {}
+  refreshItems()
 
   // 拉取初始配置
   try {
@@ -170,6 +306,13 @@ onMounted(async () => {
     if (suppressUntilApplied) return
     applyPayload(payload)
   })
+
+  // 菜单显示后聚焦容器
+  menuRef.value?.focus()
+})
+
+onUpdated(() => {
+  refreshItems()
 })
 
 onUnmounted(() => {
@@ -188,15 +331,14 @@ function applyPayload(payload: {
   accent: string
   preset: string
 }) {
+  isReady.value = true
   models.value = payload.models
   floatActive.value = payload.floatActive
   mainWindowActive.value = payload.mainWindowActive
   theme.value = payload.theme
   accent.value = payload.accent
   preset.value = payload.preset
-  html.setAttribute('data-theme', payload.theme)
-  html.setAttribute('data-accent', payload.accent)
-  html.setAttribute('data-preset', payload.preset)
+  applyThemeToHtml(payload)
 }
 
 // ── 操作 ──
@@ -254,7 +396,14 @@ html, body {
   min-height: 100%;
   overflow: hidden;
   border-radius: 12px;
+  opacity: 0;
+  transition: opacity 0.08s ease;
   animation: traySlideIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  outline: none;
+}
+
+.tray-menu.ready {
+  opacity: 1;
 }
 
 @keyframes traySlideIn {
@@ -292,9 +441,12 @@ html, body {
   border-radius: 8px;
   cursor: pointer;
   transition: background 0.12s ease;
+  outline: none;
 }
 
-.tm-model-row:hover {
+.tm-model-row:hover,
+.tm-model-row:focus,
+.tm-model-row.active {
   background: var(--glass-bg);
 }
 
@@ -380,9 +532,12 @@ html, body {
   padding: 7px 10px;
   border-radius: 8px;
   transition: background 0.12s ease;
+  outline: none;
 }
 
-.tm-switch-row:hover {
+.tm-switch-row:hover,
+.tm-switch-row:focus,
+.tm-switch-row.active {
   background: var(--glass-bg);
 }
 
@@ -440,13 +595,18 @@ html, body {
   color: var(--text-primary);
   cursor: pointer;
   transition: all 0.12s ease;
+  outline: none;
 }
 
-.tm-item:hover {
+.tm-item:hover,
+.tm-item:focus,
+.tm-item.active {
   background: var(--glass-bg);
 }
 
-.tm-item:hover .el-icon {
+.tm-item:hover .el-icon,
+.tm-item:focus .el-icon,
+.tm-item.active .el-icon {
   animation: iconBounce 0.25s ease;
 }
 
@@ -454,7 +614,9 @@ html, body {
   color: var(--danger);
 }
 
-.tm-item.danger:hover {
+.tm-item.danger:hover,
+.tm-item.danger:focus,
+.tm-item.danger.active {
   background: rgba(212, 119, 106, 0.1);
 }
 
@@ -479,9 +641,12 @@ html, body {
   transition: all 0.15s ease;
   border: 2px solid transparent;
   position: relative;
+  outline: none;
 }
 
-.tm-swatch:hover {
+.tm-swatch:hover,
+.tm-swatch:focus,
+.tm-swatch.active {
   transform: scale(1.2);
 }
 
@@ -508,9 +673,12 @@ html, body {
   border: 1px solid var(--border-light);
   transition: all 0.12s ease;
   background: transparent;
+  outline: none;
 }
 
-.tm-preset:hover {
+.tm-preset:hover,
+.tm-preset:focus,
+.tm-preset.active {
   background: var(--glass-bg);
   color: var(--text-primary);
 }

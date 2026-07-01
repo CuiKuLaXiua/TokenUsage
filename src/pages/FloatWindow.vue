@@ -575,6 +575,7 @@ import {
   safeClip,
 } from "@/utils/format";
 import { useUsageAggregation } from "@/composables/useUsageAggregation";
+import { useThemeSync } from "@/composables/useThemeSync";
 import { usePopupMutex } from "@/composables/usePopupMutex";
 import { useFloatState } from "@/composables/useFloatState";
 import TokenRing from "@/components/TokenRing.vue";
@@ -583,6 +584,7 @@ type LayoutMode = "list" | "carousel";
 
 const store = useAppStore();
 const agg = useUsageAggregation();
+const { theme, accent, preset } = useThemeSync();
 const mutex = usePopupMutex({
   onShowDetail: async () => {
     if (layoutMode.value !== "list") return;
@@ -605,9 +607,6 @@ const mutex = usePopupMutex({
 const float = useFloatState();
 const { isDragging, isDocked } = float;
 const hasMoved = float.hasMoved;
-const theme = ref("light");
-const accent = ref(localStorage.getItem("accent") || "forest");
-const preset = ref(localStorage.getItem("preset") || "midnight");
 const layoutMode = ref<LayoutMode>(
   (localStorage.getItem("floatLayout") as LayoutMode) || "list",
 );
@@ -618,17 +617,14 @@ const alwaysOnTop = ref(localStorage.getItem("floatAlwaysOnTop") !== "false");
 let unsubCfg: (() => void) | null = null;
 let unsubDetailHover: (() => void) | null = null;
 let unsubCtxAction: (() => void) | null = null;
-let unsubNativeCtx: (() => void) | null = null;
 let unsubCtxClosed: (() => void) | null = null;
 let unsubEdgeDock: (() => void) | null = null;
-let unsubThemeChanged: (() => void) | null = null;
 
 // ── Timer 集中管理 ──
 const timers = {
   showDetail: null as ReturnType<typeof setTimeout> | null,
   hideDetail: null as ReturnType<typeof setTimeout> | null,
   resize: null as ReturnType<typeof setTimeout> | null,
-  readySafety: null as ReturnType<typeof setTimeout> | null,
 };
 
 function clearAllTimers() {
@@ -728,9 +724,6 @@ const FLOAT_WIDTH = 260;
 const FLOAT_LIST_HEIGHT = 82;
 const FLOAT_CAROUSEL_HEIGHT = 220;
 
-// 标记是否需要在 resize 完成后发送 ready 信号
-let shouldSendReadyAfterResize = false;
-
 function resizeToFit() {
   // 取消上一次尚未执行的 resize，避免竞态
   if (timers.resize) {
@@ -748,25 +741,9 @@ function resizeToFit() {
   timers.resize = setTimeout(() => {
     timers.resize = null;
     window.electronAPI.debugLog(
-      `resizeToFit: executing ${FLOAT_WIDTH}x${targetH}, shouldSendReady=${shouldSendReadyAfterResize}`,
+      `resizeToFit: executing ${FLOAT_WIDTH}x${targetH}`,
     );
     window.electronAPI.resizeFloatWindow(FLOAT_WIDTH, targetH);
-    // resize 完成后，如果需要发送 ready 信号则发送
-    if (shouldSendReadyAfterResize) {
-      shouldSendReadyAfterResize = false;
-      // 清除安全定时器
-      if (timers.readySafety) {
-        clearTimeout(timers.readySafety);
-        timers.readySafety = null;
-      }
-      window.electronAPI.debugLog(
-        "[FloatWindow] resizeToFit: sending floatReady after resize",
-      );
-      // 使用 setTimeout 而不是 requestAnimationFrame，确保在窗口不可见时也能执行
-      setTimeout(() => {
-        window.electronAPI.floatReady();
-      }, 0);
-    }
   }, 50);
 }
 
@@ -1064,55 +1041,25 @@ async function fetchModel(m: ModelConfig) {
 
 // Lifecycle
 onMounted(async () => {
-  // 先从主进程拉取当前主题（单一真相源），回退到 localStorage
-  try {
-    const t = await window.electronAPI.getTheme();
-    if (t) {
-      theme.value = t.mode;
-      accent.value = t.accent;
-      preset.value = t.preset;
-    }
-  } catch {
-    const s = localStorage.getItem("theme");
-    if (s) theme.value = s;
-    const savedPreset = localStorage.getItem("preset");
-    if (savedPreset) preset.value = savedPreset;
-  }
-  // 标记需要在 resize 完成后发送 ready 信号
-  shouldSendReadyAfterResize = true;
-  window.electronAPI.debugLog(
-    "[FloatWindow] onMounted: start, shouldSendReady=true",
-  );
+  // 关键：立即通知主进程窗口已就绪，主进程可立刻 show/focus
+  window.electronAPI.floatReady();
 
-  // 安全超时：确保即使 resize 流程出问题，ready 信号也会在 300ms 后发送
-  timers.readySafety = setTimeout(() => {
-    if (shouldSendReadyAfterResize) {
-      shouldSendReadyAfterResize = false;
-      window.electronAPI.debugLog(
-        "[FloatWindow] safety timer: sending floatReady",
-      );
-      window.electronAPI.floatReady();
+  // 初始化贴边状态（非阻塞）
+  const edgeDockInit = window.electronAPI.getEdgeDockState().then((s2) => {
+    if (s2?.isDocked && s2.edge) {
+      float.dock(s2.edge);
     }
-  }, 300);
+  }).catch(() => {});
 
+  // 加载配置和后续调整全部在后台执行，不再阻塞窗口显示
   try {
     await store.loadConfig();
     resizeToFit();
-    window.electronAPI.debugLog(
-      "[FloatWindow] onMounted: resizeToFit called, timers.resize=" +
-        !!timers.resize,
-    );
   } catch {
-    // loadConfig 失败时，直接发送 ready
-    shouldSendReadyAfterResize = false;
-    clearTimeout(timers.readySafety);
-    window.electronAPI.debugLog(
-      "[FloatWindow] onMounted: loadConfig failed, sending ready directly",
-    );
-    setTimeout(() => {
-      window.electronAPI.floatReady();
-    }, 0);
+    window.electronAPI.debugLog("[FloatWindow] onMounted: loadConfig failed");
   }
+
+  await edgeDockInit;
   if (layoutMode.value === "carousel") {
     nextTick(() => {
       idx.value = 0;
@@ -1145,44 +1092,10 @@ onMounted(async () => {
       handleCtxMenuAction(action);
     },
   );
-  // 监听原生 context-menu 事件（窗口未聚焦时的兜底，修复 Issue #1）
-  unsubNativeCtx = window.electronAPI.onNativeContextMenu(
-    (pos: { x: number; y: number }) => {
-      // 详情窗口与右键菜单互斥
-      if (timers.showDetail) {
-        clearTimeout(timers.showDetail);
-        timers.showDetail = null;
-      }
-      if (timers.hideDetail) {
-        clearTimeout(timers.hideDetail);
-        timers.hideDetail = null;
-      }
-      mutex.showCtxMenu();
-      // DOM 事件已处理过则跳过
-      if (ctxMenuOpen.value) return;
-      ctxMenuOpen.value = true;
-      // params.x/y 是窗口相对坐标，加上窗口屏幕位置转为绝对坐标
-      window.electronAPI.showCtxMenu({
-        screenX: Math.round(window.screenX + pos.x),
-        screenY: Math.round(window.screenY + pos.y),
-        modelId: null,
-        modelName: null,
-        theme: theme.value,
-        preset: preset.value,
-        layoutMode: layoutMode.value,
-        alwaysOnTop: alwaysOnTop.value,
-      });
-    },
-  );
-  // 监听右键菜单关闭，重置状态
+  // 监听菜单关闭，重置状态
   unsubCtxClosed = window.electronAPI.onCtxMenuClosed(() => {
     ctxMenuOpen.value = false;
   });
-  // 初始化贴边状态
-  const s2 = await window.electronAPI.getEdgeDockState();
-  if (s2?.isDocked && s2.edge) {
-    float.dock(s2.edge);
-  }
   unsubEdgeDock = window.electronAPI.onEdgeDockChanged((s) => {
     if (s.isDocked && s.edge) {
       float.dock(s.edge as "left" | "right" | "top");
@@ -1190,36 +1103,6 @@ onMounted(async () => {
       float.undock();
     }
   });
-  // 监听主题变化（主窗口切换主题时实时同步）
-  unsubThemeChanged = window.electronAPI.onThemeChanged((t) => {
-    theme.value = t.mode;
-    accent.value = t.accent;
-    preset.value = t.preset;
-    localStorage.setItem("theme", t.mode);
-    localStorage.setItem("accent", t.accent);
-    localStorage.setItem("preset", t.preset);
-  });
-  // 如果 resize 已经完成（timer 为 null），直接发送 ready
-  if (shouldSendReadyAfterResize && !timers.resize) {
-    shouldSendReadyAfterResize = false;
-    // 清除安全定时器
-    if (timers.readySafety) {
-      clearTimeout(timers.readySafety);
-      timers.readySafety = null;
-    }
-    window.electronAPI.debugLog(
-      "[FloatWindow] onMounted end: timers.resize is null, sending ready directly",
-    );
-    // 使用 setTimeout 而不是 requestAnimationFrame
-    setTimeout(() => {
-      window.electronAPI.floatReady();
-    }, 0);
-  } else {
-    window.electronAPI.debugLog(
-      "[FloatWindow] onMounted end: waiting for resize, timers.resize=" +
-        !!timers.resize,
-    );
-  }
 });
 onUnmounted(() => {
   // 关闭详情窗口
@@ -1228,14 +1111,11 @@ onUnmounted(() => {
   unsubCfg?.();
   unsubDetailHover?.();
   unsubCtxAction?.();
-  unsubNativeCtx?.();
   unsubCtxClosed?.();
   unsubEdgeDock?.();
-  unsubThemeChanged?.();
   cleanupDragListeners();
   // 统一清理所有定时器
   clearAllTimers();
-  shouldSendReadyAfterResize = false;
 });
 
 // Re-resize when layout mode or model count changes
